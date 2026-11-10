@@ -310,7 +310,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       review_funding: {
         Args: { p_decision: string; p_funding_id: string }
         Returns: {
