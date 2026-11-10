@@ -14,13 +14,323 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      data_orders: {
+        Row: {
+          amount: number
+          created_at: string
+          data_amount: string
+          id: string
+          network: string
+          phone: string
+          plan_id: string
+          status: string
+          updated_at: string
+          user_id: string
+          validity: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          data_amount: string
+          id?: string
+          network: string
+          phone: string
+          plan_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          validity: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          data_amount?: string
+          id?: string
+          network?: string
+          phone?: string
+          plan_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          validity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_orders_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "data_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_plans: {
+        Row: {
+          active: boolean
+          created_at: string
+          data_amount: string
+          id: string
+          network: string
+          price: number
+          updated_at: string
+          validity: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          data_amount: string
+          id?: string
+          network: string
+          price: number
+          updated_at?: string
+          validity: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          data_amount?: string
+          id?: string
+          network?: string
+          price?: number
+          updated_at?: string
+          validity?: string
+        }
+        Relationships: []
+      }
+      fundings: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          method: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          method: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          method?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          id: string
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          phone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          direction: string
+          id: string
+          reference_id: string
+          reference_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description: string
+          direction: string
+          id?: string
+          reference_id: string
+          reference_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          direction?: string
+          id?: string
+          reference_id?: string
+          reference_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      complete_data_order: {
+        Args: { p_order_id: string }
+        Returns: {
+          amount: number
+          created_at: string
+          data_amount: string
+          id: string
+          network: string
+          phone: string
+          plan_id: string
+          status: string
+          updated_at: string
+          user_id: string
+          validity: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "data_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_data_order: {
+        Args: { p_phone: string; p_plan_id: string }
+        Returns: {
+          amount: number
+          created_at: string
+          data_amount: string
+          id: string
+          network: string
+          phone: string
+          plan_id: string
+          status: string
+          updated_at: string
+          user_id: string
+          validity: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "data_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_funding_request: {
+        Args: { p_amount: number; p_method: string }
+        Returns: {
+          amount: number
+          created_at: string
+          id: string
+          method: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "fundings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      review_funding: {
+        Args: { p_decision: string; p_funding_id: string }
+        Returns: {
+          amount: number
+          created_at: string
+          id: string
+          method: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "fundings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never
