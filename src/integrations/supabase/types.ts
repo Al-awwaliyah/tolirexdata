@@ -246,90 +246,182 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      complete_data_order: {
-        Args: { p_order_id: string }
-        Returns: {
-          amount: number
-          created_at: string
-          data_amount: string
-          id: string
-          network: string
-          phone: string
-          plan_id: string
-          status: string
-          updated_at: string
-          user_id: string
-          validity: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "data_orders"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      create_data_order: {
-        Args: { p_phone: string; p_plan_id: string }
-        Returns: {
-          amount: number
-          created_at: string
-          data_amount: string
-          id: string
-          network: string
-          phone: string
-          plan_id: string
-          status: string
-          updated_at: string
-          user_id: string
-          validity: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "data_orders"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      create_funding_request: {
-        Args: { p_amount: number; p_method: string }
-        Returns: {
-          amount: number
-          created_at: string
-          id: string
-          method: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "fundings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      review_funding: {
-        Args: { p_decision: string; p_funding_id: string }
-        Returns: {
-          amount: number
-          created_at: string
-          id: string
-          method: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "fundings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      complete_data_order:
+        | {
+            Args: { p_order_id: string }
+            Returns: {
+              amount: number
+              created_at: string
+              data_amount: string
+              id: string
+              network: string
+              phone: string
+              plan_id: string
+              status: string
+              updated_at: string
+              user_id: string
+              validity: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "data_orders"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: { p_order_id: string; p_user_id: string }
+            Returns: {
+              amount: number
+              created_at: string
+              data_amount: string
+              id: string
+              network: string
+              phone: string
+              plan_id: string
+              status: string
+              updated_at: string
+              user_id: string
+              validity: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "data_orders"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      create_data_order:
+        | {
+            Args: { p_phone: string; p_plan_id: string }
+            Returns: {
+              amount: number
+              created_at: string
+              data_amount: string
+              id: string
+              network: string
+              phone: string
+              plan_id: string
+              status: string
+              updated_at: string
+              user_id: string
+              validity: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "data_orders"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: { p_phone: string; p_plan_id: string; p_user_id: string }
+            Returns: {
+              amount: number
+              created_at: string
+              data_amount: string
+              id: string
+              network: string
+              phone: string
+              plan_id: string
+              status: string
+              updated_at: string
+              user_id: string
+              validity: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "data_orders"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      create_funding_request:
+        | {
+            Args: { p_amount: number; p_method: string }
+            Returns: {
+              amount: number
+              created_at: string
+              id: string
+              method: string
+              reviewed_at: string | null
+              reviewed_by: string | null
+              status: string
+              updated_at: string
+              user_id: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "fundings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: { p_amount: number; p_method: string; p_user_id: string }
+            Returns: {
+              amount: number
+              created_at: string
+              id: string
+              method: string
+              reviewed_at: string | null
+              reviewed_by: string | null
+              status: string
+              updated_at: string
+              user_id: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "fundings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      review_funding:
+        | {
+            Args: {
+              p_admin_id: string
+              p_decision: string
+              p_funding_id: string
+            }
+            Returns: {
+              amount: number
+              created_at: string
+              id: string
+              method: string
+              reviewed_at: string | null
+              reviewed_by: string | null
+              status: string
+              updated_at: string
+              user_id: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "fundings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: { p_decision: string; p_funding_id: string }
+            Returns: {
+              amount: number
+              created_at: string
+              id: string
+              method: string
+              reviewed_at: string | null
+              reviewed_by: string | null
+              status: string
+              updated_at: string
+              user_id: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "fundings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
     }
     Enums: {
       [_ in never]: never
