@@ -30,3 +30,5 @@ use the editor.
 <!-- LOVABLE:END -->
 
 Keep DEX Sub wallet and admin mutations in authenticated TanStack server functions; verify the caller's role before loading the service-role client so browser code cannot bypass database restrictions.
+
+Keep the DEX Sub storefront and session-aware customer/admin views on the public `/` entry screen; the public surface supports account creation and is not mirrored under the authenticated route tree.

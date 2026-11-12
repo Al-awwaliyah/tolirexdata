@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -8,10 +8,13 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { DexAuthProvider } from "../lib/dex-auth";
+import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 function NotFoundComponent() {
   return (
@@ -123,8 +126,48 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <DexAuthShell>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </DexAuthShell>
     </QueryClientProvider>
   );
+}
+
+function DexAuthShell({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const authRevision = useRef(0);
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  useEffect(() => {
+    let active = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      authRevision.current += 1;
+      setUser(session?.user ?? null);
+      void router.invalidate();
+      if (event !== "SIGNED_OUT") void queryClient.invalidateQueries();
+    });
+
+    const initialRevision = authRevision.current;
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return;
+      if (authRevision.current === initialRevision) setUser(error ? null : data.user);
+      setLoading(false);
+    }).catch(() => {
+      if (active) {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [queryClient, router]);
+
+  return <DexAuthProvider user={user} loading={loading}>{children}</DexAuthProvider>;
 }
