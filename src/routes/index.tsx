@@ -37,7 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
 import { useDexAuth } from "@/lib/dex-auth";
 import {
   completeDataOrder,
@@ -49,7 +49,7 @@ import {
 } from "@/lib/dex.functions";
 import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 
-type TableRows<K extends keyof Database["public"]["Tables"]> = Database["public"]["Tables"][K]["Row"];
+type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
 type DataPlan = TableRows<"data_plans">;
 type DataOrder = TableRows<"data_orders">;
 type Funding = TableRows<"fundings">;
@@ -68,6 +68,7 @@ type DashboardData = {
 type ViewKey = "overview" | "buy" | "fund" | "activity" | "admin";
 type Network = "MTN" | "Airtel" | "Glo" | "9mobile";
 type AuthMode = "signin" | "signup";
+type PlanEditor = { id: string; network: Network; dataAmount: string; validity: string; price: string; active: boolean };
 
 const networkChoices: Network[] = ["MTN", "Airtel", "Glo", "9mobile"];
 const fallbackPrices = [
@@ -433,8 +434,8 @@ function DashboardShell(props: {
   setFundingAmount: (amount: string) => void;
   onFunding: (event: FormEvent<HTMLFormElement>) => void;
   onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
-  planEditor: { id: string; network: Network; dataAmount: string; validity: string; price: string; active: boolean };
-  setPlanEditor: (plan: DashboardShellProps["planEditor"]) => void;
+  planEditor: PlanEditor;
+  setPlanEditor: (plan: PlanEditor) => void;
   onSavePlan: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const navItems: { key: ViewKey; label: string; icon: ReactNode }[] = [
@@ -661,8 +662,8 @@ function AdminView(props: {
   dashboard: DashboardData | null;
   busy: boolean;
   onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
-  planEditor: { id: string; network: Network; dataAmount: string; validity: string; price: string; active: boolean };
-  setPlanEditor: (plan: DashboardShellProps["planEditor"]) => void;
+  planEditor: PlanEditor;
+  setPlanEditor: (plan: PlanEditor) => void;
   onSavePlan: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const dashboard = props.dashboard;
