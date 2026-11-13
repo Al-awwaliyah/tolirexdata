@@ -1,6 +1,6 @@
-# DEX Sub
+# ToliRex Data
 
-Build me a modern Nigerian VTU web app called DEX Sub - like Zoedata but simpler and clean.
+Build me a modern Nigerian VTU web app called ToliRex Data - like Zoedata but simpler and clean.
 
 FEATURES:
 

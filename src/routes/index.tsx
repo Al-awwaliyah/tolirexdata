@@ -48,6 +48,7 @@ import {
   saveDataPlan,
 } from "@/lib/dex.functions";
 import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
+import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
 type DataPlan = TableRows<"data_plans">;
@@ -81,9 +82,9 @@ const fallbackPrices = [
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "DEX Sub | Data, airtime and bills made simple" },
-      { name: "description", content: "Buy affordable Nigerian mobile data with DEX Sub. Fast, secure wallet payments for MTN, Airtel, Glo and 9mobile." },
-      { property: "og:title", content: "DEX Sub | Data, airtime and bills made simple" },
+      { title: "ToliRex Data | Data, airtime and bills made simple" },
+      { name: "description", content: "Buy affordable Nigerian mobile data with ToliRex Data. Fast, secure wallet payments for MTN, Airtel, Glo and 9mobile." },
+      { property: "og:title", content: "ToliRex Data | Data, airtime and bills made simple" },
       { property: "og:description", content: "Affordable Nigerian mobile data with fast, secure wallet payments." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -123,7 +124,7 @@ function Index() {
       const result = await getDashboard();
       setDashboard(result as DashboardData);
     } catch (error) {
-      setNotice(messageOf(error, "We couldn't load your DEX Sub account."));
+      setNotice(messageOf(error, "We couldn't load your ToliRex Data account."));
     } finally {
       setDashboardLoading(false);
     }
@@ -283,7 +284,7 @@ function Index() {
 function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
   return (
     <main className="min-h-screen overflow-hidden bg-background">
-      <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 md:px-10">
+      <header className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-5 sm:py-5 md:px-10">
         <Brand />
         <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex" aria-label="Main navigation">
           <a href="#plans" className="transition-colors hover:text-foreground">Data plans</a>
@@ -292,42 +293,44 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
         </nav>
         <div className="flex items-center gap-2">
           <Button variant="ghost" className="hidden sm:inline-flex" onClick={() => onAuth("signin")}>Log in</Button>
-          <Button onClick={() => onAuth("signup")}>Create account <ArrowRight /></Button>
+          <Button onClick={() => onAuth("signup")}><span className="sm:hidden">Join free</span><span className="hidden sm:inline">Create account</span><ArrowRight /></Button>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl items-center gap-6 px-5 pb-16 pt-7 md:grid-cols-[1.05fr_.95fr] md:px-10 md:pb-20 md:pt-10">
+      <section className="mx-auto grid max-w-7xl items-center gap-3 px-4 pb-10 pt-5 sm:gap-6 sm:px-5 sm:pb-16 sm:pt-7 md:grid-cols-[1.05fr_.95fr] md:px-10 md:pb-20 md:pt-10">
         <div className="relative z-10 max-w-2xl">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-secondary px-3 py-1.5 text-sm font-medium text-secondary-foreground">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground sm:mb-6 sm:text-sm">
             <span className="size-2 rounded-full bg-primary" /> Made for everyday Nigeria
           </div>
-          <h1 className="max-w-xl text-4xl font-semibold leading-[1.08] text-foreground sm:text-5xl md:text-6xl">
-            Buy cheap data, airtime & bills in <span className="text-primary">seconds.</span>
+          <h1 className="max-w-xl font-display text-[2.65rem] font-medium leading-[1.04] text-foreground sm:text-5xl md:text-6xl">
+            Your everyday top-ups, <span className="text-primary">beautifully simple.</span>
           </h1>
-          <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground md:text-lg">
-            Your everyday top-ups, all in one place. Pick a network, choose a plan and pay from your DEX Sub wallet.
+          <p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground sm:mt-5 sm:text-base sm:leading-7 md:text-lg">
+            Data, airtime and bill payments in one calm, secure place. Choose a network, find your plan and pay with your ToliRex wallet.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-2.5 sm:mt-8 sm:gap-3">
             <Button size="lg" onClick={() => onAuth("signup")}>Get started <ArrowRight /></Button>
             <Button size="lg" variant="outline" onClick={() => document.getElementById("plans")?.scrollIntoView({ behavior: "smooth" })}>
               See data prices <ChevronDown />
             </Button>
           </div>
-          <div className="mt-9 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <div className="mt-6 flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground sm:mt-9 sm:gap-3 sm:text-sm">
             <span>Networks supported</span>
             {networkChoices.map((choice, index) => <NetworkMark key={choice} network={choice} index={index} />)}
           </div>
         </div>
-        <div className="relative mx-auto w-full max-w-md md:max-w-lg">
+        <div className="relative mx-auto w-full max-w-[19rem] sm:max-w-md md:max-w-lg">
           <img
-            src={new URL("../assets/dex-sub-mobile.jpg", import.meta.url).href}
-            alt="DEX Sub mobile wallet and top-up services"
+            src={tolirexMobile}
+            alt="ToliRex Data mobile wallet and top-up services"
+            width={1024}
+            height={1024}
             className="mx-auto aspect-square w-full object-contain"
             fetchPriority="high"
           />
-          <div className="absolute bottom-5 left-2 flex items-center gap-3 border bg-background/95 px-4 py-3 shadow-sm sm:left-0">
+          <div className="absolute bottom-3 left-0 flex max-w-[calc(100%-0.5rem)] items-center gap-2.5 border bg-background/95 px-3 py-2.5 shadow-sm sm:bottom-5 sm:left-0 sm:gap-3 sm:px-4 sm:py-3">
             <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground"><ShieldCheck className="size-5" /></span>
-            <span><strong className="block text-sm text-foreground">Secure wallet payments</strong><small className="text-muted-foreground">Your balance, always in view</small></span>
+              <strong className="block text-xs text-foreground sm:text-sm">Secure wallet payments</strong><small className="text-xs text-muted-foreground">Your balance, always in view</small></span>
           </div>
         </div>
       </section>
@@ -487,8 +490,8 @@ function DashboardShell(props: {
           {props.view === "admin" && !props.isAdmin && <Overview dashboard={props.dashboard} onNavigate={props.setView} />}
         </main>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Account navigation">
-        {navItems.filter((item) => item.key !== "admin").slice(0, 4).map((item) => (
+      <nav className={`fixed inset-x-0 bottom-0 z-30 grid ${props.isAdmin ? "grid-cols-5" : "grid-cols-4"} border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden`} aria-label="Account navigation">
+        {navItems.map((item) => (
           <button key={item.key} type="button" onClick={() => props.setView(item.key)} className={`flex min-h-16 flex-col items-center justify-center gap-1 text-xs ${props.view === item.key ? "text-primary" : "text-muted-foreground"}`}>
             <span className="[&_svg]:size-5">{item.icon}</span>{item.label}
           </button>
@@ -604,7 +607,7 @@ function BuyDataView(props: {
         <div className="mt-3 flex justify-between text-sm"><span className="text-muted-foreground">Wallet balance</span><span className="font-medium text-foreground">{formatNaira(props.dashboard?.wallet?.balance ?? 0)}</span></div>
         <div className="mt-4 flex justify-between border-t pt-4"><span className="font-medium text-foreground">Total</span><strong className="text-xl text-foreground">{formatNaira(props.selectedPlan?.price ?? 0)}</strong></div>
         <Button type="submit" className="mt-5 w-full" disabled={props.busy || !props.selectedPlan}>{props.busy ? "Processing…" : "Buy data"} <ArrowRight /></Button>
-        <p className="mt-3 text-center text-xs text-muted-foreground">Payment comes directly from your DEX Sub wallet.</p>
+        <p className="mt-3 text-center text-xs text-muted-foreground">Payment comes directly from your ToliRex wallet.</p>
       </form>
     </div>
   );
@@ -618,10 +621,10 @@ function FundWalletView(props: { busy: boolean; fundingAmount: string; setFundin
         <label htmlFor="funding-amount" className="mt-7 block text-sm font-medium text-foreground">Amount in naira</label>
         <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-muted-foreground">₦</span><Input id="funding-amount" className="pl-8" type="number" min="1" step="1" inputMode="numeric" placeholder="5,000" value={props.fundingAmount} onChange={(event) => props.setFundingAmount(event.target.value)} required /></div>
         <Button type="submit" className="mt-5 w-full" disabled={props.busy}>{props.busy ? "Submitting…" : "I Have Sent It"} <ArrowRight /></Button>
-        <p className="mt-3 text-xs leading-5 text-muted-foreground">Submit only after you have transferred the amount to verified DEX Sub bank details.</p>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">Submit only after you have transferred the amount to verified ToliRex bank details.</p>
       </form>
       <div className="border bg-background p-5 sm:p-6">
-        <div className="flex items-start gap-3"><span className="grid size-9 place-items-center rounded-full bg-chart-4/20 text-chart-4"><CreditCard className="size-4" /></span><div><h2 className="font-semibold text-foreground">Bank transfer details</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Account details have not been configured yet. Confirm verified transfer details with DEX Sub before sending any money.</p></div></div>
+        <div className="flex items-start gap-3"><span className="grid size-9 place-items-center rounded-full bg-chart-4/20 text-chart-4"><CreditCard className="size-4" /></span><div><h2 className="font-semibold text-foreground">Bank transfer details</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Account details have not been configured yet. Confirm verified transfer details with ToliRex before sending any money.</p></div></div>
         <div className="mt-6 border-t pt-5">
           <p className="text-sm font-medium text-foreground">After your request</p>
           <ul className="mt-3 space-y-3 text-sm text-muted-foreground">
@@ -767,7 +770,7 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary"><Wallet /></div>
-          <DialogTitle>{mode === "signup" ? "Create your DEX Sub account" : "Welcome back"}</DialogTitle>
+          <DialogTitle>{mode === "signup" ? "Create your ToliRex account" : "Welcome back"}</DialogTitle>
           <DialogDescription>{mode === "signup" ? "One wallet for your everyday top-ups." : "Sign in to continue to your wallet."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={(event) => void submit(event)} className="mt-2 space-y-4">
@@ -781,7 +784,7 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Please wait…" : mode === "signup" ? "Create account" : "Log in"} <ArrowRight /></Button>
         </form>
         <p className="mt-2 text-center text-sm text-muted-foreground">
-          {mode === "signup" ? "Already have an account?" : "New to DEX Sub?"}{" "}
+          {mode === "signup" ? "Already have an account?" : "New to ToliRex?"}{" "}
           <button type="button" className="font-semibold text-primary underline underline-offset-4" onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setMessage(""); }}>
             {mode === "signup" ? "Log in" : "Create account"}
           </button>
@@ -798,7 +801,7 @@ function NetworkMark({ network, index }: { network: string; index: number }) {
 }
 
 function Brand() {
-  return <a href="/" className="inline-flex items-center gap-2.5" aria-label="DEX Sub home"><span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground"><Zap className="size-5 fill-current" /></span><span className="text-lg font-bold text-foreground">DEX <span className="text-primary">Sub</span></span></a>;
+  return <a href="/" className="inline-flex min-w-0 items-center gap-2" aria-label="ToliRex Data home"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"><Zap className="size-5 fill-current" /></span><span className="whitespace-nowrap text-base font-bold text-foreground sm:text-lg">ToliRex <span className="text-primary">Data</span></span></a>;
 }
 
 function ServiceItem({ icon, title, copy, tone }: { icon: ReactNode; title: string; copy: string; tone: string }) {
@@ -846,7 +849,7 @@ function Notice({ message, onClose }: { message: string; onClose: () => void }) 
 }
 
 function LoadingScreen({ compact = false }: { compact?: boolean }) {
-  return <div className={`flex items-center justify-center gap-3 text-sm text-muted-foreground ${compact ? "py-6" : "min-h-screen"}`}><span className="size-4 animate-spin rounded-full border-2 border-primary border-r-transparent" />Loading DEX Sub…</div>;
+  return <div className={`flex items-center justify-center gap-3 text-sm text-muted-foreground ${compact ? "py-6" : "min-h-screen"}`}><span className="size-4 animate-spin rounded-full border-2 border-primary border-r-transparent" />Loading ToliRex Data…</div>;
 }
 
 function headingForView(view: ViewKey, name: string): string {
@@ -854,7 +857,7 @@ function headingForView(view: ViewKey, name: string): string {
   if (view === "buy") return "Buy mobile data";
   if (view === "fund") return "Add money to your wallet";
   if (view === "activity") return "Your activity";
-  return "DEX Sub admin";
+  return "ToliRex Data admin";
 }
 
 function formatDate(value: string): string {
