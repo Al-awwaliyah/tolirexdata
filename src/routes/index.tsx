@@ -330,6 +330,7 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
           />
           <div className="absolute bottom-3 left-0 flex max-w-[calc(100%-0.5rem)] items-center gap-2.5 border bg-background/95 px-3 py-2.5 shadow-sm sm:bottom-5 sm:left-0 sm:gap-3 sm:px-4 sm:py-3">
             <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground"><ShieldCheck className="size-5" /></span>
+            <span>
               <strong className="block text-xs text-foreground sm:text-sm">Secure wallet payments</strong><small className="text-xs text-muted-foreground">Your balance, always in view</small></span>
           </div>
         </div>
