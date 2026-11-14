@@ -83,9 +83,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "ToliRex Data | Data, airtime and bills made simple" },
-      { name: "description", content: "Buy affordable Nigerian mobile data with ToliRex Data. Fast, secure wallet payments for MTN, Airtel, Glo and 9mobile." },
-      { property: "og:title", content: "ToliRex Data | Data, airtime and bills made simple" },
-      { property: "og:description", content: "Affordable Nigerian mobile data with fast, secure wallet payments." },
+      { name: "description", content: "Manage Nigerian data, airtime, TV subscriptions and electricity payments in one simple ToliRex Data account." },
+      { property: "og:title", content: "ToliRex Data | Everyday services in one place" },
+      { property: "og:description", content: "Explore data, airtime, TV subscriptions and electricity services from one Nigerian wallet." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -287,8 +287,8 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
       <header className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-5 sm:py-5 md:px-10">
         <Brand />
         <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex" aria-label="Main navigation">
-          <a href="#plans" className="transition-colors hover:text-foreground">Data plans</a>
           <a href="#services" className="transition-colors hover:text-foreground">Services</a>
+          <a href="#plans" className="transition-colors hover:text-foreground">Data prices</a>
           <a href="#reviews" className="transition-colors hover:text-foreground">Reviews</a>
         </nav>
         <div className="flex items-center gap-2">
@@ -303,15 +303,15 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
             <span className="size-2 rounded-full bg-primary" /> Made for everyday Nigeria
           </div>
           <h1 className="max-w-xl font-display text-[2.65rem] font-medium leading-[1.04] text-foreground sm:text-5xl md:text-6xl">
-            Your everyday top-ups, <span className="text-primary">beautifully simple.</span>
+            Everyday payments, <span className="text-primary">all in one place.</span>
           </h1>
           <p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground sm:mt-5 sm:text-base sm:leading-7 md:text-lg">
-            Data, airtime and bill payments in one calm, secure place. Choose a network, find your plan and pay with your ToliRex wallet.
+            Browse mobile data, airtime, TV subscriptions and electricity services with one simple account.
           </p>
           <div className="mt-6 flex flex-wrap gap-2.5 sm:mt-8 sm:gap-3">
-            <Button size="lg" onClick={() => onAuth("signup")}>Get started <ArrowRight /></Button>
-            <Button size="lg" variant="outline" onClick={() => document.getElementById("plans")?.scrollIntoView({ behavior: "smooth" })}>
-              See data prices <ChevronDown />
+            <Button size="lg" onClick={() => document.getElementById("services")?.scrollIntoView({ behavior: "smooth" })}>Explore services <ArrowRight /></Button>
+            <Button size="lg" variant="outline" onClick={() => onAuth("signup")}>
+              Create account <ChevronDown />
             </Button>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground sm:mt-9 sm:gap-3 sm:text-sm">
@@ -336,14 +336,28 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
         </div>
       </section>
 
+      <section id="services" className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-16">
+        <div className="max-w-xl">
+          <p className="text-sm font-semibold text-primary">ONE PLACE FOR EVERYDAY NEEDS</p>
+          <h2 className="mt-2 text-3xl font-semibold text-foreground">More than mobile data.</h2>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Choose the service you need. Mobile data is available now; more services are being prepared.</p>
+        </div>
+        <div className="mt-8 grid gap-px overflow-hidden border bg-border sm:grid-cols-2 lg:grid-cols-4">
+          <ServiceItem icon={<Database />} title="Mobile data" copy="Browse plans for MTN, Airtel, Glo and 9mobile." status="Available" tone="bg-primary/10 text-primary" />
+          <ServiceItem icon={<Smartphone />} title="Airtime" copy="Airtime top-ups for the networks you use." status="Coming soon" tone="bg-chart-3/15 text-chart-3" />
+          <ServiceItem icon={<RadioTower />} title="TV subscriptions" copy="Keep your TV subscription payments together." status="Coming soon" tone="bg-chart-2/15 text-chart-2" />
+          <ServiceItem icon={<Zap />} title="Electricity" copy="A simpler place to manage electricity payments." status="Coming soon" tone="bg-chart-4/20 text-chart-4" />
+        </div>
+      </section>
+
       <section id="plans" className="border-y bg-secondary/50">
         <div className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-16">
           <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold text-primary">DATA PLANS</p>
-              <h2 className="mt-2 text-3xl font-semibold text-foreground">More data. Less stress.</h2>
+              <p className="text-sm font-semibold text-primary">MOBILE DATA</p>
+              <h2 className="mt-2 text-3xl font-semibold text-foreground">Find a plan that fits.</h2>
             </div>
-            <p className="max-w-sm text-sm leading-6 text-muted-foreground">Simple plan choices across the networks you already use.</p>
+            <p className="max-w-sm text-sm leading-6 text-muted-foreground">Straightforward plan choices across Nigeria's major networks.</p>
           </div>
           <div className="grid gap-px overflow-hidden border bg-border sm:grid-cols-2 lg:grid-cols-4">
             {fallbackPrices.map((plan, index) => (
@@ -362,22 +376,6 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
           </div>
           <p className="mt-3 text-xs text-muted-foreground">Sample prices shown. Confirm current prices after signing in.</p>
         </div>
-      </section>
-
-      <section id="services" className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-16">
-        <div className="max-w-xl">
-          <p className="text-sm font-semibold text-primary">ONE SIMPLE WALLET</p>
-          <h2 className="mt-2 text-3xl font-semibold text-foreground">The essentials, all together.</h2>
-        </div>
-        <div className="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          <ServiceItem icon={<Database />} title="Mobile data" copy="Choose a plan for MTN, Airtel, Glo or 9mobile." tone="bg-primary/10 text-primary" />
-          <ServiceItem icon={<Smartphone />} title="Airtime" copy="Top up your line when you need it." tone="bg-chart-3/15 text-chart-3" />
-          <ServiceItem icon={<RadioTower />} title="TV subscriptions" copy="Keep your entertainment subscriptions in reach." tone="bg-chart-2/15 text-chart-2" />
-          <ServiceItem icon={<Zap />} title="Electricity" copy="Pay your utility bills from one place." tone="bg-chart-4/20 text-chart-4" />
-        </div>
-        <p className="mt-7 max-w-2xl border-l-2 border-primary pl-4 text-sm leading-6 text-muted-foreground">
-          Data purchases are available now. Airtime, TV and electricity payments are shown as service categories and are not connected to live providers yet.
-        </p>
       </section>
 
       <section id="reviews" className="border-y bg-secondary/50">
@@ -407,7 +405,7 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
 
       <footer className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-7 text-sm text-muted-foreground md:px-10">
         <Brand />
-        <p>Built for everyday top-ups in Nigeria.</p>
+          <p>Everyday services for life in Nigeria.</p>
       </footer>
     </main>
   );
@@ -444,7 +442,7 @@ function DashboardShell(props: {
 }) {
   const navItems: { key: ViewKey; label: string; icon: ReactNode }[] = [
     { key: "overview", label: "Overview", icon: <House /> },
-    { key: "buy", label: "Buy data", icon: <Database /> },
+    { key: "buy", label: "Data", icon: <Database /> },
     { key: "fund", label: "Add money", icon: <Wallet /> },
     { key: "activity", label: "Activity", icon: <FileClock /> },
     ...(props.isAdmin ? [{ key: "admin" as const, label: "Admin", icon: <ShieldCheck /> }] : []),
@@ -513,7 +511,7 @@ function Overview({ dashboard, onNavigate }: { dashboard: DashboardData | null; 
             <div>
               <p className="text-sm text-primary-foreground/80">WALLET BALANCE</p>
               <p className="mt-3 text-4xl font-semibold">{formatNaira(balance)}</p>
-              <p className="mt-2 text-sm text-primary-foreground/80">Available for data purchases</p>
+              <p className="mt-2 text-sm text-primary-foreground/80">Ready for everyday services</p>
             </div>
             <span className="grid size-12 place-items-center rounded-full bg-primary-foreground/15"><Wallet className="size-6" /></span>
           </div>
@@ -526,13 +524,13 @@ function Overview({ dashboard, onNavigate }: { dashboard: DashboardData | null; 
         <div className="flex flex-col justify-between border bg-background p-6">
           <div>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-muted-foreground">QUICK BUY</p>
+              <p className="text-sm font-medium text-muted-foreground">SERVICES</p>
               <CircleDollarSign className="size-5 text-primary" />
             </div>
-            <h2 className="mt-5 text-xl font-semibold text-foreground">A little data goes a long way.</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Choose your network and find a plan that works for you.</p>
+            <h2 className="mt-5 text-xl font-semibold text-foreground">Everyday bills, one place.</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">Data is ready today. Airtime, TV and electricity are coming soon.</p>
           </div>
-          <Button variant="outline" className="mt-6 w-fit" onClick={() => onNavigate("buy")}>Browse plans <ArrowRight /></Button>
+          <Button variant="outline" className="mt-6 w-fit" onClick={() => onNavigate("buy")}>Browse data plans <ArrowRight /></Button>
         </div>
       </section>
       <section className="grid gap-6 xl:grid-cols-[1.3fr_.7fr]">
@@ -805,8 +803,8 @@ function Brand() {
   return <a href="/" className="inline-flex min-w-0 items-center gap-2" aria-label="ToliRex Data home"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"><Zap className="size-5 fill-current" /></span><span className="whitespace-nowrap text-base font-bold text-foreground sm:text-lg">ToliRex <span className="text-primary">Data</span></span></a>;
 }
 
-function ServiceItem({ icon, title, copy, tone }: { icon: ReactNode; title: string; copy: string; tone: string }) {
-  return <div className="flex items-start gap-4"><span className={`grid size-11 shrink-0 place-items-center rounded-full ${tone} [&_svg]:size-5`}>{icon}</span><div><h3 className="font-semibold text-foreground">{title}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{copy}</p></div></div>;
+function ServiceItem({ icon, title, copy, status, tone }: { icon: ReactNode; title: string; copy: string; status: string; tone: string }) {
+  return <div className="flex min-h-48 flex-col bg-background p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><span className={`grid size-11 shrink-0 place-items-center rounded-full ${tone} [&_svg]:size-5`}>{icon}</span><span className="text-xs font-medium text-muted-foreground">{status}</span></div><div className="mt-5"><h3 className="font-semibold text-foreground">{title}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{copy}</p></div></div>;
 }
 
 function NavButton({ item, active, onClick }: { item: { key: ViewKey; label: string; icon: ReactNode }; active: boolean; onClick: () => void }) {
