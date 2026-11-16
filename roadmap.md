@@ -4,5 +4,6 @@
 - [x] Build the public storefront and sign-up/sign-in experience.
 - [x] Build authenticated dashboard, data purchase, wallet funding, and transaction history.
 - [x] Build the admin user/order/funding/plan management screens and server-verified actions.
-- [ ] Reframe the storefront and customer overview around data, airtime, TV, and electricity services.
-- [ ] Run focused tests and verify the updated home and dashboard layouts.
+- [x] Reframe the storefront and customer overview around data, airtime, TV, and electricity services.
+- [x] Run focused tests and verify the updated public home on desktop and mobile.
+- [ ] Verify the signed-in customer overview in-app; external Supabase credentials are unavailable in this preview.

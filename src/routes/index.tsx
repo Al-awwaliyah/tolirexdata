@@ -8,7 +8,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  CircleDollarSign,
   Clock3,
   CreditCard,
   Database,
@@ -505,32 +504,33 @@ function Overview({ dashboard, onNavigate }: { dashboard: DashboardData | null; 
   const recent = [...(dashboard?.transactions ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 4);
   return (
     <div className="space-y-6">
-      <section className="grid gap-5 md:grid-cols-[1.3fr_.7fr]">
-        <div className="relative overflow-hidden bg-primary p-6 text-primary-foreground sm:p-8">
-          <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
-            <div>
-              <p className="text-sm text-primary-foreground/80">WALLET BALANCE</p>
-              <p className="mt-3 text-4xl font-semibold">{formatNaira(balance)}</p>
-              <p className="mt-2 text-sm text-primary-foreground/80">Ready for everyday services</p>
-            </div>
-            <span className="grid size-12 place-items-center rounded-full bg-primary-foreground/15"><Wallet className="size-6" /></span>
-          </div>
-          <div className="relative z-10 mt-8 flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={() => onNavigate("fund")}><Plus /> Add money</Button>
-            <Button className="border border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10" onClick={() => onNavigate("buy")}><Database /> Buy data</Button>
-          </div>
-          <span className="pointer-events-none absolute -bottom-20 -right-12 size-52 rounded-full border-[24px] border-primary-foreground/10" />
-        </div>
-        <div className="flex flex-col justify-between border bg-background p-6">
+      <section className="bg-primary p-6 text-primary-foreground sm:p-8">
+        <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
           <div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-muted-foreground">SERVICES</p>
-              <CircleDollarSign className="size-5 text-primary" />
-            </div>
-            <h2 className="mt-5 text-xl font-semibold text-foreground">Everyday bills, one place.</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Data is ready today. Airtime, TV and electricity are coming soon.</p>
+            <p className="text-sm text-primary-foreground/80">WALLET BALANCE</p>
+            <p className="mt-3 text-4xl font-semibold">{formatNaira(balance)}</p>
+            <p className="mt-2 text-sm text-primary-foreground/80">Ready for everyday services</p>
           </div>
-          <Button variant="outline" className="mt-6 w-fit" onClick={() => onNavigate("buy")}>Browse data plans <ArrowRight /></Button>
+          <span className="grid size-12 place-items-center rounded-full bg-primary-foreground/15"><Wallet className="size-6" /></span>
+        </div>
+        <div className="relative z-10 mt-8 flex flex-wrap gap-3">
+          <Button variant="secondary" onClick={() => onNavigate("fund")}><Plus /> Add money</Button>
+          <Button className="border border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10" onClick={() => onNavigate("buy")}><Database /> Buy data</Button>
+        </div>
+      </section>
+      <section>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Everyday services</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Your essentials, together in one place.</p>
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">1 service available now</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AccountServiceTile icon={<Database />} title="Mobile data" description="MTN, Airtel, Glo and 9mobile plans." status="Available" tone="bg-primary/10 text-primary" onClick={() => onNavigate("buy")} />
+          <AccountServiceTile icon={<Smartphone />} title="Airtime" description="Top-ups for the networks you use." status="Coming soon" tone="bg-chart-3/15 text-chart-3" />
+          <AccountServiceTile icon={<RadioTower />} title="TV subscriptions" description="Keep your television payments close." status="Coming soon" tone="bg-chart-2/15 text-chart-2" />
+          <AccountServiceTile icon={<Zap />} title="Electricity" description="Power payments in the same account." status="Coming soon" tone="bg-chart-4/20 text-chart-4" />
         </div>
       </section>
       <section className="grid gap-6 xl:grid-cols-[1.3fr_.7fr]">
@@ -553,6 +553,34 @@ function Overview({ dashboard, onNavigate }: { dashboard: DashboardData | null; 
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function AccountServiceTile({
+  icon,
+  title,
+  description,
+  status,
+  tone,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  status: string;
+  tone: string;
+  onClick?: () => void;
+}) {
+  return (
+    <div className="flex min-h-44 flex-col border bg-background p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className={`grid size-10 place-items-center ${tone}`}>{icon}</span>
+        <span className="text-xs font-medium text-muted-foreground">{status}</span>
+      </div>
+      <h3 className="mt-4 font-semibold text-foreground">{title}</h3>
+      <p className="mt-1 flex-1 text-sm leading-5 text-muted-foreground">{description}</p>
+      {onClick && <Button variant="ghost" className="mt-2 h-9 w-fit px-0 text-primary" onClick={onClick}>Browse plans <ArrowRight /></Button>}
     </div>
   );
 }
