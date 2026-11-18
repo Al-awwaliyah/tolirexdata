@@ -15,6 +15,8 @@ import {
   House,
   LogOut,
   Menu,
+  MoreHorizontal,
+  Grid2X2,
   PackageCheck,
   Plus,
   RadioTower,
@@ -281,131 +283,40 @@ function Index() {
 }
 
 function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
+  const products = [
+    { icon: <Database />, name: "Mobile data", detail: "MTN, Airtel, Glo and 9mobile", state: "Available" },
+    { icon: <Smartphone />, name: "Airtime", detail: "Instant network top-ups", state: "Coming soon" },
+    { icon: <RadioTower />, name: "TV subscriptions", detail: "DStv, GOtv and StarTimes", state: "Coming soon" },
+    { icon: <Zap />, name: "Electricity", detail: "Prepaid and postpaid bills", state: "Coming soon" },
+  ];
   return (
-    <main className="min-h-screen overflow-hidden bg-background">
-      <header className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-5 sm:py-5 md:px-10">
-        <Brand />
-        <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex" aria-label="Main navigation">
-          <a href="#services" className="transition-colors hover:text-foreground">Services</a>
-          <a href="#plans" className="transition-colors hover:text-foreground">Data prices</a>
-          <a href="#reviews" className="transition-colors hover:text-foreground">Reviews</a>
-        </nav>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" className="hidden sm:inline-flex" onClick={() => onAuth("signin")}>Log in</Button>
-          <Button onClick={() => onAuth("signup")}><span className="sm:hidden">Join free</span><span className="hidden sm:inline">Create account</span><ArrowRight /></Button>
+    <main className="tr-public min-h-screen">
+      <header className="tr-public-header">
+        <div className="tr-public-inner">
+          <Brand />
+          <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex"><a href="#services">Services</a><a href="#how">How it works</a></nav>
+          <div className="flex items-center gap-2"><Button variant="ghost" onClick={() => onAuth("signin")}>Log in</Button><Button onClick={() => onAuth("signup")} className="tr-primary-btn">Get started <ArrowRight /></Button></div>
         </div>
       </header>
-
-      <section className="mx-auto grid max-w-7xl items-center gap-3 px-4 pb-10 pt-5 sm:gap-6 sm:px-5 sm:pb-16 sm:pt-7 md:grid-cols-[1.05fr_.95fr] md:px-10 md:pb-20 md:pt-10">
-        <div className="relative z-10 max-w-2xl">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground sm:mb-6 sm:text-sm">
-            <span className="size-2 rounded-full bg-primary" /> Made for everyday Nigeria
-          </div>
-          <h1 className="max-w-xl font-display text-[2.65rem] font-medium leading-[1.04] text-foreground sm:text-5xl md:text-6xl">
-            Everyday payments, <span className="text-primary">all in one place.</span>
-          </h1>
-          <p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground sm:mt-5 sm:text-base sm:leading-7 md:text-lg">
-            Browse mobile data, airtime, TV subscriptions and electricity services with one simple account.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-2.5 sm:mt-8 sm:gap-3">
-            <Button size="lg" onClick={() => document.getElementById("services")?.scrollIntoView({ behavior: "smooth" })}>Explore services <ArrowRight /></Button>
-            <Button size="lg" variant="outline" onClick={() => onAuth("signup")}>
-              Create account <ChevronDown />
-            </Button>
-          </div>
-          <div className="mt-6 flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground sm:mt-9 sm:gap-3 sm:text-sm">
-            <span>Networks supported</span>
-            {networkChoices.map((choice, index) => <NetworkMark key={choice} network={choice} index={index} />)}
-          </div>
+      <section className="tr-hero">
+        <div className="tr-hero-copy">
+          <span className="tr-eyebrow"><span className="size-2 rounded-full bg-emerald-500" /> Your money, made simpler</span>
+          <h1>One account.<br/><span>More control.</span></h1>
+          <p>Manage your everyday payments from one secure place. Top up, keep track of your activity and stay in control of your money.</p>
+          <div className="mt-7 flex flex-wrap gap-3"><Button size="lg" className="tr-primary-btn" onClick={() => onAuth("signup")}>Create your account <ArrowRight /></Button><Button size="lg" variant="outline" onClick={() => onAuth("signin")}>Log in</Button></div>
+          <div className="tr-trustline"><ShieldCheck className="size-4"/> Secure account access <span/> Built for everyday Nigeria</div>
         </div>
-        <div className="relative mx-auto w-full max-w-[19rem] sm:max-w-md md:max-w-lg">
-          <img
-            src={tolirexMobile}
-            alt="ToliRex Data mobile wallet and top-up services"
-            width={1024}
-            height={1024}
-            className="mx-auto aspect-square w-full object-contain"
-            fetchPriority="high"
-          />
-          <div className="absolute bottom-3 left-0 flex max-w-[calc(100%-0.5rem)] items-center gap-2.5 border bg-background/95 px-3 py-2.5 shadow-sm sm:bottom-5 sm:left-0 sm:gap-3 sm:px-4 sm:py-3">
-            <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground"><ShieldCheck className="size-5" /></span>
-            <span>
-              <strong className="block text-xs text-foreground sm:text-sm">Secure wallet payments</strong><small className="text-xs text-muted-foreground">Your balance, always in view</small></span>
-          </div>
+        <div className="tr-hero-preview">
+          <div className="tr-preview-top"><Brand/><span className="tr-avatar">T</span></div>
+          <p className="tr-muted">Total balance</p><div className="tr-preview-balance">₦248,500<span>.00</span></div>
+          <div className="tr-preview-actions"><span><Plus/>Add money</span><span><ArrowUpRight/>Send</span><span><CreditCard/>Cards</span></div>
+          <div className="tr-preview-row"><span className="tr-mini-icon"><Smartphone/></span><span><b>Mobile data</b><small>Today, 10:42</small></span><strong>−₦1,500</strong></div>
+          <div className="tr-preview-row"><span className="tr-mini-icon green"><ArrowDownLeft/></span><span><b>Wallet top up</b><small>Yesterday</small></span><strong className="positive">+₦20,000</strong></div>
         </div>
       </section>
-
-      <section id="services" className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-16">
-        <div className="max-w-xl">
-          <p className="text-sm font-semibold text-primary">ONE PLACE FOR EVERYDAY NEEDS</p>
-          <h2 className="mt-2 text-3xl font-semibold text-foreground">More than mobile data.</h2>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">Choose the service you need. Browse our services. Live provider catalogues will appear once the ClubKonnect credentials and secure wallet settlement are configured.</p>
-        </div>
-        <div className="mt-8 grid gap-px overflow-hidden border bg-border sm:grid-cols-2 lg:grid-cols-4">
-          <ServiceItem icon={<Database />} title="Mobile data" copy="Browse plans for MTN, Airtel, Glo and 9mobile." status="Available" tone="bg-primary/10 text-primary" />
-          <ServiceItem icon={<Smartphone />} title="Airtime" copy="Airtime top-ups for the networks you use." status="Coming soon" tone="bg-chart-3/15 text-chart-3" />
-          <ServiceItem icon={<RadioTower />} title="TV subscriptions" copy="Keep your TV subscription payments together." status="Coming soon" tone="bg-chart-2/15 text-chart-2" />
-          <ServiceItem icon={<Zap />} title="Electricity" copy="A simpler place to manage electricity payments." status="Coming soon" tone="bg-chart-4/20 text-chart-4" />
-        </div>
-      </section>
-
-      <section id="plans" className="border-y bg-secondary/50">
-        <div className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-16">
-          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-primary">MOBILE DATA</p>
-              <h2 className="mt-2 text-3xl font-semibold text-foreground">Find a plan that fits.</h2>
-            </div>
-            <p className="max-w-sm text-sm leading-6 text-muted-foreground">Straightforward plan choices across Nigeria's major networks.</p>
-          </div>
-          <div className="grid gap-px overflow-hidden border bg-border sm:grid-cols-2 lg:grid-cols-4">
-            {fallbackPrices.map((plan, index) => (
-              <div key={plan.network} className="flex min-h-52 flex-col justify-between bg-background p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <NetworkMark network={plan.network} index={index} />
-                  <span className="text-xs text-muted-foreground">{plan.validity}</span>
-                </div>
-                <div className="mt-8">
-                  <p className="text-2xl font-semibold text-foreground">{plan.data}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">from <span className="font-semibold text-foreground">{formatNaira(plan.price)}</span></p>
-                </div>
-                <Button variant="ghost" className="mt-4 w-fit px-0 text-primary" onClick={() => onAuth("signup")}>Choose plan <ArrowRight /></Button>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">Sample prices shown. Confirm current prices after signing in.</p>
-        </div>
-      </section>
-
-      <section id="reviews" className="border-y bg-secondary/50">
-        <div className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-16">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-primary">A BETTER TOP-UP ROUTINE</p>
-              <h2 className="mt-2 text-3xl font-semibold text-foreground">Small wins, every day.</h2>
-            </div>
-            <p className="text-xs text-muted-foreground">Example feedback — replace with verified customer reviews.</p>
-          </div>
-          <div className="mt-8 grid gap-5 md:grid-cols-3">
-            {[
-              ["Fast and simple", "“I can pick a plan and check out without the extra steps.”"],
-              ["My balance at a glance", "“It's helpful to see what I have before buying data.”"],
-              ["The networks I use", "“Having my network options together makes top-ups easier.”"],
-            ].map(([title, quote]) => (
-              <figure key={title} className="border bg-background p-5">
-                <div className="mb-5 flex gap-1 text-chart-4" aria-label="Example review"><Sparkles className="size-4" /><Sparkles className="size-4" /><Sparkles className="size-4" /><Sparkles className="size-4" /><Sparkles className="size-4" /></div>
-                <blockquote className="text-base leading-7 text-foreground">{quote}</blockquote>
-                <figcaption className="mt-5 text-sm font-semibold text-muted-foreground">{title}</figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <footer className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-7 text-sm text-muted-foreground md:px-10">
-        <Brand />
-          <p>Everyday services for life in Nigeria.</p>
-      </footer>
+      <section id="services" className="tr-public-section"><div className="tr-section-heading"><div><span className="tr-kicker">EVERYDAY SERVICES</span><h2>Everything in one place</h2></div><p>One simple account for the services you use every day.</p></div><div className="tr-product-grid">{products.map((item) => <article className="tr-product-card" key={item.name}><span className="tr-product-icon">{item.icon}</span><h3>{item.name}</h3><p>{item.detail}</p><small>{item.state}</small></article>)}</div></section>
+      <section id="how" className="tr-how"><span className="tr-kicker">GET STARTED</span><h2>Simple from the first tap.</h2><div className="tr-how-grid"><div><b>01</b><h3>Create your account</h3><p>Sign up and securely access your personal wallet.</p></div><div><b>02</b><h3>Add money</h3><p>Fund your wallet using the available payment options.</p></div><div><b>03</b><h3>Pay with confidence</h3><p>Choose a service and follow your transaction history.</p></div></div></section>
+      <footer className="tr-footer"><Brand/><span>Everyday payments, with more control.</span></footer>
     </main>
   );
 }
@@ -431,92 +342,41 @@ function DashboardShell(props: {
     ...(props.isAdmin ? [{ key: "admin" as const, label: "Admin", icon: <ShieldCheck /> }] : []),
   ];
   return (
-    <div className="dex-shell">
-      <header className="dex-topbar sticky top-0 z-30 border-b">
-        <div className="mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-7">
-          <Brand />
-          <div className="flex items-center gap-2 sm:gap-4">
-            <span className="hidden max-w-48 truncate text-sm font-medium text-muted-foreground sm:inline">{props.userName}</span>
-            <span className="grid size-9 place-items-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">{(props.userName || "D").slice(0,1).toUpperCase()}</span>
-            <Button variant="ghost" size="sm" onClick={props.onSignOut} disabled={props.busy} aria-label="Log out"><LogOut className="size-4" /><span className="hidden sm:inline">Log out</span></Button>
-          </div>
-        </div>
-      </header>
-      <div className="mx-auto grid max-w-[1440px] lg:grid-cols-[244px_minmax(0,1fr)]">
-        <aside className="dex-sidebar sticky top-[4.5rem] hidden h-[calc(100vh-4.5rem)] border-r p-5 lg:block">
-          <p className="dex-muted-label px-3 pb-4 pt-2">Workspace</p>
-          <nav className="space-y-1.5" aria-label="Account navigation">
-            {navItems.map((item) => <button key={item.key} type="button" onClick={() => props.setView(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm transition-colors ${props.view === item.key ? "dex-nav-active" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}><span className="[&_svg]:size-[18px]">{item.icon}</span>{item.label}</button>)}
-          </nav>
-          <div className="absolute inset-x-5 bottom-6 rounded-2xl bg-secondary/70 p-4">
-            <span className="mb-3 grid size-9 place-items-center rounded-xl bg-primary/10 text-primary"><ShieldCheck className="size-4" /></span>
-            <p className="text-sm font-semibold">Your money, protected</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">Wallet activity and account actions are recorded securely.</p>
-          </div>
-        </aside>
-        <main className="dex-main min-w-0 px-4 pb-28 pt-6 sm:px-7 lg:px-10 lg:pb-12 lg:pt-8">
-          <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
-            <div><p className="text-xs font-medium text-muted-foreground">{formatDate(new Date().toISOString())}</p><h1 className="mt-1 text-[1.7rem] font-bold tracking-[-.04em] text-foreground sm:text-3xl">{headingForView(props.view, props.userName)}</h1></div>
-            <Button variant="outline" size="sm" className="rounded-full" onClick={props.onRefresh} disabled={props.loading}><Clock3 className="size-4" /> Refresh</Button>
-          </div>
-          {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice} />}
-          {props.loading && !props.dashboard ? <LoadingScreen compact /> : null}
-          {props.view === "overview" && <Overview dashboard={props.dashboard} onNavigate={props.setView} />}
-          {props.view === "buy" && <BuyDataView {...props} />}
-          {props.view === "fund" && <FundWalletView {...props} />}
-          {props.view === "activity" && <ActivityView dashboard={props.dashboard} />}
-          {props.view === "admin" && props.isAdmin && <AdminView {...props} />}
-          {props.view === "admin" && !props.isAdmin && <Overview dashboard={props.dashboard} onNavigate={props.setView} />}
+    <div className="tr-app-shell">
+      <header className="tr-app-header"><div className="tr-header-inner"><Brand/><div className="tr-header-search"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input aria-label="Search" placeholder="Search" /></div><div className="tr-header-actions"><button className="tr-icon-button" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button><button className="tr-user-pill" onClick={props.onSignOut} title="Sign out"><span>{(props.userName || "T").slice(0,1).toUpperCase()}</span><b>{props.userName.split(" ")[0]}</b><ChevronDown className="size-4"/></button></div></div></header>
+      <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{navItems.map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Keep your sign-in details private and secure.</p></div></aside>
+        <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
+          {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice}/>}
+          {props.loading && !props.dashboard ? <LoadingScreen compact/> : null}
+          {props.view === "overview" && <Overview dashboard={props.dashboard} onNavigate={props.setView}/>}
+          {props.view === "buy" && <BuyDataView {...props}/>}
+          {props.view === "fund" && <FundWalletView {...props}/>}
+          {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
+          {props.view === "admin" && props.isAdmin && <AdminView {...props}/>}
+          {props.view === "admin" && !props.isAdmin && <Overview dashboard={props.dashboard} onNavigate={props.setView}/>}
         </main>
       </div>
-      <nav className={`dex-mobile-nav fixed inset-x-0 bottom-0 z-30 grid ${props.isAdmin ? "grid-cols-5" : "grid-cols-4"} border-t pb-[env(safe-area-inset-bottom)] lg:hidden`} aria-label="Account navigation">
-        {navItems.map((item) => <button key={item.key} type="button" onClick={() => props.setView(item.key)} className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 text-[10px] font-medium ${props.view === item.key ? "text-primary" : "text-muted-foreground"}`}><span className="[&_svg]:size-[19px]">{item.icon}</span>{item.label}</button>)}
-      </nav>
+      <nav className="tr-mobile-nav" aria-label="Account navigation">{navItems.map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav>
     </div>
   );
 }
 
 function Overview({ dashboard, onNavigate }: { dashboard: DashboardData | null; onNavigate: (view: ViewKey) => void }) {
   const balance = dashboard?.wallet?.balance ?? 0;
-  const recent = [...(dashboard?.transactions ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5);
-  const services = [
-    { icon: <Database />, title: "Mobile data", description: "Browse network bundles", status: "Available", active: true, tone: "bg-blue-500/10 text-blue-600" },
-    { icon: <Smartphone />, title: "Airtime", description: "Top up any network", status: "Integration required", active: false, tone: "bg-violet-500/10 text-violet-600" },
-    { icon: <RadioTower />, title: "Cable TV", description: "DStv, GOtv and StarTimes", status: "Integration required", active: false, tone: "bg-cyan-500/10 text-cyan-600" },
-    { icon: <Zap />, title: "Electricity", description: "Prepaid and postpaid bills", status: "Integration required", active: false, tone: "bg-amber-500/10 text-amber-600" },
-    { icon: <CreditCard />, title: "Recharge PIN", description: "Print airtime PIN vouchers", status: "Integration required", active: false, tone: "bg-emerald-500/10 text-emerald-600" },
+  const recent = [...(dashboard?.transactions ?? [])].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,5);
+  const tiles = [
+    {icon:<Database/>,title:"Mobile data",sub:"Buy data bundles",status:"Available",tone:"blue"},
+    {icon:<Smartphone/>,title:"Airtime",sub:"Top up a number",status:"Coming soon",tone:"purple"},
+    {icon:<RadioTower/>,title:"TV",sub:"Manage subscriptions",status:"Coming soon",tone:"orange"},
+    {icon:<Zap/>,title:"Electricity",sub:"Pay utility bills",status:"Coming soon",tone:"green"},
   ];
-  return (
-    <div className="space-y-7">
-      <section className="dex-balance-card p-6 text-white sm:p-8">
-        <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
-          <div><p className="text-xs font-semibold tracking-[.12em] text-white/65">TOTAL WALLET BALANCE</p><p className="mt-3 text-[2.45rem] font-bold tracking-[-.055em] sm:text-5xl">{formatNaira(balance)}</p><p className="mt-2 text-sm text-white/65">Your everyday money, in one place</p></div>
-          <span className="grid size-12 place-items-center rounded-2xl border border-white/15 bg-white/10"><Wallet className="size-5" /></span>
-        </div>
-        <div className="relative z-10 mt-8 flex flex-wrap gap-2.5">
-          <Button variant="secondary" className="dex-action-button px-5" onClick={() => onNavigate("fund")}><Plus className="size-4" /> Add money</Button>
-          <Button className="dex-action-button border border-white/25 bg-white/10 px-5 text-white hover:bg-white/20" onClick={() => onNavigate("buy")}><ArrowUpRight className="size-4" /> Explore services</Button>
-        </div>
-      </section>
-      <section>
-        <div className="mb-4 flex items-end justify-between gap-3"><div><p className="dex-muted-label">Your essentials</p><h2 className="mt-1 text-xl font-bold tracking-tight">Services</h2></div><span className="text-xs text-muted-foreground">Powered by ClubKonnect when configured</span></div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          {services.map((service) => <button key={service.title} type="button" onClick={() => service.active ? onNavigate("buy") : onNavigate("buy")} className="dex-service-tile group flex min-h-[142px] flex-col items-start p-4 text-left">
-            <span className={`mb-4 grid size-10 place-items-center rounded-xl ${service.tone}`}>{service.icon}</span>
-            <span className="text-sm font-bold">{service.title}</span><span className="mt-1 text-xs text-muted-foreground">{service.description}</span>
-            <span className={`mt-auto pt-3 text-[10px] font-semibold ${service.active ? "text-emerald-600" : "text-muted-foreground"}`}>{service.status}</span>
-          </button>)}
-        </div>
-      </section>
-      <section className="grid gap-4 xl:grid-cols-[1.35fr_.65fr]">
-        <div className="dex-panel overflow-hidden">
-          <div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="font-bold">Recent activity</h2><p className="mt-1 text-xs text-muted-foreground">Your latest wallet transactions</p></div><Button variant="ghost" size="sm" className="rounded-full" onClick={() => onNavigate("activity")}>See all <ArrowRight className="size-4" /></Button></div>
-          {recent.length ? recent.map((entry) => <TransactionRow key={entry.id} transaction={entry} />) : <EmptyState icon={<FileClock />} title="Nothing here yet" copy="Your purchases and wallet funding will appear here." />}
-        </div>
-        <div className="dex-panel p-5"><p className="dex-muted-label">Supported networks</p><h2 className="mt-1 font-bold">Choose your network</h2><p className="mt-1 text-xs text-muted-foreground">Explore available data bundles.</p><div className="mt-5 grid grid-cols-2 gap-2">{networkChoices.map((choice,index)=><button key={choice} type="button" className="flex items-center gap-2 rounded-xl border p-3 text-left transition-colors hover:bg-secondary" onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><ArrowRight className="ml-auto size-4 text-muted-foreground"/></button>)}</div></div>
-      </section>
-    </div>
-  );
+  return <div className="tr-dashboard-content">
+    <section className="tr-overview-grid"><div className="tr-balance-panel"><div className="tr-panel-top"><span>PERSONAL ACCOUNT · NGN</span><button aria-label="Wallet options"><MoreHorizontal/></button></div><p className="tr-balance-caption">Total balance</p><div className="tr-balance-amount">{formatNaira(balance)}</div><div className="tr-balance-bottom"><span><span className="tr-status-dot"/> Account active</span><button onClick={()=>onNavigate("fund")}>Add money <ArrowUpRight/></button></div></div>
+      <div className="tr-actions-panel"><div className="tr-widget-heading"><h2>Quick actions</h2><span>Manage money</span></div><div className="tr-quick-grid"><button onClick={()=>onNavigate("fund")}><span className="q-blue"><Plus/></span><b>Add money</b></button><button onClick={()=>onNavigate("buy")}><span className="q-dark"><ArrowUpRight/></span><b>Buy data</b></button><button onClick={()=>onNavigate("activity")}><span className="q-purple"><FileClock/></span><b>History</b></button><button onClick={()=>onNavigate("buy")}><span className="q-green"><Grid2X2/></span><b>All services</b></button></div></div></section>
+    <section className="tr-service-section"><div className="tr-widget-heading"><div><h2>Your services</h2><p>What would you like to do today?</p></div><button onClick={()=>onNavigate("buy")}>See all <ArrowRight/></button></div><div className="tr-services-grid">{tiles.map((tile)=><button key={tile.title} className="tr-service-card" onClick={()=>onNavigate("buy")}><span className={`tr-service-icon ${tile.tone}`}>{tile.icon}</span><span className="tr-service-title">{tile.title}</span><span className="tr-service-sub">{tile.sub}</span><span className={`tr-service-status ${tile.status==="Available"?"live":""}`}>{tile.status}</span></button>)}</div></section>
+    <section className="tr-lower-grid"><div className="tr-widget-card"><div className="tr-widget-heading"><div><h2>Recent transactions</h2><p>Your latest account activity</p></div><button onClick={()=>onNavigate("activity")}>View all <ArrowRight/></button></div>{recent.length?recent.map(entry=><TransactionRow key={entry.id} transaction={entry}/>):<EmptyState icon={<FileClock/>} title="No transactions yet" copy="Your wallet activity will appear here."/>}</div>
+      <div className="tr-widget-card tr-network-card"><div className="tr-widget-heading"><div><h2>Mobile networks</h2><p>Choose a network to browse data</p></div></div>{networkChoices.map((choice,index)=><button className="tr-network-row" key={choice} onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><span>{choice}</span><ArrowRight/></button>)}</div></section>
+  </div>;
 }
 
 function AccountServiceTile({
@@ -790,7 +650,7 @@ function NetworkMark({ network, index }: { network: string; index: number }) {
 }
 
 function Brand() {
-  return <a href="/" className="inline-flex min-w-0 items-center gap-2.5" aria-label="ToliRex Data home"><span className="dex-brand-mark"><Zap className="size-5 fill-current" /></span><span className="whitespace-nowrap text-[1.08rem] font-extrabold tracking-[-.04em] text-foreground">ToliRex<span className="text-primary">.</span></span></a>;
+  return <a href="/" className="inline-flex min-w-0 items-center gap-2.5" aria-label="ToliRex Data home"><span className="dex-brand-mark"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 11h24v5H21v18h-5V16H8z" fill="white"/><path d="M7 27c8 4 21 1 27-9" fill="none" stroke="#33d9ff" strokeWidth="2.5" strokeLinecap="round"/></svg></span><span className="whitespace-nowrap text-[1.08rem] font-extrabold tracking-[-.04em] text-foreground">Tolirex<span className="text-primary">Data</span></span></a>;
 }
 
 function ServiceItem({ icon, title, copy, status, tone }: { icon: ReactNode; title: string; copy: string; status: string; tone: string }) {
