@@ -339,7 +339,7 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
         <div className="max-w-xl">
           <p className="text-sm font-semibold text-primary">ONE PLACE FOR EVERYDAY NEEDS</p>
           <h2 className="mt-2 text-3xl font-semibold text-foreground">More than mobile data.</h2>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">Choose the service you need. Mobile data is available now; more services are being prepared.</p>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Choose the service you need. Browse our services. Live provider catalogues will appear once the ClubKonnect credentials and secure wallet settlement are configured.</p>
         </div>
         <div className="mt-8 grid gap-px overflow-hidden border bg-border sm:grid-cols-2 lg:grid-cols-4">
           <ServiceItem icon={<Database />} title="Mobile data" copy="Browse plans for MTN, Airtel, Glo and 9mobile." status="Available" tone="bg-primary/10 text-primary" />
@@ -411,72 +411,53 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
 }
 
 function DashboardShell(props: {
-  userName: string;
-  isAdmin: boolean;
-  view: ViewKey;
-  setView: (view: ViewKey) => void;
-  onSignOut: () => void;
-  notice: string;
-  onDismissNotice: () => void;
-  busy: boolean;
-  loading: boolean;
-  dashboard: DashboardData | null;
-  onRefresh: () => void;
-  network: Network;
-  setNetwork: (network: Network) => void;
-  plans: DataPlan[];
-  selectedPlan: DataPlan | undefined;
-  selectedPlanId: string;
-  setSelectedPlanId: (id: string) => void;
-  phone: string;
-  setPhone: (phone: string) => void;
-  onBuy: (event: FormEvent<HTMLFormElement>) => void;
-  fundingAmount: string;
-  setFundingAmount: (amount: string) => void;
+  userName: string; isAdmin: boolean; view: ViewKey; setView: (view: ViewKey) => void;
+  onSignOut: () => void; notice: string; onDismissNotice: () => void; busy: boolean;
+  loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
+  network: Network; setNetwork: (network: Network) => void; plans: DataPlan[];
+  selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
+  phone: string; setPhone: (phone: string) => void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
+  fundingAmount: string; setFundingAmount: (amount: string) => void;
   onFunding: (event: FormEvent<HTMLFormElement>) => void;
   onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
-  planEditor: PlanEditor;
-  setPlanEditor: (plan: PlanEditor) => void;
+  planEditor: PlanEditor; setPlanEditor: (plan: PlanEditor) => void;
   onSavePlan: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const navItems: { key: ViewKey; label: string; icon: ReactNode }[] = [
-    { key: "overview", label: "Overview", icon: <House /> },
-    { key: "buy", label: "Data", icon: <Database /> },
+    { key: "overview", label: "Home", icon: <House /> },
+    { key: "buy", label: "Services", icon: <Sparkles /> },
     { key: "fund", label: "Add money", icon: <Wallet /> },
     { key: "activity", label: "Activity", icon: <FileClock /> },
     ...(props.isAdmin ? [{ key: "admin" as const, label: "Admin", icon: <ShieldCheck /> }] : []),
   ];
   return (
-    <div className="min-h-screen bg-secondary/40">
-      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+    <div className="dex-shell">
+      <header className="dex-topbar sticky top-0 z-30 border-b">
+        <div className="mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-7">
           <Brand />
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-muted-foreground sm:inline">{props.userName}</span>
-            <Button variant="outline" size="sm" onClick={props.onSignOut} disabled={props.busy}><LogOut /> <span className="hidden sm:inline">Log out</span></Button>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="hidden max-w-48 truncate text-sm font-medium text-muted-foreground sm:inline">{props.userName}</span>
+            <span className="grid size-9 place-items-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">{(props.userName || "D").slice(0,1).toUpperCase()}</span>
+            <Button variant="ghost" size="sm" onClick={props.onSignOut} disabled={props.busy} aria-label="Log out"><LogOut className="size-4" /><span className="hidden sm:inline">Log out</span></Button>
           </div>
         </div>
       </header>
-      <div className="mx-auto grid max-w-7xl lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="hidden min-h-[calc(100vh-4rem)] border-r bg-background p-4 lg:block">
-          <p className="px-3 pb-3 pt-2 text-xs font-semibold text-muted-foreground">YOUR ACCOUNT</p>
-          <nav className="space-y-1" aria-label="Account navigation">
-            {navItems.map((item) => <NavButton key={item.key} item={item} active={props.view === item.key} onClick={() => props.setView(item.key)} />)}
+      <div className="mx-auto grid max-w-[1440px] lg:grid-cols-[244px_minmax(0,1fr)]">
+        <aside className="dex-sidebar sticky top-[4.5rem] hidden h-[calc(100vh-4.5rem)] border-r p-5 lg:block">
+          <p className="dex-muted-label px-3 pb-4 pt-2">Workspace</p>
+          <nav className="space-y-1.5" aria-label="Account navigation">
+            {navItems.map((item) => <button key={item.key} type="button" onClick={() => props.setView(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm transition-colors ${props.view === item.key ? "dex-nav-active" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}><span className="[&_svg]:size-[18px]">{item.icon}</span>{item.label}</button>)}
           </nav>
-          <div className="mt-8 border-t pt-5">
-            <div className="flex items-start gap-3 px-2">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><ShieldCheck className="size-4" /></span>
-              <p className="text-xs leading-5 text-muted-foreground">Your wallet is protected. Purchases and funding reviews are recorded.</p>
-            </div>
+          <div className="absolute inset-x-5 bottom-6 rounded-2xl bg-secondary/70 p-4">
+            <span className="mb-3 grid size-9 place-items-center rounded-xl bg-primary/10 text-primary"><ShieldCheck className="size-4" /></span>
+            <p className="text-sm font-semibold">Your money, protected</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Wallet activity and account actions are recorded securely.</p>
           </div>
         </aside>
-        <main className="min-w-0 px-4 pb-24 pt-7 sm:px-6 lg:px-9 lg:pb-10">
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted-foreground">{formatDate(new Date().toISOString())}</p>
-              <h1 className="mt-1 text-2xl font-semibold text-foreground sm:text-3xl">{headingForView(props.view, props.userName)}</h1>
-            </div>
-            <Button variant="ghost" size="sm" onClick={props.onRefresh} disabled={props.loading}><Clock3 /> Refresh</Button>
+        <main className="dex-main min-w-0 px-4 pb-28 pt-6 sm:px-7 lg:px-10 lg:pb-12 lg:pt-8">
+          <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
+            <div><p className="text-xs font-medium text-muted-foreground">{formatDate(new Date().toISOString())}</p><h1 className="mt-1 text-[1.7rem] font-bold tracking-[-.04em] text-foreground sm:text-3xl">{headingForView(props.view, props.userName)}</h1></div>
+            <Button variant="outline" size="sm" className="rounded-full" onClick={props.onRefresh} disabled={props.loading}><Clock3 className="size-4" /> Refresh</Button>
           </div>
           {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice} />}
           {props.loading && !props.dashboard ? <LoadingScreen compact /> : null}
@@ -488,12 +469,8 @@ function DashboardShell(props: {
           {props.view === "admin" && !props.isAdmin && <Overview dashboard={props.dashboard} onNavigate={props.setView} />}
         </main>
       </div>
-      <nav className={`fixed inset-x-0 bottom-0 z-30 grid ${props.isAdmin ? "grid-cols-5" : "grid-cols-4"} border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden`} aria-label="Account navigation">
-        {navItems.map((item) => (
-          <button key={item.key} type="button" onClick={() => props.setView(item.key)} className={`flex min-h-16 flex-col items-center justify-center gap-1 text-xs ${props.view === item.key ? "text-primary" : "text-muted-foreground"}`}>
-            <span className="[&_svg]:size-5">{item.icon}</span>{item.label}
-          </button>
-        ))}
+      <nav className={`dex-mobile-nav fixed inset-x-0 bottom-0 z-30 grid ${props.isAdmin ? "grid-cols-5" : "grid-cols-4"} border-t pb-[env(safe-area-inset-bottom)] lg:hidden`} aria-label="Account navigation">
+        {navItems.map((item) => <button key={item.key} type="button" onClick={() => props.setView(item.key)} className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 text-[10px] font-medium ${props.view === item.key ? "text-primary" : "text-muted-foreground"}`}><span className="[&_svg]:size-[19px]">{item.icon}</span>{item.label}</button>)}
       </nav>
     </div>
   );
@@ -501,57 +478,42 @@ function DashboardShell(props: {
 
 function Overview({ dashboard, onNavigate }: { dashboard: DashboardData | null; onNavigate: (view: ViewKey) => void }) {
   const balance = dashboard?.wallet?.balance ?? 0;
-  const recent = [...(dashboard?.transactions ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 4);
+  const recent = [...(dashboard?.transactions ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5);
+  const services = [
+    { icon: <Database />, title: "Mobile data", description: "Browse network bundles", status: "Available", active: true, tone: "bg-blue-500/10 text-blue-600" },
+    { icon: <Smartphone />, title: "Airtime", description: "Top up any network", status: "Integration required", active: false, tone: "bg-violet-500/10 text-violet-600" },
+    { icon: <RadioTower />, title: "Cable TV", description: "DStv, GOtv and StarTimes", status: "Integration required", active: false, tone: "bg-cyan-500/10 text-cyan-600" },
+    { icon: <Zap />, title: "Electricity", description: "Prepaid and postpaid bills", status: "Integration required", active: false, tone: "bg-amber-500/10 text-amber-600" },
+    { icon: <CreditCard />, title: "Recharge PIN", description: "Print airtime PIN vouchers", status: "Integration required", active: false, tone: "bg-emerald-500/10 text-emerald-600" },
+  ];
   return (
-    <div className="space-y-6">
-      <section className="bg-primary p-6 text-primary-foreground sm:p-8">
+    <div className="space-y-7">
+      <section className="dex-balance-card p-6 text-white sm:p-8">
         <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
-          <div>
-            <p className="text-sm text-primary-foreground/80">WALLET BALANCE</p>
-            <p className="mt-3 text-4xl font-semibold">{formatNaira(balance)}</p>
-            <p className="mt-2 text-sm text-primary-foreground/80">Ready for everyday services</p>
-          </div>
-          <span className="grid size-12 place-items-center rounded-full bg-primary-foreground/15"><Wallet className="size-6" /></span>
+          <div><p className="text-xs font-semibold tracking-[.12em] text-white/65">TOTAL WALLET BALANCE</p><p className="mt-3 text-[2.45rem] font-bold tracking-[-.055em] sm:text-5xl">{formatNaira(balance)}</p><p className="mt-2 text-sm text-white/65">Your everyday money, in one place</p></div>
+          <span className="grid size-12 place-items-center rounded-2xl border border-white/15 bg-white/10"><Wallet className="size-5" /></span>
         </div>
-        <div className="relative z-10 mt-8 flex flex-wrap gap-3">
-          <Button variant="secondary" onClick={() => onNavigate("fund")}><Plus /> Add money</Button>
-          <Button className="border border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10" onClick={() => onNavigate("buy")}><Database /> Buy data</Button>
+        <div className="relative z-10 mt-8 flex flex-wrap gap-2.5">
+          <Button variant="secondary" className="dex-action-button px-5" onClick={() => onNavigate("fund")}><Plus className="size-4" /> Add money</Button>
+          <Button className="dex-action-button border border-white/25 bg-white/10 px-5 text-white hover:bg-white/20" onClick={() => onNavigate("buy")}><ArrowUpRight className="size-4" /> Explore services</Button>
         </div>
       </section>
       <section>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Everyday services</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Your essentials, together in one place.</p>
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">1 service available now</span>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <AccountServiceTile icon={<Database />} title="Mobile data" description="MTN, Airtel, Glo and 9mobile plans." status="Available" tone="bg-primary/10 text-primary" onClick={() => onNavigate("buy")} />
-          <AccountServiceTile icon={<Smartphone />} title="Airtime" description="Top-ups for the networks you use." status="Coming soon" tone="bg-chart-3/15 text-chart-3" />
-          <AccountServiceTile icon={<RadioTower />} title="TV subscriptions" description="Keep your television payments close." status="Coming soon" tone="bg-chart-2/15 text-chart-2" />
-          <AccountServiceTile icon={<Zap />} title="Electricity" description="Power payments in the same account." status="Coming soon" tone="bg-chart-4/20 text-chart-4" />
+        <div className="mb-4 flex items-end justify-between gap-3"><div><p className="dex-muted-label">Your essentials</p><h2 className="mt-1 text-xl font-bold tracking-tight">Services</h2></div><span className="text-xs text-muted-foreground">Powered by ClubKonnect when configured</span></div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          {services.map((service) => <button key={service.title} type="button" onClick={() => service.active ? onNavigate("buy") : onNavigate("buy")} className="dex-service-tile group flex min-h-[142px] flex-col items-start p-4 text-left">
+            <span className={`mb-4 grid size-10 place-items-center rounded-xl ${service.tone}`}>{service.icon}</span>
+            <span className="text-sm font-bold">{service.title}</span><span className="mt-1 text-xs text-muted-foreground">{service.description}</span>
+            <span className={`mt-auto pt-3 text-[10px] font-semibold ${service.active ? "text-emerald-600" : "text-muted-foreground"}`}>{service.status}</span>
+          </button>)}
         </div>
       </section>
-      <section className="grid gap-6 xl:grid-cols-[1.3fr_.7fr]">
-        <div className="border bg-background">
-          <div className="flex items-center justify-between border-b px-5 py-4">
-            <div><h2 className="font-semibold text-foreground">Recent wallet activity</h2><p className="mt-1 text-sm text-muted-foreground">Your latest money in and out</p></div>
-            <Button variant="ghost" size="sm" onClick={() => onNavigate("activity")}>View all <ArrowRight /></Button>
-          </div>
-          {recent.length ? recent.map((entry) => <TransactionRow key={entry.id} transaction={entry} />) : <EmptyState icon={<FileClock />} title="No wallet activity yet" copy="Your purchases and funding requests will show here." />}
+      <section className="grid gap-4 xl:grid-cols-[1.35fr_.65fr]">
+        <div className="dex-panel overflow-hidden">
+          <div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="font-bold">Recent activity</h2><p className="mt-1 text-xs text-muted-foreground">Your latest wallet transactions</p></div><Button variant="ghost" size="sm" className="rounded-full" onClick={() => onNavigate("activity")}>See all <ArrowRight className="size-4" /></Button></div>
+          {recent.length ? recent.map((entry) => <TransactionRow key={entry.id} transaction={entry} />) : <EmptyState icon={<FileClock />} title="Nothing here yet" copy="Your purchases and wallet funding will appear here." />}
         </div>
-        <div className="border bg-background p-5">
-          <h2 className="font-semibold text-foreground">Popular networks</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Pick a provider to start browsing plans.</p>
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            {networkChoices.map((choice, index) => (
-              <button key={choice} type="button" className="flex items-center gap-2 border p-3 text-left transition-colors hover:bg-secondary" onClick={() => onNavigate("buy")}>
-                <NetworkMark network={choice} index={index} /><ArrowRight className="ml-auto size-4 text-muted-foreground" />
-              </button>
-            ))}
-          </div>
-        </div>
+        <div className="dex-panel p-5"><p className="dex-muted-label">Supported networks</p><h2 className="mt-1 font-bold">Choose your network</h2><p className="mt-1 text-xs text-muted-foreground">Explore available data bundles.</p><div className="mt-5 grid grid-cols-2 gap-2">{networkChoices.map((choice,index)=><button key={choice} type="button" className="flex items-center gap-2 rounded-xl border p-3 text-left transition-colors hover:bg-secondary" onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><ArrowRight className="ml-auto size-4 text-muted-foreground"/></button>)}</div></div>
       </section>
     </div>
   );
@@ -828,7 +790,7 @@ function NetworkMark({ network, index }: { network: string; index: number }) {
 }
 
 function Brand() {
-  return <a href="/" className="inline-flex min-w-0 items-center gap-2" aria-label="ToliRex Data home"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"><Zap className="size-5 fill-current" /></span><span className="whitespace-nowrap text-base font-bold text-foreground sm:text-lg">ToliRex <span className="text-primary">Data</span></span></a>;
+  return <a href="/" className="inline-flex min-w-0 items-center gap-2.5" aria-label="ToliRex Data home"><span className="dex-brand-mark"><Zap className="size-5 fill-current" /></span><span className="whitespace-nowrap text-[1.08rem] font-extrabold tracking-[-.04em] text-foreground">ToliRex<span className="text-primary">.</span></span></a>;
 }
 
 function ServiceItem({ icon, title, copy, status, tone }: { icon: ReactNode; title: string; copy: string; status: string; tone: string }) {

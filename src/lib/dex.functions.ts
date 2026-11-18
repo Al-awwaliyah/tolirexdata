@@ -168,3 +168,63 @@ export const saveDataPlan = createServerFn({ method: "POST" })
     if (result.error || !result.data) throw new Error(result.error?.message ?? "Unable to save this plan");
     return result.data;
   });
+
+/**
+ * Loads the live ClubKonnect product catalog from the server.
+ * Credentials are read only in the server module and never reach the browser.
+ */
+export const getClubKonnectCatalog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { getClubKonnectCatalog: loadCatalog } = await import("@/lib/clubkonnect.server");
+    return loadCatalog();
+  });
+
+
+/**
+ * Creates a pending card-funding request and a Flutterwave hosted checkout link.
+ * A verified webhook must settle the funding through an atomic database routine
+ * before the wallet is credited; the browser redirect is never proof of payment.
+ */
+export const createFlutterwaveFundingCheckout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ amount: z.number().int().min(100).max(10_000_000) }).parse(input))
+  .handler(async ({ data, context }) => {
+    const authContext = context as AuthContext;
+    const secretKey = process.env.FLUTTERWAVE_SECRET_KEY;
+    if (!secretKey) throw new Error("Flutterwave is not configured yet.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: funding, error } = await supabaseAdmin.rpc("create_funding_request", {
+      p_user_id: authContext.userId,
+      p_amount: data.amount,
+      p_method: "card",
+    });
+    if (error || !funding) throw new Error(error?.message ?? "Unable to start wallet funding.");
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles").select("email, full_name, phone").eq("id", authContext.userId).single();
+    if (profileError || !profile?.email) throw new Error("A valid account email is required for checkout.");
+
+    const appUrl = process.env.APP_URL;
+    if (!appUrl) throw new Error("APP_URL is not configured.");
+    const txRef = funding.id;
+    const response = await fetch("https://api.flutterwave.com/v3/payments", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tx_ref: txRef,
+        amount: String(data.amount),
+        currency: "NGN",
+        redirect_url: `${appUrl.replace(/\/$/, "")}/?funding=flutterwave`,
+        customer: { email: profile.email, name: profile.full_name, phonenumber: profile.phone },
+        customizations: { title: "ToliRex wallet funding", description: "Add money to your ToliRex wallet" },
+        meta: { funding_id: funding.id, user_id: authContext.userId },
+      }),
+      cache: "no-store",
+    });
+    const payload = await response.json() as { status?: string; message?: string; data?: { link?: string } };
+    if (!response.ok || payload.status !== "success" || !payload.data?.link) {
+      throw new Error(payload.message ?? "Flutterwave could not create a checkout link.");
+    }
+    return { fundingId: funding.id, checkoutUrl: payload.data.link };
+  });

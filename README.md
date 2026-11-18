@@ -1,72 +1,46 @@
-# ToliRex Data
+# DEX Sub
 
-Build me a modern Nigerian VTU web app called ToliRex Data - like Zoedata but simpler and clean.
+DEX Sub is a Nigerian digital services and VTU application built with React, TypeScript, TanStack Start, Tailwind CSS, and Supabase. The project includes wallet, authentication, transaction, and service-provider integration code.
 
-FEATURES:
+## Requirements
 
-1. Landing Page: Hero section "Buy Cheap Data, Airtime, DSTV, Electricity in Seconds", with MTN, Airtel, Glo, 9mobile logos, live prices, testimonials, and Login / Sign Up buttons. Colors: green and white, clean like Opay.
+- Node.js 22 or later
+- Bun (recommended; the repository includes `bun.lock`) or npm
+- A configured Supabase project
 
-2. Auth: User can Sign Up with name, email, phone, password. Login / Logout. Use Supabase Auth.
+## Environment variables
 
-3. User Dashboard:
+Copy `.env.example` to `.env` for local development and provide the required values through your local environment or deployment secret manager. Never commit real credentials.
 
-- Show Wallet Balance in big card
+Client/runtime Supabase configuration:
 
-- Buttons: Fund Wallet, Buy Data, Buy Airtime, Pay Electricity, TV Subscription
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 
-- Recent Transactions table
+Server-only configuration may also include:
 
-4. Buy Data Page:
-
-- Select Network: MTN, Airtel, Glo, 9mobile
-
-- Select Plan: Show list like 1GB - 30 days - ₦320, 2GB - 30 days - ₦640, 5GB - 30 days - ₦1,550, 10GB - 30 days - ₦3,050
-
-- Input phone number
-
-- Button: Buy Now. Deduct from wallet balance. Show success message.
-
-- For now, do NOT connect real VTU API. Save order as "Pending" in database and simulate success after 3 seconds. I will connect real API later.
-
-5. Fund Wallet Page:
-
-- Show 2 options:
-
-Option A: Transfer to bank account - Show account number 9051234567, Bank: Opay, Name: IyanjuPay - with Copy button and "I Have Sent It" button
-
-Option B: Pay with Card - Use Flutterwave Payment Link placeholder button
-
-- When user clicks "I Have Sent It", save as Pending Funding for admin to confirm.
-
-6. Admin Dashboard:
-
-- Admin can see all users, all orders, all pending fundings
-
-- Admin can Approve / Reject funding and it updates user wallet balance automatically
-
-- Admin can add / edit data plans and prices
-
-7. Design: Mobile-first, fast, clean, Nigerian style. Use Naira ₦ symbol everywhere. No dollar.
-
-TECH: Use React, Tailwind, Supabase for database and auth.
-
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/dff32801-d499-4138-8f33-6ead36e345a9).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `CLUBKONNECT_USER_ID`
+- `CLUBKONNECT_API_KEY`
+- `CLUBKONNECT_CALLBACK_URL`
+- `FLUTTERWAVE_SECRET_KEY`
+- `APP_URL`
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+```sh
+bun install
+bun run dev
+```
+
+## Validation
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun run lint
+bun run test
+bun run build
 ```
+
+Use the equivalent `npm` commands if you manage dependencies with npm.
