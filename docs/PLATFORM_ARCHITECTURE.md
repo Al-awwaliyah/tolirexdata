@@ -16,7 +16,8 @@ Personal customers own their wallet, virtual account, purchases and support hist
 
 ## Financial and operational invariants
 - The ledger is the accounting source of truth; wallets.balance is a compatibility projection until cutover.
-- Journal entries must balance before production ledger cutover.
+- A deferred database constraint trigger rejects journals whose debit and credit totals do not balance.
+- Public catalogue reads use a restricted view; supplier costs, provider identifiers and internal metadata are not exposed to browser clients.
 - Browser redirects never settle payments. Verify Flutterwave webhook authenticity and transaction status, exact reference, amount and NGN currency.
 - Incoming events, deposits, orders, refunds, coupon redemptions and rewards must be idempotent.
 - Supplier acceptance/queued is not fulfilment success. On timeout, query the original RequestID; do not retry using a new ID.
@@ -32,7 +33,7 @@ Do not retain raw BVN/NIN unless the verified provider flow requires it; minimiz
 The foundation migration adds account models, KYC, staff permissions, ledger tables, virtual-account and deposit-event records, service catalogue and orders, referrals, coupons, loyalty, support, notifications, settings, feature flags and audit logs. It does not activate a supplier, create a live virtual account, settle a real deposit or invent service prices. Provider eligibility, secure webhook settlement, catalogue sync and tested purchase adapters are separate launch gates. Developer/API access remains disabled.
 
 ## Delivery sequence
-1. Provision the replacement Supabase project, configure secrets and apply migrations; verify RLS and migration replay.
+1. Provision the replacement Supabase project, follow `docs/FRESH_SUPABASE_SETUP.md`, bootstrap the first administrator explicitly, then verify RLS and migration history.
 2. Implement personal/agent/business onboarding and KYC.
 3. Implement Flutterwave permanent virtual-account issuance and atomic verified deposit settlement.
 4. Implement ClubKonnect catalogue sync and idempotent purchase/query/refund adapters.
