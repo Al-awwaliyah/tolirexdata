@@ -41,8 +41,9 @@ Set these Vercel environment variables for Preview and Production (and Developme
 
 Set server-only credentials in the deployment/server secret store, never in Vite-prefixed variables:
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_URL` = `https://swjojapsfbzxnfvclsui.supabase.co`
+- `SUPABASE_PUBLISHABLE_KEY` = the same project's publishable key (needed by the TanStack Start server-side client)
+- `SUPABASE_SERVICE_ROLE_KEY` = server-only service-role secret
 
 Do not deploy to the production domain until authentication redirects and the deployment URL are known. The Vercel deployment URL has not yet been supplied, so configure Supabase Auth Site URL and Redirect URLs after confirming the actual deployment hostname.
 
