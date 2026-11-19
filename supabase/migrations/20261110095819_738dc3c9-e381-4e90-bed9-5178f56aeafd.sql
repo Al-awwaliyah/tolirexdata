@@ -131,9 +131,6 @@ BEGIN
   VALUES (NEW.id, COALESCE(NEW.email, ''), COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''), COALESCE(NEW.raw_user_meta_data ->> 'phone', ''));
   INSERT INTO public.wallets (user_id) VALUES (NEW.id);
   INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, 'user') ON CONFLICT DO NOTHING;
-  IF lower(COALESCE(NEW.email, '')) = 'lawalaremu53@gmail.com' THEN
-    INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, 'admin') ON CONFLICT DO NOTHING;
-  END IF;
   RETURN NEW;
 END;
 $$;
