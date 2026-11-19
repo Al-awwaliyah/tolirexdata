@@ -45,18 +45,18 @@ insert into public.admin_role_permissions values
  ('compliance_admin','dashboard.read'),('compliance_admin','customers.read'),('compliance_admin','kyc.review'),('compliance_admin','audit.read')
 on conflict do nothing;
 
-create or replace function public.is_platform_admin(p_user_id uuid default auth.uid())
-returns boolean language sql stable security definer set search_path=public as $$
- select exists(select 1 from public.platform_admin_memberships where user_id=p_user_id and active)
-$$;
-create or replace function public.has_admin_permission(p_permission text,p_user_id uuid default auth.uid())
-returns boolean language sql stable security definer set search_path=public as $$
+create or replace function public.is_platform_admin()
+returns boolean language sql stable security definer set search_path=public as $
+ select exists(select 1 from public.platform_admin_memberships where user_id=auth.uid() and active)
+$;
+create or replace function public.has_admin_permission(p_permission text)
+returns boolean language sql stable security definer set search_path=public as $
  select exists(select 1 from public.platform_admin_memberships m join public.admin_role_permissions rp on rp.admin_role=m.admin_role
- where m.user_id=p_user_id and m.active and rp.permission_key=p_permission)
-$$;
-revoke all on function public.is_platform_admin(uuid) from public,anon;
-revoke all on function public.has_admin_permission(text,uuid) from public,anon;
-grant execute on function public.is_platform_admin(uuid),public.has_admin_permission(text,uuid) to authenticated,service_role;
+ where m.user_id=auth.uid() and m.active and rp.permission_key=p_permission)
+$;
+revoke all on function public.is_platform_admin() from public,anon;
+revoke all on function public.has_admin_permission(text) from public,anon;
+grant execute on function public.is_platform_admin(),public.has_admin_permission(text) to authenticated,service_role;
 
 create table if not exists public.agent_accounts(
  id uuid primary key default gen_random_uuid(), user_id uuid not null unique references auth.users(id) on delete restrict,
@@ -106,6 +106,27 @@ create table if not exists public.ledger_entries(
  currency char(3) not null default 'NGN', created_at timestamptz not null default now()
 );
 create index if not exists ledger_entries_account_idx on public.ledger_entries(ledger_account_id,created_at desc);
+
+-- Enforce balanced double-entry journals at transaction commit.
+create or replace function public.assert_journal_balanced()
+returns trigger language plpgsql security definer set search_path=public as $
+declare v_journal_id uuid; v_debits numeric(18,2); v_credits numeric(18,2);
+begin
+ v_journal_id := coalesce(new.journal_transaction_id,old.journal_transaction_id);
+ select coalesce(sum(amount) filter(where direction='debit'),0),
+        coalesce(sum(amount) filter(where direction='credit'),0)
+ into v_debits,v_credits
+ from public.ledger_entries where journal_transaction_id=v_journal_id;
+ if v_debits=0 or v_credits=0 or v_debits<>v_credits then
+   raise exception 'Journal % is not balanced (debits %, credits %)',v_journal_id,v_debits,v_credits;
+ end if;
+ return null;
+end $;
+drop trigger if exists ledger_entries_balance_check on public.ledger_entries;
+create constraint trigger ledger_entries_balance_check
+after insert or update or delete on public.ledger_entries
+deferrable initially deferred for each row execute function public.assert_journal_balanced();
+
 insert into public.ledger_accounts(account_code,account_name,account_type,user_id,currency)
 select 'customer-wallet:'||user_id::text,'Customer wallet liability','liability',user_id,currency from public.wallets
 on conflict do nothing;
@@ -125,6 +146,9 @@ end $$;
 drop trigger if exists wallets_create_ledger_account on public.wallets;
 create trigger wallets_create_ledger_account after insert on public.wallets
 for each row execute function public.ensure_customer_wallet_ledger_account();
+
+alter table public.wallets add column if not exists currency char(3) not null default 'NGN';
+alter table public.wallets add column if not exists wallet_status text not null default 'active' check(wallet_status in ('active','frozen','closed'));
 
 create table if not exists public.virtual_accounts(
  id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete restrict,
@@ -305,9 +329,15 @@ create policy "Owner reads loyalty activity" on public.loyalty_transactions for 
 create policy "Owner reads support tickets" on public.support_tickets for select to authenticated using(user_id=auth.uid());
 create policy "Owner reads disputes" on public.disputes for select to authenticated using(user_id=auth.uid());
 create policy "Owner reads notifications" on public.notifications for select to authenticated using(user_id=auth.uid());
-grant select on public.service_categories,public.service_products to anon,authenticated;
+grant select on public.service_categories to anon,authenticated;
 create policy "Active categories are public" on public.service_categories for select to anon,authenticated using(active);
-create policy "Active products are public" on public.service_products for select to anon,authenticated using(active);
+-- Never expose provider IDs, supplier cost, or internal metadata to browser clients.
+create or replace view public.public_service_catalog with (security_barrier=true) as
+ select p.id,p.category_id,c.code as category_code,c.name as category_name,
+        p.name,p.network_or_operator,p.description,p.face_value,p.selling_price,p.currency,p.sort_order
+ from public.service_products p join public.service_categories c on c.id=p.category_id
+ where p.active=true and c.active=true;
+grant select on public.public_service_catalog to anon,authenticated;
 
 -- The server creates a pending order and debits once before calling the supplier.
 create or replace function public.create_service_order_and_debit_wallet(
