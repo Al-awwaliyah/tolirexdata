@@ -124,7 +124,7 @@ CREATE TRIGGER data_orders_updated_at BEFORE UPDATE ON public.data_orders FOR EA
 CREATE TRIGGER fundings_updated_at BEFORE UPDATE ON public.fundings FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER wallet_transactions_updated_at BEFORE UPDATE ON public.wallet_transactions FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-CREATE OR REPLACE FUNCTION public.handle_new_dex_sub_user()
+CREATE OR REPLACE FUNCTION public.handle_new_tolirexdata_user()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, full_name, phone)
@@ -134,7 +134,7 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-CREATE TRIGGER on_auth_user_created_dex_sub AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_dex_sub_user();
+CREATE TRIGGER on_auth_user_created_tolirexdata AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_tolirexdata_user();
 
 CREATE OR REPLACE FUNCTION public.create_data_order(p_plan_id uuid, p_phone text)
 RETURNS public.data_orders
@@ -208,11 +208,8 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.review_funding(uuid, text) TO authenticated;
 
-INSERT INTO public.data_plans (network, data_amount, validity, price) VALUES
-  ('MTN', '1GB', '30 days', 320), ('MTN', '2GB', '30 days', 640), ('MTN', '5GB', '30 days', 1550), ('MTN', '10GB', '30 days', 3050),
-  ('Airtel', '1GB', '30 days', 320), ('Airtel', '2GB', '30 days', 640), ('Airtel', '5GB', '30 days', 1550), ('Airtel', '10GB', '30 days', 3050),
-  ('Glo', '1GB', '30 days', 320), ('Glo', '2GB', '30 days', 640), ('Glo', '5GB', '30 days', 1550), ('Glo', '10GB', '30 days', 3050),
-  ('9mobile', '1GB', '30 days', 320), ('9mobile', '2GB', '30 days', 640), ('9mobile', '5GB', '30 days', 1550), ('9mobile', '10GB', '30 days', 3050);
+-- No unverified sample prices are seeded; live catalogue prices must come from an approved supplier/pricing workflow.
+
 
 INSERT INTO public.user_roles (user_id, role)
 SELECT id, 'admin' FROM auth.users WHERE lower(email) = 'lawalaremu53@gmail.com'
