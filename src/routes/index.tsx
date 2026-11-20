@@ -161,38 +161,12 @@ function Index() {
 
   const handleBuy = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedPlan) {
-      setNotice("Choose an available data plan first.");
-      return;
-    }
-    if (!isValidNigerianPhone(phone)) {
-      setNotice("Enter an 11-digit Nigerian phone number starting with 0.");
-      return;
-    }
-    await action(async () => {
-      const order = await createDataOrder({ data: { planId: selectedPlan.id, phone } });
-      setNotice("Order placed. Your data is being processed.");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      await completeDataOrder({ data: { orderId: order.id } });
-      await refreshDashboard();
-      setNotice("Data order completed successfully.");
-      setPhone("");
-    });
+    setNotice("Live supplier ordering is not enabled yet. No wallet debit has been made.");
   };
 
   const handleFunding = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const amount = Number(fundingAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setNotice("Enter a valid amount in naira.");
-      return;
-    }
-    await action(async () => {
-      await createFundingRequest({ data: { amount } });
-      await refreshDashboard();
-      setFundingAmount("");
-      setNotice("Funding request submitted. Your wallet will update after admin confirmation.");
-    });
+    setNotice("Permanent virtual-account funding is not enabled yet. Do not transfer money to unverified account details.");
   };
 
   const handleReviewFunding = (funding: Funding, decision: "approved" | "rejected") => action(async () => {
