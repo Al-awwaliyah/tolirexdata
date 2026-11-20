@@ -267,7 +267,7 @@ function DashboardShell(props: {
   userName: string; accountType: string; isAdmin: boolean; view: ViewKey; setView: (view: ViewKey) => void;
   onSignOut: () => void; notice: string; onDismissNotice: () => void; busy: boolean;
   loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
-  network: Network; setNetwork: (network: Network) => void; plans: DataPlan[];
+  network: Network; setNetwork: (network: Network) => void; networkChoices: string[]; plans: DataPlan[];
   selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   fundingAmount: string; setFundingAmount: (amount: string) => void;
