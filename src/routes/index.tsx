@@ -41,9 +41,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
 import { useDexAuth } from "@/lib/dex-auth";
 import {
-  completeDataOrder,
-  createDataOrder,
-  createFundingRequest,
   getDexDashboard,
   reviewFunding,
   saveDataPlan,
