@@ -140,34 +140,6 @@ export const reviewFunding = createServerFn({ method: "POST" })
     return funding;
   });
 
-export const saveDataPlan = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({
-    id: z.string().uuid().optional(),
-    network: z.enum(["MTN", "Airtel", "Glo", "9mobile"]),
-    dataAmount: z.string().trim().min(1).max(30),
-    validity: z.string().trim().min(1).max(50),
-    price: z.number().positive().max(10_000_000),
-    active: z.boolean(),
-  }).parse(input))
-  .handler(async ({ data, context }) => {
-    const authContext = context as AuthContext;
-    await requireAdmin(authContext);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const values = {
-      network: data.network,
-      data_amount: data.dataAmount,
-      validity: data.validity,
-      price: data.price,
-      active: data.active,
-    };
-    const result = data.id
-      ? await supabaseAdmin.from("data_plans").update(values).eq("id", data.id).select().single()
-      : await supabaseAdmin.from("data_plans").insert(values).select().single();
-    if (result.error || !result.data) throw new Error(result.error?.message ?? "Unable to save this plan");
-    return result.data;
-  });
-
 /**
  * Loads the live ClubKonnect product catalog from the server.
  * Credentials are read only in the server module and never reach the browser.
