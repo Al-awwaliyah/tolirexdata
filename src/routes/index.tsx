@@ -43,7 +43,6 @@ import { useDexAuth } from "@/lib/dex-auth";
 import {
   getDexDashboard,
   reviewFunding,
-  saveDataPlan,
 } from "@/lib/dex.functions";
 import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
@@ -67,15 +66,8 @@ type DashboardData = {
 type ViewKey = "overview" | "buy" | "fund" | "activity";
 type Network = "MTN" | "Airtel" | "Glo" | "9mobile";
 type AuthMode = "signin" | "signup";
-type PlanEditor = { id: string; network: Network; dataAmount: string; validity: string; price: string; active: boolean };
 
 const networkChoices: Network[] = ["MTN", "Airtel", "Glo", "9mobile"];
-const fallbackPrices = [
-  { network: "MTN" as Network, data: "1GB", validity: "30 days", price: 320 },
-  { network: "Airtel" as Network, data: "2GB", validity: "30 days", price: 640 },
-  { network: "Glo" as Network, data: "5GB", validity: "30 days", price: 1550 },
-  { network: "9mobile" as Network, data: "10GB", validity: "30 days", price: 3050 },
-];
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -107,14 +99,7 @@ function Index() {
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [phone, setPhone] = useState("");
   const [fundingAmount, setFundingAmount] = useState("");
-  const [planEditor, setPlanEditor] = useState({
-    id: "",
-    network: "MTN" as Network,
-    dataAmount: "",
-    validity: "30 days",
-    price: "",
-    active: true,
-  });
+
 
   const refreshDashboard = useCallback(async () => {
     setDashboardLoading(true);
@@ -172,29 +157,7 @@ function Index() {
     setNotice(`Funding request ${decision}.`);
   });
 
-  const handleSavePlan = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const price = Number(planEditor.price);
-    if (!planEditor.dataAmount.trim() || !Number.isFinite(price) || price <= 0) {
-      setNotice("Add a plan size and a valid naira price.");
-      return;
-    }
-    void action(async () => {
-      await saveDataPlan({
-        data: {
-          id: planEditor.id || undefined,
-          network: planEditor.network,
-          dataAmount: planEditor.dataAmount,
-          validity: planEditor.validity,
-          price,
-          active: planEditor.active,
-        },
-      });
-      await refreshDashboard();
-      setPlanEditor({ id: "", network: "MTN", dataAmount: "", validity: "30 days", price: "", active: true });
-      setNotice("Data plan saved.");
-    });
-  };
+
 
   const signOut = async () => {
     setBusy(true);
@@ -237,9 +200,6 @@ function Index() {
           setFundingAmount={setFundingAmount}
           onFunding={handleFunding}
           onReviewFunding={handleReviewFunding}
-          planEditor={planEditor}
-          setPlanEditor={setPlanEditor}
-          onSavePlan={handleSavePlan}
         />
       ) : (
         <Storefront
@@ -303,8 +263,6 @@ function DashboardShell(props: {
   fundingAmount: string; setFundingAmount: (amount: string) => void;
   onFunding: (event: FormEvent<HTMLFormElement>) => void;
   onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
-  planEditor: PlanEditor; setPlanEditor: (plan: PlanEditor) => void;
-  onSavePlan: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const accountLabel = props.accountType.replace(/[_-]/g, " ");
   const navItems: { key: ViewKey; label: string; icon: ReactNode }[] = [
@@ -345,7 +303,7 @@ function Overview({ dashboard, accountType, onNavigate }: { dashboard: Dashboard
       <div className="tr-actions-panel"><div className="tr-widget-heading"><h2>Quick actions</h2><span>Manage money</span></div><div className="tr-quick-grid"><button onClick={()=>onNavigate("fund")}><span className="q-blue"><Plus/></span><b>Add money</b></button><button onClick={()=>onNavigate("buy")}><span className="q-dark"><ArrowUpRight/></span><b>Buy data</b></button><button onClick={()=>onNavigate("activity")}><span className="q-purple"><FileClock/></span><b>History</b></button><button onClick={()=>onNavigate("buy")}><span className="q-green"><Grid2X2/></span><b>All services</b></button></div></div></section>
     <section className="tr-service-section"><div className="tr-widget-heading"><div><h2>{accountType === "agent" ? "Reseller services" : accountType === "business" ? "Business services" : "Your services"}</h2><p>{accountType === "agent" ? "Access services for your resale business." : accountType === "business" ? "Manage digital service purchases for your organisation." : "What would you like to do today?"}</p></div><button onClick={()=>onNavigate("buy")}>See all <ArrowRight/></button></div><div className="tr-services-grid">{tiles.map((tile)=><button key={tile.title} className="tr-service-card" onClick={()=>onNavigate("buy")}><span className={`tr-service-icon ${tile.tone}`}>{tile.icon}</span><span className="tr-service-title">{tile.title}</span><span className="tr-service-sub">{tile.sub}</span><span className={`tr-service-status ${tile.status==="Available"?"live":""}`}>{tile.status}</span></button>)}</div></section>
     <section className="tr-lower-grid"><div className="tr-widget-card"><div className="tr-widget-heading"><div><h2>{accountType === "business" ? "Business activity" : accountType === "agent" ? "Reseller activity" : "Recent transactions"}</h2><p>{accountType === "business" ? "Recent activity on your business wallet" : accountType === "agent" ? "Recent wallet and service activity" : "Your latest account activity"}</p></div><button onClick={()=>onNavigate("activity")}>View all <ArrowRight/></button></div>{recent.length?recent.map(entry=><TransactionRow key={entry.id} transaction={entry}/>):<EmptyState icon={<FileClock/>} title="No transactions yet" copy="Your wallet activity will appear here."/>}</div>
-      <div className="tr-widget-card tr-network-card"><div className="tr-widget-heading"><div><h2>Mobile networks</h2><p>Choose a network to browse data</p></div></div>{networkChoices.map((choice,index)=><button className="tr-network-row" key={choice} onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><span>{choice}</span><ArrowRight/></button>)}</div></section>
+      {(dashboard?.plans?.length ?? 0) > 0 && <div className="tr-widget-card tr-network-card"><div className="tr-widget-heading"><div><h2>Mobile networks</h2><p>Networks available in the published supplier catalogue</p></div></div>{Array.from(new Set(dashboard?.plans.map((plan) => plan.network) ?? [])).map((choice,index)=><button className="tr-network-row" key={choice} onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><span>{choice}</span><ArrowRight/></button>)}</div>}</section>
   </div>;
 }
 
@@ -394,14 +352,14 @@ function BuyDataView(props: {
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="border bg-background p-5 sm:p-6">
         <h2 className="text-lg font-semibold text-foreground">Choose a data plan</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Plans and prices will appear here when the live supplier catalogue is connected.</p>
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Select a network">
+        <p className="mt-1 text-sm text-muted-foreground">Only products published from the connected supplier catalogue will appear here. Plans and prices are never manually estimated.</p>
+        {props.plans.length > 0 && <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Select a network">
           {networkChoices.map((choice, index) => (
             <Button key={choice} variant={props.network === choice ? "default" : "outline"} onClick={() => { props.setNetwork(choice); props.setSelectedPlanId(""); }}>
               <NetworkMark network={choice} index={index} />
             </Button>
           ))}
-        </div>
+        </div>}
         {props.plans.length ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {props.plans.map((plan) => {
@@ -414,7 +372,7 @@ function BuyDataView(props: {
               );
             })}
           </div>
-        ) : <EmptyState icon={<Database />} title="No plans available" copy="The live supplier catalogue has not been connected yet. No static or estimated plans are shown." />}
+        ) : <EmptyState icon={<Database />} title="No plans available" copy="No supplier products have been published for this service yet. No static or estimated plans are shown." />}
       </section>
       <form onSubmit={props.onBuy} className="h-fit border bg-background p-5 sm:p-6">
         <h2 className="text-lg font-semibold text-foreground">Order details</h2>
@@ -475,65 +433,6 @@ function ActivityView({ dashboard }: { dashboard: DashboardData | null }) {
           <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Funding requests</h2></div>
           {fundings.length ? fundings.map((funding) => <FundingRow key={funding.id} funding={funding} />) : <EmptyState icon={<ArrowDownLeft />} title="No funding requests" copy="Requests you submit will show here." />}
         </section>
-      </div>
-    </div>
-  );
-}
-
-function AdminView(props: {
-  dashboard: DashboardData | null;
-  busy: boolean;
-  onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
-  planEditor: PlanEditor;
-  setPlanEditor: (plan: PlanEditor) => void;
-  onSavePlan: (event: FormEvent<HTMLFormElement>) => void;
-}) {
-  const dashboard = props.dashboard;
-  const pendingFundings = dashboard?.fundings.filter((funding) => funding.status === "pending") ?? [];
-  const userName = (userId: string) => dashboard?.users.find((profile) => profile.id === userId)?.full_name || dashboard?.users.find((profile) => profile.id === userId)?.email || userId.slice(0, 8);
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Metric icon={<Smartphone />} label="Accounts" value={String(dashboard?.users.length ?? 0)} />
-        <Metric icon={<PackageCheck />} label="Data orders" value={String(dashboard?.orders.length ?? 0)} />
-        <Metric icon={<Clock3 />} label="Pending fundings" value={String(pendingFundings.length)} />
-      </div>
-      <section className="border bg-background">
-        <div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="font-semibold text-foreground">Funding requests to review</h2><p className="mt-1 text-sm text-muted-foreground">Approval credits the customer wallet automatically.</p></div><span className="rounded-full bg-chart-4/20 px-2.5 py-1 text-xs font-semibold text-foreground">{pendingFundings.length} pending</span></div>
-        {pendingFundings.length ? pendingFundings.map((funding) => (
-          <div key={funding.id} className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 last:border-0">
-            <div><p className="font-medium text-foreground">{userName(funding.user_id)}</p><p className="mt-1 text-sm text-muted-foreground">{formatDate(funding.created_at)} · Bank transfer</p></div>
-            <div className="flex items-center gap-4"><strong className="text-foreground">{formatNaira(funding.amount)}</strong><Button size="sm" disabled={props.busy} onClick={() => props.onReviewFunding(funding, "approved")}><Check /> Approve</Button><Button size="sm" variant="outline" disabled={props.busy} onClick={() => props.onReviewFunding(funding, "rejected")}><X /> Reject</Button></div>
-          </div>
-        )) : <EmptyState icon={<CheckCircle2 />} title="All caught up" copy="There are no pending funding requests." />}
-      </section>
-      <div className="grid gap-6 xl:grid-cols-[.85fr_1.15fr]">
-        <form onSubmit={props.onSavePlan} className="h-fit border bg-background p-5">
-          <div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold text-foreground">{props.planEditor.id ? "Edit data plan" : "Add a data plan"}</h2><p className="mt-1 text-sm text-muted-foreground">Set network, bundle, validity and price.</p></div>{props.planEditor.id && <Button size="icon" variant="ghost" type="button" title="Clear plan form" onClick={() => props.setPlanEditor({ id: "", network: "MTN", dataAmount: "", validity: "30 days", price: "", active: true })}><X /></Button>}</div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <Field label="Network"><select className="h-10 w-full border bg-background px-3 text-sm" value={props.planEditor.network} onChange={(event) => props.setPlanEditor({ ...props.planEditor, network: event.target.value as Network })}>{networkChoices.map((item) => <option key={item}>{item}</option>)}</select></Field>
-            <Field label="Data amount"><Input value={props.planEditor.dataAmount} onChange={(event) => props.setPlanEditor({ ...props.planEditor, dataAmount: event.target.value })} placeholder="1GB" required /></Field>
-            <Field label="Validity"><Input value={props.planEditor.validity} onChange={(event) => props.setPlanEditor({ ...props.planEditor, validity: event.target.value })} placeholder="30 days" required /></Field>
-            <Field label="Price (₦)"><Input type="number" min="1" step="1" value={props.planEditor.price} onChange={(event) => props.setPlanEditor({ ...props.planEditor, price: event.target.value })} required /></Field>
-          </div>
-          <label className="mt-4 flex items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={props.planEditor.active} onChange={(event) => props.setPlanEditor({ ...props.planEditor, active: event.target.checked })} />Available for purchase</label>
-          <Button className="mt-5 w-full" disabled={props.busy}>{props.planEditor.id ? "Save changes" : "Add plan"}</Button>
-        </form>
-        <section className="border bg-background">
-          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Data plan catalogue</h2><p className="mt-1 text-sm text-muted-foreground">Edit a plan to update its price or availability.</p></div>
-          <div className="max-h-[470px] overflow-auto">
-            {(dashboard?.plans ?? []).map((plan) => (
-              <div key={plan.id} className="flex items-center justify-between gap-3 border-b px-4 py-3 last:border-0">
-                <div className="min-w-0"><p className="font-medium text-foreground">{plan.network} · {plan.data_amount}</p><p className="text-sm text-muted-foreground">{plan.validity} · {plan.active ? "Available" : "Paused"}</p></div>
-                <div className="flex items-center gap-3"><strong className="whitespace-nowrap text-sm text-foreground">{formatNaira(plan.price)}</strong><Button variant="outline" size="sm" onClick={() => props.setPlanEditor({ id: plan.id, network: plan.network as Network, dataAmount: plan.data_amount, validity: plan.validity, price: String(plan.price), active: plan.active })}>Edit</Button></div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section className="border bg-background"><div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Recent customer accounts</h2></div>{(dashboard?.users ?? []).slice(0, 12).map((profile) => <div key={profile.id} className="flex flex-wrap justify-between gap-2 border-b px-5 py-3 last:border-0"><span className="font-medium text-foreground">{profile.full_name || "New customer"}</span><span className="text-sm text-muted-foreground">{profile.email} · {profile.phone}</span></div>)}</section>
-        <section className="border bg-background"><div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Recent data orders</h2></div>{(dashboard?.orders ?? []).slice(0, 12).map((order) => <div key={order.id} className="flex flex-wrap justify-between gap-2 border-b px-5 py-3 last:border-0"><span className="font-medium text-foreground">{userName(order.user_id)} · {order.network} {order.data_amount}</span><span className="text-sm text-muted-foreground">{formatNaira(order.amount)} · {titleCase(order.status)}</span></div>)}</section>
       </div>
     </div>
   );

@@ -35,21 +35,20 @@ export const getDexDashboard = createServerFn({ method: "GET" })
 
     if (adminAccess) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const [profiles, wallets, plans, orders, fundings, transactions] = await Promise.all([
+      const [profiles, wallets, orders, fundings, transactions] = await Promise.all([
         supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallets").select("*").limit(500),
-        supabaseAdmin.from("data_plans").select("*").order("network").order("price"),
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("fundings").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
       ]);
-      const results = [profiles, wallets, plans, orders, fundings, transactions];
+      const results = [profiles, wallets, orders, fundings, transactions];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
 
       return {
         profile: profiles.data?.find((profile) => profile.id === userId) ?? null,
         wallet: wallets.data?.find((wallet) => wallet.user_id === userId) ?? null,
-        plans: plans.data ?? [],
+        // Legacy manually managed data_plans are deliberately excluded. The customer catalogue must come from published supplier products.\n        plans: [],
         orders: orders.data ?? [],
         fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
@@ -139,34 +138,6 @@ export const reviewFunding = createServerFn({ method: "POST" })
     });
     if (error || !funding) throw new Error(error?.message ?? "Unable to review this request");
     return funding;
-  });
-
-export const saveDataPlan = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({
-    id: z.string().uuid().optional(),
-    network: z.enum(["MTN", "Airtel", "Glo", "9mobile"]),
-    dataAmount: z.string().trim().min(1).max(30),
-    validity: z.string().trim().min(1).max(50),
-    price: z.number().positive().max(10_000_000),
-    active: z.boolean(),
-  }).parse(input))
-  .handler(async ({ data, context }) => {
-    const authContext = context as AuthContext;
-    await requireAdmin(authContext);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const values = {
-      network: data.network,
-      data_amount: data.dataAmount,
-      validity: data.validity,
-      price: data.price,
-      active: data.active,
-    };
-    const result = data.id
-      ? await supabaseAdmin.from("data_plans").update(values).eq("id", data.id).select().single()
-      : await supabaseAdmin.from("data_plans").insert(values).select().single();
-    if (result.error || !result.data) throw new Error(result.error?.message ?? "Unable to save this plan");
-    return result.data;
   });
 
 /**
