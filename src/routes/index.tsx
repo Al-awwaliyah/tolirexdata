@@ -395,7 +395,7 @@ function BuyDataView(props: {
   dashboard: DashboardData | null;
   busy: boolean;
   network: Network;
-  setNetwork: (network: Network) => void;
+  setNetwork: (network: Network) => void;\n  networkChoices: string[];
   plans: DataPlan[];
   selectedPlan: DataPlan | undefined;
   selectedPlanId: string;
