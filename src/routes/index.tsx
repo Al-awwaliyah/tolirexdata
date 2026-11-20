@@ -66,7 +66,8 @@ type Profile = TableRows<"profiles">;
 type DashboardData = {
   profile: Profile | null;
   wallet: TableRows<"wallets"> | null;
-  plans: DataPlan[];\n  catalogue: CatalogueProduct[];
+  plans: DataPlan[];
+  catalogue: CatalogueProduct[];
   orders: DataOrder[];
   fundings: Funding[];
   transactions: WalletTransaction[];
@@ -136,7 +137,8 @@ function Index() {
     () => (dashboard?.plans ?? []).filter((plan) => (!network || plan.network === network) && (plan.active || dashboard?.isAdmin)),
     [dashboard?.isAdmin, dashboard?.plans, network],
   );
-  const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0];\n  const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
+  const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0];
+  const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
 
   const clearNotice = () => setNotice("");
   const action = async (work: () => Promise<void>) => {
@@ -395,7 +397,8 @@ function BuyDataView(props: {
   dashboard: DashboardData | null;
   busy: boolean;
   network: Network;
-  setNetwork: (network: Network) => void;\n  networkChoices: string[];
+  setNetwork: (network: Network) => void;
+  networkChoices: string[];
   plans: DataPlan[];
   selectedPlan: DataPlan | undefined;
   selectedPlanId: string;
