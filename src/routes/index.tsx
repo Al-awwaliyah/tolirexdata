@@ -18,6 +18,15 @@ import {
   MoreHorizontal,
   Grid2X2,
   PackageCheck,
+  Tv,
+  Lightbulb,
+  TicketPercent,
+  Megaphone,
+  Coins,
+  Award,
+  Gift,
+  Users,
+  Pin,
   Plus,
   RadioTower,
   ShieldCheck,
@@ -63,7 +72,7 @@ type DashboardData = {
   users: Profile[];
   isAdmin: boolean;
 };
-type ViewKey = "overview" | "buy" | "fund" | "activity";
+type ViewKey = "overview" | "buy" | "fund" | "activity" | "airtime" | "cable" | "electricity" | "epin" | "referrals" | "coupons" | "promotions" | "cashback" | "loyalty";
 type Network = "MTN" | "Airtel" | "Glo" | "9mobile";
 type AuthMode = "signin" | "signup";
 
@@ -265,16 +274,25 @@ function DashboardShell(props: {
   onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
 }) {
   const accountLabel = props.accountType.replace(/[_-]/g, " ");
-  const navItems: { key: ViewKey; label: string; icon: ReactNode }[] = [
-    { key: "overview", label: "Overview", icon: <House /> },
-    { key: "buy", label: props.accountType === "agent" ? "Reseller services" : props.accountType === "business" ? "Business services" : "Services", icon: <Sparkles /> },
-    { key: "fund", label: "Wallet", icon: <Wallet /> },
-    { key: "activity", label: props.accountType === "business" ? "Reports & activity" : "Transactions", icon: <FileClock /> },
+  const navItems: { key: ViewKey; label: string; icon: ReactNode; group: string }[] = [
+    { key: "overview", label: "Overview", icon: <House />, group: "Main" },
+    { key: "buy", label: "Data", icon: <Database />, group: "Services" },
+    { key: "airtime", label: "Airtime", icon: <Smartphone />, group: "Services" },
+    { key: "cable", label: "Cable TV", icon: <Tv />, group: "Services" },
+    { key: "electricity", label: "Electricity", icon: <Lightbulb />, group: "Services" },
+    { key: "epin", label: "Recharge PINs", icon: <Pin />, group: "Services" },
+    { key: "referrals", label: "Referrals", icon: <Users />, group: "Rewards & growth" },
+    { key: "coupons", label: "Coupons", icon: <TicketPercent />, group: "Rewards & growth" },
+    { key: "promotions", label: "Promotions", icon: <Megaphone />, group: "Rewards & growth" },
+    { key: "cashback", label: "Cashback", icon: <Coins />, group: "Rewards & growth" },
+    { key: "loyalty", label: "Loyalty", icon: <Award />, group: "Rewards & growth" },
+    { key: "fund", label: "Wallet", icon: <Wallet />, group: "Main" },
+    { key: "activity", label: props.accountType === "business" ? "Reports & activity" : "Transactions", icon: <FileClock />, group: "Main" },
   ];
   return (
     <div className="tr-app-shell">
       <header className="tr-app-header"><div className="tr-header-inner"><Brand/><div className="tr-header-search"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input aria-label="Search" placeholder="Search" /></div><div className="tr-header-actions"><span className="tr-account-chip">{props.accountType.replace(/[_-]/g, " ")}</span><button className="tr-icon-button" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button><button className="tr-user-pill" onClick={props.onSignOut} title="Sign out"><span>{(props.userName || "T").slice(0,1).toUpperCase()}</span><b>{props.userName.split(" ")[0]}</b><ChevronDown className="size-4"/></button></div></div></header>
-      <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{navItems.map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Your account, payments and personal information are protected by access controls.</p></div></aside>
+      <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{(["Main","Services","Rewards & growth"] as const).map((group)=><section className="tr-nav-group" key={group}><p className="tr-sidebar-label">{group}</p>{navItems.filter((item)=>item.group===group).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</section>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Your account, payments and personal information are protected by access controls.</p></div></aside>
         <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{accountLabel.toUpperCase()} ACCOUNT · {new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
           {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice}/>}
           {props.loading && !props.dashboard ? <LoadingScreen compact/> : null}
@@ -282,6 +300,7 @@ function DashboardShell(props: {
           {props.view === "buy" && <BuyDataView {...props}/>}
           {props.view === "fund" && <FundWalletView {...props}/>}
           {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
+          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view} accountType={props.accountType}/>}
         </main>
       </div>
       <nav className="tr-mobile-nav" aria-label="Account navigation">{navItems.map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav>
@@ -292,16 +311,24 @@ function DashboardShell(props: {
 function Overview({ dashboard, accountType, onNavigate }: { dashboard: DashboardData | null; accountType: string; onNavigate: (view: ViewKey) => void }) {
   const balance = dashboard?.wallet?.balance;
   const recent = [...(dashboard?.transactions ?? [])].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,5);
-  const tiles = [
-    {icon:<Database/>,title:"Mobile data",sub:"Supplier-synced plans",status:"Catalogue pending",tone:"blue"},
-    {icon:<Smartphone/>,title:"Airtime",sub:"Supplier-powered top-ups",status:"Catalogue pending",tone:"purple"},
-    {icon:<RadioTower/>,title:"Cable TV",sub:"Supplier-synced packages",status:"Catalogue pending",tone:"orange"},
-    {icon:<Zap/>,title:"Electricity",sub:"Verified disco catalogue",status:"Catalogue pending",tone:"green"},
+  const tiles: {icon:ReactNode;title:string;sub:string;status:string;tone:string;view:ViewKey}[] = [
+    {icon:<Smartphone/>,title:"Airtime",sub:"Mobile network top-ups",status:"Supplier catalogue",tone:"purple",view:"airtime"},
+    {icon:<Database/>,title:"Data",sub:"Browse available data bundles",status:"Supplier catalogue",tone:"blue",view:"buy"},
+    {icon:<Tv/>,title:"Cable TV",sub:"TV subscriptions and packages",status:"Supplier catalogue",tone:"orange",view:"cable"},
+    {icon:<Lightbulb/>,title:"Electricity",sub:"Meter verification and payments",status:"Supplier catalogue",tone:"green",view:"electricity"},
+    {icon:<Pin/>,title:"Recharge PINs",sub:"Available PIN products",status:"Supplier catalogue",tone:"blue",view:"epin"},
   ];
   return <div className="tr-dashboard-content">
     <section className="tr-overview-grid"><div className="tr-balance-panel"><div className="tr-panel-top"><span>{accountType.toUpperCase().replace(/[_-]/g, " ")} ACCOUNT · NGN</span><button aria-label="Wallet options"><MoreHorizontal/></button></div><p className="tr-balance-caption">Total balance</p><div className="tr-balance-amount">{typeof balance === "number" ? formatNaira(balance) : "—"}</div><div className="tr-balance-bottom"><span><span className="tr-status-dot"/> {dashboard?.profile?.account_status === "suspended" ? "Account suspended" : dashboard?.profile?.account_status === "restricted" ? "Account restricted" : dashboard?.wallet ? "Account active" : "Wallet setup pending"}</span><button onClick={()=>onNavigate("fund")}>Add money <ArrowUpRight/></button></div></div>
       <div className="tr-actions-panel"><div className="tr-widget-heading"><h2>Quick actions</h2><span>Manage money</span></div><div className="tr-quick-grid"><button onClick={()=>onNavigate("fund")}><span className="q-blue"><Plus/></span><b>Add money</b></button><button onClick={()=>onNavigate("buy")}><span className="q-dark"><ArrowUpRight/></span><b>Buy data</b></button><button onClick={()=>onNavigate("activity")}><span className="q-purple"><FileClock/></span><b>History</b></button><button onClick={()=>onNavigate("buy")}><span className="q-green"><Grid2X2/></span><b>All services</b></button></div></div></section>
-    <section className="tr-service-section"><div className="tr-widget-heading"><div><h2>{accountType === "agent" ? "Reseller services" : accountType === "business" ? "Business services" : "Your services"}</h2><p>{accountType === "agent" ? "Access services for your resale business." : accountType === "business" ? "Manage digital service purchases for your organisation." : "What would you like to do today?"}</p></div><button onClick={()=>onNavigate("buy")}>See all <ArrowRight/></button></div><div className="tr-services-grid">{tiles.map((tile)=><button key={tile.title} className="tr-service-card" onClick={()=>onNavigate("buy")}><span className={`tr-service-icon ${tile.tone}`}>{tile.icon}</span><span className="tr-service-title">{tile.title}</span><span className="tr-service-sub">{tile.sub}</span><span className={`tr-service-status ${tile.status==="Available"?"live":""}`}>{tile.status}</span></button>)}</div></section>
+    <section className="tr-service-section"><div className="tr-widget-heading"><div><h2>{accountType === "agent" ? "Reseller services" : accountType === "business" ? "Business services" : "Your services"}</h2><p>{accountType === "agent" ? "Access services for your resale business." : accountType === "business" ? "Manage digital service purchases for your organisation." : "What would you like to do today?"}</p></div><button onClick={()=>onNavigate("buy")}>See all <ArrowRight/></button></div><div className="tr-services-grid">{tiles.map((tile)=><button key={tile.title} className="tr-service-card" onClick={()=>onNavigate(tile.view)}><span className={`tr-service-icon ${tile.tone}`}>{tile.icon}</span><span className="tr-service-title">{tile.title}</span><span className="tr-service-sub">{tile.sub}</span><span className={`tr-service-status ${tile.status==="Available"?"live":""}`}>{tile.status}</span></button>)}</div></section>
+    <section className="tr-service-section tr-rewards-section"><div className="tr-widget-heading"><div><h2>Rewards & growth</h2><p>Discover referral rewards, eligible offers and loyalty benefits.</p></div></div><div className="tr-services-grid">{[
+      {view:"referrals" as ViewKey,title:"Referrals",sub:"Invite friends and track qualifying rewards",icon:<Users/>,tone:"blue"},
+      {view:"coupons" as ViewKey,title:"Coupons",sub:"Apply eligible discount codes",icon:<TicketPercent/>,tone:"purple"},
+      {view:"promotions" as ViewKey,title:"Promotions",sub:"Explore active platform campaigns",icon:<Megaphone/>,tone:"orange"},
+      {view:"cashback" as ViewKey,title:"Cashback",sub:"Track earned and settled cashback",icon:<Coins/>,tone:"green"},
+      {view:"loyalty" as ViewKey,title:"Loyalty",sub:"Points, tiers and redemption activity",icon:<Award/>,tone:"blue"},
+    ].map((item)=><button key={item.view} className="tr-service-card" onClick={()=>onNavigate(item.view)}><span className={`tr-service-icon ${item.tone}`}>{item.icon}</span><span className="tr-service-title">{item.title}</span><span className="tr-service-sub">{item.sub}</span><span className="tr-service-status">View details</span></button>)}</div></section>
     <section className="tr-lower-grid"><div className="tr-widget-card"><div className="tr-widget-heading"><div><h2>{accountType === "business" ? "Business activity" : accountType === "agent" ? "Reseller activity" : "Recent transactions"}</h2><p>{accountType === "business" ? "Recent activity on your business wallet" : accountType === "agent" ? "Recent wallet and service activity" : "Your latest account activity"}</p></div><button onClick={()=>onNavigate("activity")}>View all <ArrowRight/></button></div>{recent.length?recent.map(entry=><TransactionRow key={entry.id} transaction={entry}/>):<EmptyState icon={<FileClock/>} title="No transactions yet" copy="Your wallet activity will appear here."/>}</div>
       {(dashboard?.plans?.length ?? 0) > 0 && <div className="tr-widget-card tr-network-card"><div className="tr-widget-heading"><div><h2>Mobile networks</h2><p>Networks available in the published supplier catalogue</p></div></div>{Array.from(new Set(dashboard?.plans.map((plan) => plan.network) ?? [])).map((choice,index)=><button className="tr-network-row" key={choice} onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><span>{choice}</span><ArrowRight/></button>)}</div>}</section>
   </div>;
@@ -333,6 +360,34 @@ function AccountServiceTile({
       {onClick && <Button variant="ghost" className="mt-2 h-9 w-fit px-0 text-primary" onClick={onClick}>Browse plans <ArrowRight /></Button>}
     </div>
   );
+}
+
+type FeatureView = Exclude<ViewKey, "overview" | "buy" | "fund" | "activity">;
+
+const featureDetails: Record<FeatureView, {title:string;eyebrow:string;description:string;icon:ReactNode;group:"service"|"growth";emptyTitle:string;emptyCopy:string}> = {
+  airtime:{title:"Buy airtime",eyebrow:"DIGITAL SERVICES",description:"Top up a mobile number using live supplier availability and your account's applicable price.",icon:<Smartphone/>,group:"service",emptyTitle:"Airtime catalogue unavailable",emptyCopy:"Airtime networks and denominations will appear when a supplier catalogue is successfully synchronized and published."},
+  cable:{title:"Cable TV",eyebrow:"DIGITAL SERVICES",description:"Verify a decoder or smart-card number, choose an available package and review the price before payment.",icon:<Tv/>,group:"service",emptyTitle:"TV packages not available yet",emptyCopy:"Only packages returned by a connected supplier and published by the platform will be shown here."},
+  electricity:{title:"Electricity",eyebrow:"DIGITAL SERVICES",description:"Choose a supported distribution company, verify the meter and review the payable amount before purchase.",icon:<Lightbulb/>,group:"service",emptyTitle:"Electricity providers unavailable",emptyCopy:"Supported discos and meter-payment options will appear after the live provider catalogue is connected."},
+  epin:{title:"Recharge PINs",eyebrow:"DIGITAL SERVICES",description:"Browse available recharge PIN products and denominations. PIN delivery details are shown only after a verified order.",icon:<Pin/>,group:"service",emptyTitle:"Recharge PIN catalogue unavailable",emptyCopy:"Only supplier-confirmed PIN products, denominations and prices will be listed here."},
+  referrals:{title:"Refer and earn",eyebrow:"REWARDS & GROWTH",description:"Invite people to TolirexData and follow referral qualification and reward settlement.",icon:<Users/>,group:"growth",emptyTitle:"Your referral programme is not active yet",emptyCopy:"Your referral code and reward history will appear here when the programme is enabled by the platform."},
+  coupons:{title:"Coupons",eyebrow:"REWARDS & GROWTH",description:"Use eligible coupon codes for discounts on supported services. Eligibility and limits are checked securely at redemption.",icon:<TicketPercent/>,group:"growth",emptyTitle:"No eligible coupons to show",emptyCopy:"Active coupons published for your account type will appear here. Expired or ineligible codes will not be presented as available."},
+  promotions:{title:"Promotions",eyebrow:"REWARDS & GROWTH",description:"Discover platform campaigns, welcome offers and limited-time benefits available to your account.",icon:<Megaphone/>,group:"growth",emptyTitle:"No active promotions",emptyCopy:"Campaigns published by TolirexData will appear here with their eligibility, dates and terms."},
+  cashback:{title:"Cashback",eyebrow:"REWARDS & GROWTH",description:"Review cashback earned from qualifying transactions, pending rewards and settled wallet credits.",icon:<Coins/>,group:"growth",emptyTitle:"No cashback activity yet",emptyCopy:"Cashback rules and reward history will appear when an eligible campaign is active. No reward is assumed or credited by this screen."},
+  loyalty:{title:"Loyalty",eyebrow:"REWARDS & GROWTH",description:"Track loyalty points, membership tier and eligible redemption options.",icon:<Award/>,group:"growth",emptyTitle:"Loyalty programme not configured",emptyCopy:"Your points, tier and redemption options will appear when the loyalty programme is configured and enabled."},
+};
+
+function FeatureWorkspace({view,accountType}:{view:FeatureView;accountType:string}) {
+  const feature=featureDetails[view];
+  return <div className="tr-feature-workspace">
+    <section className="tr-feature-hero">
+      <div className="tr-feature-icon">{feature.icon}</div>
+      <div><span className="tr-kicker">{feature.eyebrow}</span><h2>{feature.title}</h2><p>{feature.description}</p></div>
+      <span className="tr-feature-account">{accountType.replace(/[_-]/g," ")}</span>
+    </section>
+    {feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · account-specific pricing</p></div><span className="tr-catalogue-state"><i/>Awaiting live catalogue</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section> :
+    <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
+    <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
+  </div>;
 }
 
 function BuyDataView(props: {
@@ -572,9 +627,10 @@ function LoadingScreen({ compact = false }: { compact?: boolean }) {
 
 function headingForView(view: ViewKey, name: string): string {
   if (view === "overview") return `Good to see you, ${name.split(" ")[0]}`;
-  if (view === "buy") return "Buy mobile data";
+  if (view === "buy") return "Buy data";
   if (view === "fund") return "Add money to your wallet";
   if (view === "activity") return "Your activity";
+  if (view in featureDetails) return featureDetails[view as FeatureView].title;
   return "ToliRex Data admin";
 }
 
