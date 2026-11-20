@@ -83,3 +83,14 @@ KYC review is currently an authorized staff review workflow. It is not an automa
 - Provider purchase, status-query and refund workflows.
 
 Do not enable real-money operations until these controls are implemented and tested.
+
+## Deploy without a local Supabase CLI
+
+A manual GitHub Actions workflow is available at `.github/workflows/deploy-supabase-functions.yml`.
+
+1. In GitHub, open the repository Settings → Secrets and variables → Actions.
+2. Add an Actions secret named `SUPABASE_ACCESS_TOKEN` using a Supabase personal access token. Do not commit or paste this token into chat.
+3. Open Actions → Deploy TolirexData Supabase Edge Functions.
+4. Select the feature branch `feat/tolirexdata-platform-foundation` and run the workflow manually.
+
+This workflow deploys the catalogue sync and KYC submission/review functions only. It does not deploy the frontend, apply database migrations, create a virtual account, or enable live payment processing.
