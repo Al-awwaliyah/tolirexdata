@@ -41,7 +41,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("fundings").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
-        supabaseAdmin.from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+        (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
       ]);
       const results = [profiles, wallets, orders, fundings, transactions, catalogue];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
@@ -65,7 +65,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       supabase.from("data_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("fundings").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-      supabase.from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+      (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
     ]);
     const results = [profile, wallet, orders, fundings, transactions, catalogue];
     if (results.some((result) => result.error)) throw new Error("Unable to load your DEX Sub account");
