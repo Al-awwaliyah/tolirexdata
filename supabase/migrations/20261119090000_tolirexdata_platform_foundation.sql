@@ -46,14 +46,14 @@ insert into public.admin_role_permissions values
 on conflict do nothing;
 
 create or replace function public.is_platform_admin()
-returns boolean language sql stable security definer set search_path=public as $
+returns boolean language sql stable security definer set search_path=public as $$
  select exists(select 1 from public.platform_admin_memberships where user_id=auth.uid() and active)
-$;
+$$;
 create or replace function public.has_admin_permission(p_permission text)
-returns boolean language sql stable security definer set search_path=public as $
+returns boolean language sql stable security definer set search_path=public as $$
  select exists(select 1 from public.platform_admin_memberships m join public.admin_role_permissions rp on rp.admin_role=m.admin_role
  where m.user_id=auth.uid() and m.active and rp.permission_key=p_permission)
-$;
+$$;
 revoke all on function public.is_platform_admin() from public,anon;
 revoke all on function public.has_admin_permission(text) from public,anon;
 grant execute on function public.is_platform_admin(),public.has_admin_permission(text) to authenticated,service_role;
@@ -109,7 +109,7 @@ create index if not exists ledger_entries_account_idx on public.ledger_entries(l
 
 -- Enforce balanced double-entry journals at transaction commit.
 create or replace function public.assert_journal_balanced()
-returns trigger language plpgsql security definer set search_path=public as $
+returns trigger language plpgsql security definer set search_path=public as $$
 declare v_journal_id uuid; v_debits numeric(18,2); v_credits numeric(18,2);
 begin
  v_journal_id := coalesce(new.journal_transaction_id,old.journal_transaction_id);
@@ -121,7 +121,7 @@ begin
    raise exception 'Journal % is not balanced (debits %, credits %)',v_journal_id,v_debits,v_credits;
  end if;
  return null;
-end $;
+end $$;
 drop trigger if exists ledger_entries_balance_check on public.ledger_entries;
 create constraint trigger ledger_entries_balance_check
 after insert or update or delete on public.ledger_entries
