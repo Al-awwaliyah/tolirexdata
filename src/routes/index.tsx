@@ -41,9 +41,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
 import { useDexAuth } from "@/lib/dex-auth";
 import {
-  completeDataOrder,
-  createDataOrder,
-  createFundingRequest,
   getDexDashboard,
   reviewFunding,
   saveDataPlan,
@@ -161,38 +158,12 @@ function Index() {
 
   const handleBuy = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedPlan) {
-      setNotice("Choose an available data plan first.");
-      return;
-    }
-    if (!isValidNigerianPhone(phone)) {
-      setNotice("Enter an 11-digit Nigerian phone number starting with 0.");
-      return;
-    }
-    await action(async () => {
-      const order = await createDataOrder({ data: { planId: selectedPlan.id, phone } });
-      setNotice("Order placed. Your data is being processed.");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      await completeDataOrder({ data: { orderId: order.id } });
-      await refreshDashboard();
-      setNotice("Data order completed successfully.");
-      setPhone("");
-    });
+    setNotice("Live supplier ordering is not enabled yet. No wallet debit has been made.");
   };
 
   const handleFunding = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const amount = Number(fundingAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setNotice("Enter a valid amount in naira.");
-      return;
-    }
-    await action(async () => {
-      await createFundingRequest({ data: { amount } });
-      await refreshDashboard();
-      setFundingAmount("");
-      setNotice("Funding request submitted. Your wallet will update after admin confirmation.");
-    });
+    setNotice("Permanent virtual-account funding is not enabled yet. Do not transfer money to unverified account details.");
   };
 
   const handleReviewFunding = (funding: Funding, decision: "approved" | "rejected") => action(async () => {
@@ -242,6 +213,7 @@ function Index() {
       {user ? (
         <DashboardShell
           userName={dashboard?.profile?.full_name || user.email || "there"}
+          accountType={String((dashboard?.profile as (Profile & { account_type?: string }) | null)?.account_type || "personal")}
           isAdmin={Boolean(dashboard?.isAdmin)}
           view={view}
           setView={setView}
@@ -284,10 +256,10 @@ function Index() {
 
 function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
   const products = [
-    { icon: <Database />, name: "Mobile data", detail: "MTN, Airtel, Glo and 9mobile", state: "Available" },
-    { icon: <Smartphone />, name: "Airtime", detail: "Instant network top-ups", state: "Coming soon" },
-    { icon: <RadioTower />, name: "TV subscriptions", detail: "DStv, GOtv and StarTimes", state: "Coming soon" },
-    { icon: <Zap />, name: "Electricity", detail: "Prepaid and postpaid bills", state: "Coming soon" },
+    { icon: <Database />, name: "Mobile data", detail: "Browse supplier-powered data plans", state: "Service catalogue" },
+    { icon: <Smartphone />, name: "Airtime", detail: "Network top-ups when enabled", state: "Service catalogue" },
+    { icon: <RadioTower />, name: "Cable TV", detail: "DStv, GOtv and StarTimes packages", state: "Service catalogue" },
+    { icon: <Zap />, name: "Electricity", detail: "Supported distribution companies", state: "Service catalogue" },
   ];
   return (
     <main className="tr-public min-h-screen">
@@ -302,19 +274,19 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
         <div className="tr-hero-copy">
           <span className="tr-eyebrow"><span className="size-2 rounded-full bg-emerald-500" /> Your money, made simpler</span>
           <h1>One account.<br/><span>More control.</span></h1>
-          <p>Manage your everyday payments from one secure place. Top up, keep track of your activity and stay in control of your money.</p>
+          <p>Personal, reseller and business accounts for digital services and payments — with transparent activity and secure wallet management.</p>
           <div className="mt-7 flex flex-wrap gap-3"><Button size="lg" className="tr-primary-btn" onClick={() => onAuth("signup")}>Create your account <ArrowRight /></Button><Button size="lg" variant="outline" onClick={() => onAuth("signin")}>Log in</Button></div>
           <div className="tr-trustline"><ShieldCheck className="size-4"/> Secure account access <span/> Built for everyday Nigeria</div>
         </div>
         <div className="tr-hero-preview">
           <div className="tr-preview-top"><Brand/><span className="tr-avatar">T</span></div>
-          <p className="tr-muted">Total balance</p><div className="tr-preview-balance">₦248,500<span>.00</span></div>
+          <p className="tr-muted">Example wallet balance</p><div className="tr-preview-balance">₦—</div>
           <div className="tr-preview-actions"><span><Plus/>Add money</span><span><ArrowUpRight/>Send</span><span><CreditCard/>Cards</span></div>
-          <div className="tr-preview-row"><span className="tr-mini-icon"><Smartphone/></span><span><b>Mobile data</b><small>Today, 10:42</small></span><strong>−₦1,500</strong></div>
-          <div className="tr-preview-row"><span className="tr-mini-icon green"><ArrowDownLeft/></span><span><b>Wallet top up</b><small>Yesterday</small></span><strong className="positive">+₦20,000</strong></div>
+          <div className="tr-preview-row"><span className="tr-mini-icon"><Smartphone/></span><span><b>Service payments</b><small>Track every transaction</small></span><strong>Activity</strong></div>
+          <div className="tr-preview-row"><span className="tr-mini-icon green"><ArrowDownLeft/></span><span><b>Wallet funding</b><small>Dedicated account after approval</small></span><strong className="positive">Secure</strong></div>
         </div>
       </section>
-      <section id="services" className="tr-public-section"><div className="tr-section-heading"><div><span className="tr-kicker">EVERYDAY SERVICES</span><h2>Everything in one place</h2></div><p>One simple account for the services you use every day.</p></div><div className="tr-product-grid">{products.map((item) => <article className="tr-product-card" key={item.name}><span className="tr-product-icon">{item.icon}</span><h3>{item.name}</h3><p>{item.detail}</p><small>{item.state}</small></article>)}</div></section>
+      <section id="services" className="tr-public-section"><div className="tr-section-heading"><div><span className="tr-kicker">EVERYDAY SERVICES</span><h2>Everything in one place</h2></div><p>A connected account for payments, digital services and rewards.</p></div><div className="tr-product-grid">{products.map((item) => <article className="tr-product-card" key={item.name}><span className="tr-product-icon">{item.icon}</span><h3>{item.name}</h3><p>{item.detail}</p><small>{item.state}</small></article>)}</div></section>
       <section id="how" className="tr-how"><span className="tr-kicker">GET STARTED</span><h2>Simple from the first tap.</h2><div className="tr-how-grid"><div><b>01</b><h3>Create your account</h3><p>Sign up and securely access your personal wallet.</p></div><div><b>02</b><h3>Add money</h3><p>Fund your wallet using the available payment options.</p></div><div><b>03</b><h3>Pay with confidence</h3><p>Choose a service and follow your transaction history.</p></div></div></section>
       <footer className="tr-footer"><Brand/><span>Everyday payments, with more control.</span></footer>
     </main>
@@ -322,7 +294,7 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
 }
 
 function DashboardShell(props: {
-  userName: string; isAdmin: boolean; view: ViewKey; setView: (view: ViewKey) => void;
+  userName: string; accountType: string; isAdmin: boolean; view: ViewKey; setView: (view: ViewKey) => void;
   onSignOut: () => void; notice: string; onDismissNotice: () => void; busy: boolean;
   loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
   network: Network; setNetwork: (network: Network) => void; plans: DataPlan[];
@@ -334,20 +306,21 @@ function DashboardShell(props: {
   planEditor: PlanEditor; setPlanEditor: (plan: PlanEditor) => void;
   onSavePlan: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const accountLabel = props.accountType.replace(/[_-]/g, " ");
   const navItems: { key: ViewKey; label: string; icon: ReactNode }[] = [
-    { key: "overview", label: "Home", icon: <House /> },
-    { key: "buy", label: "Services", icon: <Sparkles /> },
-    { key: "fund", label: "Add money", icon: <Wallet /> },
-    { key: "activity", label: "Activity", icon: <FileClock /> },
+    { key: "overview", label: "Overview", icon: <House /> },
+    { key: "buy", label: props.accountType === "agent" ? "Reseller services" : props.accountType === "business" ? "Business services" : "Services", icon: <Sparkles /> },
+    { key: "fund", label: "Wallet", icon: <Wallet /> },
+    { key: "activity", label: props.accountType === "business" ? "Reports & activity" : "Transactions", icon: <FileClock /> },
   ];
   return (
     <div className="tr-app-shell">
-      <header className="tr-app-header"><div className="tr-header-inner"><Brand/><div className="tr-header-search"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input aria-label="Search" placeholder="Search" /></div><div className="tr-header-actions">{props.isAdmin && <Link to="/admin" className="hidden rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 sm:inline-flex">Admin console</Link>}<button className="tr-icon-button" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button><button className="tr-user-pill" onClick={props.onSignOut} title="Sign out"><span>{(props.userName || "T").slice(0,1).toUpperCase()}</span><b>{props.userName.split(" ")[0]}</b><ChevronDown className="size-4"/></button></div></div></header>
-      <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{navItems.map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Keep your sign-in details private and secure.</p></div></aside>
-        <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
+      <header className="tr-app-header"><div className="tr-header-inner"><Brand/><div className="tr-header-search"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input aria-label="Search" placeholder="Search" /></div><div className="tr-header-actions"><span className="tr-account-chip">{props.accountType.replace(/[_-]/g, " ")}</span><button className="tr-icon-button" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button><button className="tr-user-pill" onClick={props.onSignOut} title="Sign out"><span>{(props.userName || "T").slice(0,1).toUpperCase()}</span><b>{props.userName.split(" ")[0]}</b><ChevronDown className="size-4"/></button></div></div></header>
+      <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{navItems.map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Your account, payments and personal information are protected by access controls.</p></div></aside>
+        <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{accountLabel.toUpperCase()} ACCOUNT · {new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
           {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice}/>}
           {props.loading && !props.dashboard ? <LoadingScreen compact/> : null}
-          {props.view === "overview" && <Overview dashboard={props.dashboard} onNavigate={props.setView}/>}
+          {props.view === "overview" && <Overview dashboard={props.dashboard} accountType={props.accountType} onNavigate={props.setView}/>}
           {props.view === "buy" && <BuyDataView {...props}/>}
           {props.view === "fund" && <FundWalletView {...props}/>}
           {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
@@ -358,7 +331,7 @@ function DashboardShell(props: {
   );
 }
 
-function Overview({ dashboard, onNavigate }: { dashboard: DashboardData | null; onNavigate: (view: ViewKey) => void }) {
+function Overview({ dashboard, accountType, onNavigate }: { dashboard: DashboardData | null; accountType: string; onNavigate: (view: ViewKey) => void }) {
   const balance = dashboard?.wallet?.balance ?? 0;
   const recent = [...(dashboard?.transactions ?? [])].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,5);
   const tiles = [
@@ -368,10 +341,10 @@ function Overview({ dashboard, onNavigate }: { dashboard: DashboardData | null; 
     {icon:<Zap/>,title:"Electricity",sub:"Pay utility bills",status:"Coming soon",tone:"green"},
   ];
   return <div className="tr-dashboard-content">
-    <section className="tr-overview-grid"><div className="tr-balance-panel"><div className="tr-panel-top"><span>PERSONAL ACCOUNT · NGN</span><button aria-label="Wallet options"><MoreHorizontal/></button></div><p className="tr-balance-caption">Total balance</p><div className="tr-balance-amount">{formatNaira(balance)}</div><div className="tr-balance-bottom"><span><span className="tr-status-dot"/> Account active</span><button onClick={()=>onNavigate("fund")}>Add money <ArrowUpRight/></button></div></div>
+    <section className="tr-overview-grid"><div className="tr-balance-panel"><div className="tr-panel-top"><span>{props.accountType.toUpperCase().replace(/[_-]/g, " ")} ACCOUNT · NGN</span><button aria-label="Wallet options"><MoreHorizontal/></button></div><p className="tr-balance-caption">Total balance</p><div className="tr-balance-amount">{formatNaira(balance)}</div><div className="tr-balance-bottom"><span><span className="tr-status-dot"/> Account active</span><button onClick={()=>onNavigate("fund")}>Add money <ArrowUpRight/></button></div></div>
       <div className="tr-actions-panel"><div className="tr-widget-heading"><h2>Quick actions</h2><span>Manage money</span></div><div className="tr-quick-grid"><button onClick={()=>onNavigate("fund")}><span className="q-blue"><Plus/></span><b>Add money</b></button><button onClick={()=>onNavigate("buy")}><span className="q-dark"><ArrowUpRight/></span><b>Buy data</b></button><button onClick={()=>onNavigate("activity")}><span className="q-purple"><FileClock/></span><b>History</b></button><button onClick={()=>onNavigate("buy")}><span className="q-green"><Grid2X2/></span><b>All services</b></button></div></div></section>
-    <section className="tr-service-section"><div className="tr-widget-heading"><div><h2>Your services</h2><p>What would you like to do today?</p></div><button onClick={()=>onNavigate("buy")}>See all <ArrowRight/></button></div><div className="tr-services-grid">{tiles.map((tile)=><button key={tile.title} className="tr-service-card" onClick={()=>onNavigate("buy")}><span className={`tr-service-icon ${tile.tone}`}>{tile.icon}</span><span className="tr-service-title">{tile.title}</span><span className="tr-service-sub">{tile.sub}</span><span className={`tr-service-status ${tile.status==="Available"?"live":""}`}>{tile.status}</span></button>)}</div></section>
-    <section className="tr-lower-grid"><div className="tr-widget-card"><div className="tr-widget-heading"><div><h2>Recent transactions</h2><p>Your latest account activity</p></div><button onClick={()=>onNavigate("activity")}>View all <ArrowRight/></button></div>{recent.length?recent.map(entry=><TransactionRow key={entry.id} transaction={entry}/>):<EmptyState icon={<FileClock/>} title="No transactions yet" copy="Your wallet activity will appear here."/>}</div>
+    <section className="tr-service-section"><div className="tr-widget-heading"><div><h2>{accountType === "agent" ? "Reseller services" : accountType === "business" ? "Business services" : "Your services"}</h2><p>{accountType === "agent" ? "Access services for your resale business." : accountType === "business" ? "Manage digital service purchases for your organisation." : "What would you like to do today?"}</p></div><button onClick={()=>onNavigate("buy")}>See all <ArrowRight/></button></div><div className="tr-services-grid">{tiles.map((tile)=><button key={tile.title} className="tr-service-card" onClick={()=>onNavigate("buy")}><span className={`tr-service-icon ${tile.tone}`}>{tile.icon}</span><span className="tr-service-title">{tile.title}</span><span className="tr-service-sub">{tile.sub}</span><span className={`tr-service-status ${tile.status==="Available"?"live":""}`}>{tile.status}</span></button>)}</div></section>
+    <section className="tr-lower-grid"><div className="tr-widget-card"><div className="tr-widget-heading"><div><h2>{accountType === "business" ? "Business activity" : accountType === "agent" ? "Reseller activity" : "Recent transactions"}</h2><p>{accountType === "business" ? "Recent activity on your business wallet" : accountType === "agent" ? "Recent wallet and service activity" : "Your latest account activity"}</p></div><button onClick={()=>onNavigate("activity")}>View all <ArrowRight/></button></div>{recent.length?recent.map(entry=><TransactionRow key={entry.id} transaction={entry}/>):<EmptyState icon={<FileClock/>} title="No transactions yet" copy="Your wallet activity will appear here."/>}</div>
       <div className="tr-widget-card tr-network-card"><div className="tr-widget-heading"><div><h2>Mobile networks</h2><p>Choose a network to browse data</p></div></div>{networkChoices.map((choice,index)=><button className="tr-network-row" key={choice} onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><span>{choice}</span><ArrowRight/></button>)}</div></section>
   </div>;
 }
