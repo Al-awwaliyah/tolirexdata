@@ -35,21 +35,20 @@ export const getDexDashboard = createServerFn({ method: "GET" })
 
     if (adminAccess) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const [profiles, wallets, plans, orders, fundings, transactions] = await Promise.all([
+      const [profiles, wallets, orders, fundings, transactions] = await Promise.all([
         supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallets").select("*").limit(500),
-        supabaseAdmin.from("data_plans").select("*").order("network").order("price"),
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("fundings").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
       ]);
-      const results = [profiles, wallets, plans, orders, fundings, transactions];
+      const results = [profiles, wallets, orders, fundings, transactions];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
 
       return {
         profile: profiles.data?.find((profile) => profile.id === userId) ?? null,
         wallet: wallets.data?.find((wallet) => wallet.user_id === userId) ?? null,
-        plans: plans.data ?? [],
+        // Legacy manually managed data_plans are deliberately excluded. The customer catalogue must come from published supplier products.\n        plans: [],
         orders: orders.data ?? [],
         fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
