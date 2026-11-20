@@ -201,6 +201,7 @@ function Index() {
           onRefresh={() => void refreshDashboard()}
           network={network}
           setNetwork={setNetwork}
+          networkChoices={availableNetworks}
           plans={availablePlans}
           selectedPlan={selectedPlan}
           selectedPlanId={selectedPlanId}
