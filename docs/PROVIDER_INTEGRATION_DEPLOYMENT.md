@@ -49,3 +49,37 @@ Do not create hardcoded data bundles, cable packages, electricity products, airt
 ## Virtual-account and KYC gate
 
 Flutterwave's current V3 documentation describes permanent NGN virtual accounts as requiring a customer's BVN or NIN and a unique transaction reference. A customer submitting a KYC form is not automatically verified. Store identity values only encrypted, obtain explicit consent, and issue the account only after the configured verification/approval process succeeds. Confirm that static virtual accounts are enabled on the merchant account before production.
+
+## KYC submission and review foundation
+
+Added source:
+- `supabase/functions/_shared/identity-crypto.ts`
+- `supabase/functions/submit-kyc/index.ts`
+- `supabase/functions/review-kyc/index.ts`
+- `supabase/migrations/20261120110000_kyc_secure_identity_and_virtual_accounts.sql`
+
+The KYC submission function requires explicit consent and encrypts the supplied BVN or NIN with AES-GCM before storing it. The encryption key is not stored in the database.
+
+Generate a 32-byte key and set it only as a Supabase Edge Function secret:
+
+```bash
+openssl rand -base64 32
+supabase secrets set KYC_ENCRYPTION_KEY='YOUR_GENERATED_BASE64_KEY' --project-ref swjojapsfbzxnfvclsui
+```
+
+Deploy the two functions after applying the KYC migration:
+```bash
+supabase functions deploy submit-kyc --project-ref swjojapsfbzxnfvclsui
+supabase functions deploy review-kyc --project-ref swjojapsfbzxnfvclsui
+```
+
+KYC review is currently an authorized staff review workflow. It is not an automated BVN/NIN verification service. Provision a Super Admin and grant the `kyc.review` permission before testing staff review. Never mark a record approved merely because a form was submitted.
+
+## Still not implemented
+
+- Flutterwave permanent virtual-account issuance after approved KYC.
+- Flutterwave deposit webhook verification and atomic wallet credit.
+- Catalogue response normalizers and customer-safe dynamic catalogue publication.
+- Provider purchase, status-query and refund workflows.
+
+Do not enable real-money operations until these controls are implemented and tested.
