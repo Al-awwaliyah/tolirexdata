@@ -35,20 +35,22 @@ export const getDexDashboard = createServerFn({ method: "GET" })
 
     if (adminAccess) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const [profiles, wallets, orders, fundings, transactions] = await Promise.all([
+      const [profiles, wallets, orders, fundings, transactions, catalogue] = await Promise.all([
         supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallets").select("*").limit(500),
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("fundings").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
+        (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
       ]);
-      const results = [profiles, wallets, orders, fundings, transactions];
+      const results = [profiles, wallets, orders, fundings, transactions, catalogue];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
 
       return {
         profile: profiles.data?.find((profile) => profile.id === userId) ?? null,
         wallet: wallets.data?.find((wallet) => wallet.user_id === userId) ?? null,
-        // Legacy manually managed data_plans are deliberately excluded. The customer catalogue must come from published supplier products.\n        plans: [],
+        plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
+        catalogue: catalogue.data ?? [],
         orders: orders.data ?? [],
         fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
@@ -57,21 +59,22 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       };
     }
 
-    const [profile, wallet, plans, orders, fundings, transactions] = await Promise.all([
+    const [profile, wallet, orders, fundings, transactions, catalogue] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle(),
-      Promise.resolve({ data: [], error: null }),
       supabase.from("data_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("fundings").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
+      (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
     ]);
-    const results = [profile, wallet, plans, orders, fundings, transactions];
+    const results = [profile, wallet, orders, fundings, transactions, catalogue];
     if (results.some((result) => result.error)) throw new Error("Unable to load your DEX Sub account");
 
     return {
       profile: profile.data,
       wallet: wallet.data,
-      plans: plans.data ?? [],
+      plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
+      catalogue: catalogue.data ?? [],
       orders: orders.data ?? [],
       fundings: fundings.data ?? [],
       transactions: transactions.data ?? [],

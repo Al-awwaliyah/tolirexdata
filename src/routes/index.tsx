@@ -57,7 +57,8 @@ import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
-type DataPlan = TableRows<"data_plans">;
+type DataPlan = { id: string; network: string; data_amount: string; validity: string; price: number; active: boolean };
+type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
 type DataOrder = TableRows<"data_orders">;
 type Funding = TableRows<"fundings">;
 type WalletTransaction = TableRows<"wallet_transactions">;
@@ -66,6 +67,7 @@ type DashboardData = {
   profile: Profile | null;
   wallet: TableRows<"wallets"> | null;
   plans: DataPlan[];
+  catalogue: CatalogueProduct[];
   orders: DataOrder[];
   fundings: Funding[];
   transactions: WalletTransaction[];
@@ -73,10 +75,10 @@ type DashboardData = {
   isAdmin: boolean;
 };
 type ViewKey = "overview" | "buy" | "fund" | "activity" | "airtime" | "cable" | "electricity" | "epin" | "referrals" | "coupons" | "promotions" | "cashback" | "loyalty";
-type Network = "MTN" | "Airtel" | "Glo" | "9mobile";
+type Network = string;
 type AuthMode = "signin" | "signup";
 
-const networkChoices: Network[] = ["MTN", "Airtel", "Glo", "9mobile"];
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -104,7 +106,7 @@ function Index() {
   const [authMode, setAuthMode] = useState<AuthMode>("signup");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [network, setNetwork] = useState<Network>("MTN");
+  const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [phone, setPhone] = useState("");
   const [fundingAmount, setFundingAmount] = useState("");
@@ -132,10 +134,11 @@ function Index() {
   }, [user?.id, refreshDashboard]);
 
   const availablePlans = useMemo(
-    () => (dashboard?.plans ?? []).filter((plan) => plan.network === network && (plan.active || dashboard?.isAdmin)),
+    () => (dashboard?.plans ?? []).filter((plan) => (!network || plan.network === network) && (plan.active || dashboard?.isAdmin)),
     [dashboard?.isAdmin, dashboard?.plans, network],
   );
   const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0];
+  const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
 
   const clearNotice = () => setNotice("");
   const action = async (work: () => Promise<void>) => {
@@ -198,6 +201,7 @@ function Index() {
           onRefresh={() => void refreshDashboard()}
           network={network}
           setNetwork={setNetwork}
+          networkChoices={availableNetworks}
           plans={availablePlans}
           selectedPlan={selectedPlan}
           selectedPlanId={selectedPlanId}
@@ -266,7 +270,7 @@ function DashboardShell(props: {
   userName: string; accountType: string; isAdmin: boolean; view: ViewKey; setView: (view: ViewKey) => void;
   onSignOut: () => void; notice: string; onDismissNotice: () => void; busy: boolean;
   loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
-  network: Network; setNetwork: (network: Network) => void; plans: DataPlan[];
+  network: Network; setNetwork: (network: Network) => void; networkChoices: string[]; plans: DataPlan[];
   selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   fundingAmount: string; setFundingAmount: (amount: string) => void;
@@ -300,7 +304,7 @@ function DashboardShell(props: {
           {props.view === "buy" && <BuyDataView {...props}/>}
           {props.view === "fund" && <FundWalletView {...props}/>}
           {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
-          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType}/>}
+          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType} catalogue={props.dashboard?.catalogue ?? []}/>}
         </main>
       </div>
       <nav className="tr-mobile-nav" aria-label="Account navigation">{([{key:"overview" as ViewKey,label:"Home",icon:<House/>},{key:"buy" as ViewKey,label:"Data",icon:<Database/>},{key:"airtime" as ViewKey,label:"Airtime",icon:<Smartphone/>},{key:"referrals" as ViewKey,label:"Rewards",icon:<Gift/>},{key:"fund" as ViewKey,label:"Wallet",icon:<Wallet/>}] as const).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key || (item.key==="referrals" && ["referrals","coupons","promotions","cashback","loyalty"].includes(props.view))?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav>
@@ -376,7 +380,7 @@ const featureDetails: Record<FeatureView, {title:string;eyebrow:string;descripti
   loyalty:{title:"Loyalty",eyebrow:"REWARDS & GROWTH",description:"Track loyalty points, membership tier and eligible redemption options.",icon:<Award/>,group:"growth",emptyTitle:"Loyalty programme not configured",emptyCopy:"Your points, tier and redemption options will appear when the loyalty programme is configured and enabled."},
 };
 
-function FeatureWorkspace({view,accountType}:{view:FeatureView;accountType:string}) {
+function FeatureWorkspace({view,accountType,catalogue}:{view:FeatureView;accountType:string;catalogue:CatalogueProduct[]}) {
   const feature=featureDetails[view];
   return <div className="tr-feature-workspace">
     <section className="tr-feature-hero">
@@ -384,7 +388,7 @@ function FeatureWorkspace({view,accountType}:{view:FeatureView;accountType:strin
       <div><span className="tr-kicker">{feature.eyebrow}</span><h2>{feature.title}</h2><p>{feature.description}</p></div>
       <span className="tr-feature-account">{accountType.replace(/[_-]/g," ")}</span>
     </section>
-    {feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · account-specific pricing</p></div><span className="tr-catalogue-state"><i/>Awaiting live catalogue</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section> :
+    {feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view])?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view]).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view]).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}</section> :
     <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
     <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
   </div>;
@@ -395,6 +399,7 @@ function BuyDataView(props: {
   busy: boolean;
   network: Network;
   setNetwork: (network: Network) => void;
+  networkChoices: string[];
   plans: DataPlan[];
   selectedPlan: DataPlan | undefined;
   selectedPlanId: string;
@@ -409,9 +414,9 @@ function BuyDataView(props: {
         <h2 className="text-lg font-semibold text-foreground">Choose a data plan</h2>
         <p className="mt-1 text-sm text-muted-foreground">Only products published from the connected supplier catalogue will appear here. Plans and prices are never manually estimated.</p>
         {props.plans.length > 0 && <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Select a network">
-          {networkChoices.map((choice, index) => (
+          {props.networkChoices.map((choice, index) => (
             <Button key={choice} variant={props.network === choice ? "default" : "outline"} onClick={() => { props.setNetwork(choice); props.setSelectedPlanId(""); }}>
-              <NetworkMark network={choice} index={index} />
+              <span>{choice}</span>
             </Button>
           ))}
         </div>}
@@ -569,7 +574,7 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
 
 function NetworkMark({ network, index }: { network: string; index: number }) {
   const tones = ["bg-chart-4/20 text-foreground", "bg-chart-5/15 text-chart-5", "bg-chart-2/15 text-chart-2", "bg-primary/10 text-primary"];
-  const symbols: Record<string, string> = { MTN: "M", Airtel: "A", Glo: "G", "9mobile": "9" };
+  const symbols: Record<string, string> = {};
   return <span className="inline-flex shrink-0 items-center gap-2"><span className={`grid size-8 place-items-center rounded-full text-xs font-bold ${tones[index % tones.length]}`}>{symbols[network] ?? network.slice(0, 1)}</span><span className="text-sm font-semibold text-foreground">{network}</span></span>;
 }
 
