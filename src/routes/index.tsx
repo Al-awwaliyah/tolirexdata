@@ -57,7 +57,8 @@ import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
-type DataPlan = TableRows<"data_plans">;
+type DataPlan = { id: string; network: string; data_amount: string; validity: string; price: number; active: boolean };
+type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
 type DataOrder = TableRows<"data_orders">;
 type Funding = TableRows<"fundings">;
 type WalletTransaction = TableRows<"wallet_transactions">;
@@ -65,7 +66,7 @@ type Profile = TableRows<"profiles">;
 type DashboardData = {
   profile: Profile | null;
   wallet: TableRows<"wallets"> | null;
-  plans: DataPlan[];
+  plans: DataPlan[];\n  catalogue: CatalogueProduct[];
   orders: DataOrder[];
   fundings: Funding[];
   transactions: WalletTransaction[];
@@ -73,10 +74,10 @@ type DashboardData = {
   isAdmin: boolean;
 };
 type ViewKey = "overview" | "buy" | "fund" | "activity" | "airtime" | "cable" | "electricity" | "epin" | "referrals" | "coupons" | "promotions" | "cashback" | "loyalty";
-type Network = "MTN" | "Airtel" | "Glo" | "9mobile";
+type Network = string;
 type AuthMode = "signin" | "signup";
 
-const networkChoices: Network[] = ["MTN", "Airtel", "Glo", "9mobile"];
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -104,7 +105,7 @@ function Index() {
   const [authMode, setAuthMode] = useState<AuthMode>("signup");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [network, setNetwork] = useState<Network>("MTN");
+  const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [phone, setPhone] = useState("");
   const [fundingAmount, setFundingAmount] = useState("");
@@ -132,10 +133,10 @@ function Index() {
   }, [user?.id, refreshDashboard]);
 
   const availablePlans = useMemo(
-    () => (dashboard?.plans ?? []).filter((plan) => plan.network === network && (plan.active || dashboard?.isAdmin)),
+    () => (dashboard?.plans ?? []).filter((plan) => (!network || plan.network === network) && (plan.active || dashboard?.isAdmin)),
     [dashboard?.isAdmin, dashboard?.plans, network],
   );
-  const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0];
+  const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0];\n  const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
 
   const clearNotice = () => setNotice("");
   const action = async (work: () => Promise<void>) => {
@@ -411,7 +412,7 @@ function BuyDataView(props: {
         {props.plans.length > 0 && <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Select a network">
           {networkChoices.map((choice, index) => (
             <Button key={choice} variant={props.network === choice ? "default" : "outline"} onClick={() => { props.setNetwork(choice); props.setSelectedPlanId(""); }}>
-              <NetworkMark network={choice} index={index} />
+              <span>{choice}</span>
             </Button>
           ))}
         </div>}
@@ -569,7 +570,7 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
 
 function NetworkMark({ network, index }: { network: string; index: number }) {
   const tones = ["bg-chart-4/20 text-foreground", "bg-chart-5/15 text-chart-5", "bg-chart-2/15 text-chart-2", "bg-primary/10 text-primary"];
-  const symbols: Record<string, string> = { MTN: "M", Airtel: "A", Glo: "G", "9mobile": "9" };
+  const symbols: Record<string, string> = {};
   return <span className="inline-flex shrink-0 items-center gap-2"><span className={`grid size-8 place-items-center rounded-full text-xs font-bold ${tones[index % tones.length]}`}>{symbols[network] ?? network.slice(0, 1)}</span><span className="text-sm font-semibold text-foreground">{network}</span></span>;
 }
 
