@@ -228,3 +228,58 @@ export const createFlutterwaveFundingCheckout = createServerFn({ method: "POST" 
     }
     return { fundingId: funding.id, checkoutUrl: payload.data.link };
   });
+
+/**
+ * Loads administration metrics on the server. The browser role is checked
+ * before the service-role client is ever used; admin tables remain private
+ * behind RLS and are never queried directly from the browser.
+ */
+export const getTolirexAdminOverview = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const authContext = context as AuthContext;
+    const { data: allowed, error: permissionError } = await (authContext.supabase as any)
+      .rpc("has_admin_permission", { p_permission: "dashboard.read" });
+
+    if (permissionError || allowed !== true) {
+      throw new Error("Administrator dashboard permission required");
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as any;
+    const count = async (table: string, configure?: (query: any) => any) => {
+      let query = db.from(table).select("id", { count: "exact", head: true });
+      if (configure) query = configure(query);
+      const result = await query;
+      if (result.error) throw new Error(`Unable to load ${table} metrics: ${result.error.message}`);
+      return result.count ?? 0;
+    };
+
+    const [
+      customers, agents, businesses, kycPending, unsettledFunding,
+      unresolvedOrders, activeProviders, activeProducts, failedOrders,
+    ] = await Promise.all([
+      count("profiles"),
+      count("agent_accounts"),
+      count("businesses"),
+      count("kyc_records", (q) => q.eq("status", "pending")),
+      count("funding_events", (q) => q.in("status", ["received", "verified"])),
+      count("service_orders", (q) => q.in("status", ["pending", "processing", "unknown", "reversal_pending"])),
+      count("service_providers", (q) => q.eq("status", "active")),
+      count("service_products", (q) => q.eq("active", true)),
+      count("service_orders", (q) => q.eq("status", "failed")),
+    ]);
+
+    return {
+      totals: { customers, agents, businesses },
+      signals: {
+        pendingKyc: kycPending,
+        unsettledFunding,
+        unresolvedOrders,
+        activeProviders,
+        activeProducts,
+        failedOrders,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  });
