@@ -1,4 +1,4 @@
-# DEX Sub
+# TolirexData
 
 DEX Sub is a Nigerian digital services and VTU application built with React, TypeScript, TanStack Start, Tailwind CSS, and Supabase. The project includes wallet, authentication, transaction, and service-provider integration code.
 
