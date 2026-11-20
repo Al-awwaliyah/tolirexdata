@@ -301,7 +301,7 @@ function DashboardShell(props: {
           {props.view === "buy" && <BuyDataView {...props}/>}
           {props.view === "fund" && <FundWalletView {...props}/>}
           {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
-          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType}/>}
+          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType} catalogue={props.dashboard?.catalogue ?? []}/>}
         </main>
       </div>
       <nav className="tr-mobile-nav" aria-label="Account navigation">{([{key:"overview" as ViewKey,label:"Home",icon:<House/>},{key:"buy" as ViewKey,label:"Data",icon:<Database/>},{key:"airtime" as ViewKey,label:"Airtime",icon:<Smartphone/>},{key:"referrals" as ViewKey,label:"Rewards",icon:<Gift/>},{key:"fund" as ViewKey,label:"Wallet",icon:<Wallet/>}] as const).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key || (item.key==="referrals" && ["referrals","coupons","promotions","cashback","loyalty"].includes(props.view))?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav>
@@ -377,7 +377,7 @@ const featureDetails: Record<FeatureView, {title:string;eyebrow:string;descripti
   loyalty:{title:"Loyalty",eyebrow:"REWARDS & GROWTH",description:"Track loyalty points, membership tier and eligible redemption options.",icon:<Award/>,group:"growth",emptyTitle:"Loyalty programme not configured",emptyCopy:"Your points, tier and redemption options will appear when the loyalty programme is configured and enabled."},
 };
 
-function FeatureWorkspace({view,accountType}:{view:FeatureView;accountType:string}) {
+function FeatureWorkspace({view,accountType,catalogue}:{view:FeatureView;accountType:string;catalogue:CatalogueProduct[]}) {
   const feature=featureDetails[view];
   return <div className="tr-feature-workspace">
     <section className="tr-feature-hero">
@@ -385,7 +385,7 @@ function FeatureWorkspace({view,accountType}:{view:FeatureView;accountType:strin
       <div><span className="tr-kicker">{feature.eyebrow}</span><h2>{feature.title}</h2><p>{feature.description}</p></div>
       <span className="tr-feature-account">{accountType.replace(/[_-]/g," ")}</span>
     </section>
-    {feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · account-specific pricing</p></div><span className="tr-catalogue-state"><i/>Awaiting live catalogue</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section> :
+    {feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · account-specific pricing</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view])?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view]).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view]).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}</section> :
     <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
     <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
   </div>;
@@ -410,7 +410,7 @@ function BuyDataView(props: {
         <h2 className="text-lg font-semibold text-foreground">Choose a data plan</h2>
         <p className="mt-1 text-sm text-muted-foreground">Only products published from the connected supplier catalogue will appear here. Plans and prices are never manually estimated.</p>
         {props.plans.length > 0 && <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Select a network">
-          {networkChoices.map((choice, index) => (
+          {props.networkChoices.map((choice, index) => (
             <Button key={choice} variant={props.network === choice ? "default" : "outline"} onClick={() => { props.setNetwork(choice); props.setSelectedPlanId(""); }}>
               <span>{choice}</span>
             </Button>
