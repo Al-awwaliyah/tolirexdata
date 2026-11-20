@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownLeft,
@@ -67,7 +67,7 @@ type DashboardData = {
   users: Profile[];
   isAdmin: boolean;
 };
-type ViewKey = "overview" | "buy" | "fund" | "activity" | "admin";
+type ViewKey = "overview" | "buy" | "fund" | "activity";
 type Network = "MTN" | "Airtel" | "Glo" | "9mobile";
 type AuthMode = "signin" | "signup";
 type PlanEditor = { id: string; network: Network; dataAmount: string; validity: string; price: string; active: boolean };
@@ -339,11 +339,10 @@ function DashboardShell(props: {
     { key: "buy", label: "Services", icon: <Sparkles /> },
     { key: "fund", label: "Add money", icon: <Wallet /> },
     { key: "activity", label: "Activity", icon: <FileClock /> },
-    ...(props.isAdmin ? [{ key: "admin" as const, label: "Admin", icon: <ShieldCheck /> }] : []),
   ];
   return (
     <div className="tr-app-shell">
-      <header className="tr-app-header"><div className="tr-header-inner"><Brand/><div className="tr-header-search"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input aria-label="Search" placeholder="Search" /></div><div className="tr-header-actions"><button className="tr-icon-button" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button><button className="tr-user-pill" onClick={props.onSignOut} title="Sign out"><span>{(props.userName || "T").slice(0,1).toUpperCase()}</span><b>{props.userName.split(" ")[0]}</b><ChevronDown className="size-4"/></button></div></div></header>
+      <header className="tr-app-header"><div className="tr-header-inner"><Brand/><div className="tr-header-search"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input aria-label="Search" placeholder="Search" /></div><div className="tr-header-actions">{props.isAdmin && <Link to="/admin" className="hidden rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 sm:inline-flex">Admin console</Link>}<button className="tr-icon-button" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button><button className="tr-user-pill" onClick={props.onSignOut} title="Sign out"><span>{(props.userName || "T").slice(0,1).toUpperCase()}</span><b>{props.userName.split(" ")[0]}</b><ChevronDown className="size-4"/></button></div></div></header>
       <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{navItems.map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Keep your sign-in details private and secure.</p></div></aside>
         <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
           {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice}/>}
@@ -352,8 +351,6 @@ function DashboardShell(props: {
           {props.view === "buy" && <BuyDataView {...props}/>}
           {props.view === "fund" && <FundWalletView {...props}/>}
           {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
-          {props.view === "admin" && props.isAdmin && <AdminView {...props}/>}
-          {props.view === "admin" && !props.isAdmin && <Overview dashboard={props.dashboard} onNavigate={props.setView}/>}
         </main>
       </div>
       <nav className="tr-mobile-nav" aria-label="Account navigation">{navItems.map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav>
