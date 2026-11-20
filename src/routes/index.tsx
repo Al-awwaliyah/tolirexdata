@@ -332,16 +332,16 @@ function DashboardShell(props: {
 }
 
 function Overview({ dashboard, accountType, onNavigate }: { dashboard: DashboardData | null; accountType: string; onNavigate: (view: ViewKey) => void }) {
-  const balance = dashboard?.wallet?.balance ?? 0;
+  const balance = dashboard?.wallet?.balance;
   const recent = [...(dashboard?.transactions ?? [])].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,5);
   const tiles = [
-    {icon:<Database/>,title:"Mobile data",sub:"Buy data bundles",status:"Available",tone:"blue"},
-    {icon:<Smartphone/>,title:"Airtime",sub:"Top up a number",status:"Coming soon",tone:"purple"},
-    {icon:<RadioTower/>,title:"TV",sub:"Manage subscriptions",status:"Coming soon",tone:"orange"},
-    {icon:<Zap/>,title:"Electricity",sub:"Pay utility bills",status:"Coming soon",tone:"green"},
+    {icon:<Database/>,title:"Mobile data",sub:"Supplier-synced plans",status:"Catalogue pending",tone:"blue"},
+    {icon:<Smartphone/>,title:"Airtime",sub:"Supplier-powered top-ups",status:"Catalogue pending",tone:"purple"},
+    {icon:<RadioTower/>,title:"Cable TV",sub:"Supplier-synced packages",status:"Catalogue pending",tone:"orange"},
+    {icon:<Zap/>,title:"Electricity",sub:"Verified disco catalogue",status:"Catalogue pending",tone:"green"},
   ];
   return <div className="tr-dashboard-content">
-    <section className="tr-overview-grid"><div className="tr-balance-panel"><div className="tr-panel-top"><span>{props.accountType.toUpperCase().replace(/[_-]/g, " ")} ACCOUNT · NGN</span><button aria-label="Wallet options"><MoreHorizontal/></button></div><p className="tr-balance-caption">Total balance</p><div className="tr-balance-amount">{formatNaira(balance)}</div><div className="tr-balance-bottom"><span><span className="tr-status-dot"/> Account active</span><button onClick={()=>onNavigate("fund")}>Add money <ArrowUpRight/></button></div></div>
+    <section className="tr-overview-grid"><div className="tr-balance-panel"><div className="tr-panel-top"><span>{accountType.toUpperCase().replace(/[_-]/g, " ")} ACCOUNT · NGN</span><button aria-label="Wallet options"><MoreHorizontal/></button></div><p className="tr-balance-caption">Total balance</p><div className="tr-balance-amount">{typeof balance === "number" ? formatNaira(balance) : "—"}</div><div className="tr-balance-bottom"><span><span className="tr-status-dot"/> {dashboard?.profile?.account_status === "suspended" ? "Account suspended" : dashboard?.profile?.account_status === "restricted" ? "Account restricted" : dashboard?.wallet ? "Account active" : "Wallet setup pending"}</span><button onClick={()=>onNavigate("fund")}>Add money <ArrowUpRight/></button></div></div>
       <div className="tr-actions-panel"><div className="tr-widget-heading"><h2>Quick actions</h2><span>Manage money</span></div><div className="tr-quick-grid"><button onClick={()=>onNavigate("fund")}><span className="q-blue"><Plus/></span><b>Add money</b></button><button onClick={()=>onNavigate("buy")}><span className="q-dark"><ArrowUpRight/></span><b>Buy data</b></button><button onClick={()=>onNavigate("activity")}><span className="q-purple"><FileClock/></span><b>History</b></button><button onClick={()=>onNavigate("buy")}><span className="q-green"><Grid2X2/></span><b>All services</b></button></div></div></section>
     <section className="tr-service-section"><div className="tr-widget-heading"><div><h2>{accountType === "agent" ? "Reseller services" : accountType === "business" ? "Business services" : "Your services"}</h2><p>{accountType === "agent" ? "Access services for your resale business." : accountType === "business" ? "Manage digital service purchases for your organisation." : "What would you like to do today?"}</p></div><button onClick={()=>onNavigate("buy")}>See all <ArrowRight/></button></div><div className="tr-services-grid">{tiles.map((tile)=><button key={tile.title} className="tr-service-card" onClick={()=>onNavigate("buy")}><span className={`tr-service-icon ${tile.tone}`}>{tile.icon}</span><span className="tr-service-title">{tile.title}</span><span className="tr-service-sub">{tile.sub}</span><span className={`tr-service-status ${tile.status==="Available"?"live":""}`}>{tile.status}</span></button>)}</div></section>
     <section className="tr-lower-grid"><div className="tr-widget-card"><div className="tr-widget-heading"><div><h2>{accountType === "business" ? "Business activity" : accountType === "agent" ? "Reseller activity" : "Recent transactions"}</h2><p>{accountType === "business" ? "Recent activity on your business wallet" : accountType === "agent" ? "Recent wallet and service activity" : "Your latest account activity"}</p></div><button onClick={()=>onNavigate("activity")}>View all <ArrowRight/></button></div>{recent.length?recent.map(entry=><TransactionRow key={entry.id} transaction={entry}/>):<EmptyState icon={<FileClock/>} title="No transactions yet" copy="Your wallet activity will appear here."/>}</div>
@@ -394,7 +394,7 @@ function BuyDataView(props: {
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="border bg-background p-5 sm:p-6">
         <h2 className="text-lg font-semibold text-foreground">Choose a data plan</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Select your network and the plan for your line.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Plans and prices will appear here when the live supplier catalogue is connected.</p>
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Select a network">
           {networkChoices.map((choice, index) => (
             <Button key={choice} variant={props.network === choice ? "default" : "outline"} onClick={() => { props.setNetwork(choice); props.setSelectedPlanId(""); }}>
@@ -414,7 +414,7 @@ function BuyDataView(props: {
               );
             })}
           </div>
-        ) : <EmptyState icon={<Database />} title="No plans available" copy="There are no active plans for this network right now." />}
+        ) : <EmptyState icon={<Database />} title="No plans available" copy="The live supplier catalogue has not been connected yet. No static or estimated plans are shown." />}
       </section>
       <form onSubmit={props.onBuy} className="h-fit border bg-background p-5 sm:p-6">
         <h2 className="text-lg font-semibold text-foreground">Order details</h2>

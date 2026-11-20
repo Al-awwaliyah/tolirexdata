@@ -61,7 +61,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
     const [profile, wallet, plans, orders, fundings, transactions] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("data_plans").select("*").eq("active", true).order("network").order("price"),
+      Promise.resolve({ data: [], error: null }),
       supabase.from("data_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("fundings").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
