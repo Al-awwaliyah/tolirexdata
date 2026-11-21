@@ -41,7 +41,7 @@ Deno.serve(async (request) => {
     : action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read"
     : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
     : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage"
-    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" ? "growth.manage" : action === "airtime_pricing" ? "pricing.manage"
+    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "airtime_pricing" ? "pricing.manage"
     : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
@@ -227,6 +227,18 @@ Deno.serve(async (request) => {
     if (updated.error) return json({ error: "Unable to update account application" }, 500);
     await admin.from("audit_logs").insert({ actor_user_id: auth.user.id, action: module + ".application_" + status, target_type: module === "agents" ? "agent_account" : "business", target_id: id, before_data: { status: before.data.status }, after_data: { status } });
     return json({ application: updated.data });
+  }
+
+  if (action === "coupon_status") {
+    const id = String(body.id ?? "");
+    const active = body.active === true;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return json({ error: "Invalid campaign ID" },400);
+    const before = await admin.from("coupons").select("id,code,active").eq("id",id).maybeSingle();
+    if (before.error || !before.data) return json({ error: "Campaign not found" },404);
+    const {data,error} = await admin.from("coupons").update({active,updated_at:new Date().toISOString()}).eq("id",id).select("id,code,active").single();
+    if (error || !data) return json({ error: "Unable to update campaign status" },500);
+    await admin.from("audit_logs").insert({actor_user_id:auth.user.id,action:active?"coupon.activated":"coupon.paused",target_type:"coupon",target_id:id,before_data:before.data,after_data:data});
+    return json({coupon:data});
   }
 
   if (action === "coupon_save") {
