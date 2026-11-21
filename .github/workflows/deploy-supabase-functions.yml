@@ -71,4 +71,13 @@ jobs:
           # Retire the old supplier integration and remove obsolete supplier credentials.
           # Commercial card pricing is now stored in the audited Admin settings table.
           supabase functions delete clubkonnect-sync-catalogue --project-ref "$SUPABASE_PROJECT_REF" --yes || echo "Legacy ClubKonnect function was already absent or could not be deleted."
-          supabase secrets unset CLUBKONNECT_USER_ID CLUBKONNECT_API_KEY TOPUPMATE_CARD_CREATION_FEE_USD TOPUPMATE_CARD_MIN_FUNDING_USD TOPUPMATE_CARD_MARKUP_USD TOPUPMATE_CARD_TOPUP_MARKUP_PERCENT --project-ref "$SUPABASE_PROJECT_REF" --yes || echo "No obsolete supplier/card-pricing secrets found, or cleanup needs review."
+          for secret_name in \
+            CLUBKONNECT_USER_ID \
+            CLUBKONNECT_API_KEY \
+            TOPUPMATE_CARD_CREATION_FEE_USD \
+            TOPUPMATE_CARD_MIN_FUNDING_USD \
+            TOPUPMATE_CARD_MARKUP_USD \
+            TOPUPMATE_CARD_TOPUP_MARKUP_PERCENT; do
+            supabase secrets unset "$secret_name" --project-ref "$SUPABASE_PROJECT_REF" --yes >/dev/null 2>&1 || true
+          done
+          echo "Legacy ClubKonnect and card-pricing secret cleanup checked individually."
