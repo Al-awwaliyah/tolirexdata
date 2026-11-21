@@ -71,16 +71,17 @@ Deno.serve(async request=>{
    const amount=num(body.amountUsd);
    if(amount<=0||amount>10000)throw new UserError("Enter a valid USD amount.");
    const kind=str(body.kind)==="create"?"create":"topup";
-   const fee=Number(Deno.env.get("TOPUPMATE_CARD_CREATION_FEE_USD"));
-   const minimum=Number(Deno.env.get("TOPUPMATE_CARD_MIN_FUNDING_USD"));
-   const markup=Number(Deno.env.get("TOPUPMATE_CARD_MARKUP_USD")??"0");
-   if(kind==="create"&&(!Number.isFinite(fee)||fee<0||!Number.isFinite(minimum)||minimum<=0||!Number.isFinite(markup)||markup<0))
-     throw new UserError("Card pricing is not configured yet. Please contact support.");
-   if(kind==="create"&&amount<minimum)throw new UserError("The initial card funding is below the current minimum.");
+   const {data:pricing,error:pricingError}=await admin.from("topupmate_card_pricing").select("*").eq("singleton",true).single();
+   if(pricingError||!pricing)throw new UserError("Card pricing is not configured yet. Please contact support.");
+   if(kind==="create"&&!pricing.card_creation_enabled)throw new UserError("Virtual card creation is temporarily unavailable.");
+   if(kind==="create"&&amount<Number(pricing.minimum_initial_funding_usd))throw new UserError("The initial card funding is below the current minimum.");
+   if(kind==="topup"&&amount<Number(pricing.topup_minimum_usd))throw new UserError("The card funding amount is below the current minimum.");
+   const fee=kind==="create"?Number(pricing.creation_fee_usd):0;
+   const markup=kind==="create"?Number(pricing.creation_markup_usd):0;
    const total=kind==="create"?round2(amount+fee+markup):amount;
    const rate=await fxRate(total);
-   const walletAmount=ceil10(total*rate*(kind==="topup"?1+(num(Deno.env.get("TOPUPMATE_CARD_TOPUP_MARKUP_PERCENT"))/100):1));
-   return json({success:true,kind,amountUsd:amount,totalUsd:total,creationFeeUsd:kind==="create"?fee:0,markupUsd:kind==="create"?markup:0,exchangeRate:rate,walletAmountNgn:walletAmount});
+   const walletAmount=ceil10(total*rate*(kind==="topup"?1+Number(pricing.topup_markup_percent)/100:1));
+   return json({success:true,kind,amountUsd:amount,totalUsd:total,creationFeeUsd:fee,markupUsd:markup,topupMarkupPercent:Number(pricing.topup_markup_percent),exchangeRate:rate,walletAmountNgn:walletAmount});
   }
   const cardId=str(body.cardId);
   let card:Obj|null=null;
@@ -112,8 +113,11 @@ Deno.serve(async request=>{
    const {data:profile}=await admin.from("cardholder_profiles").select("*").eq("user_id",user.id).maybeSingle();
    if(!profile)throw new UserError("Complete your cardholder address and date-of-birth details first.");
    const identity=await decryptIdentity(kyc.identity_ciphertext);
-   const fee=Number(Deno.env.get("TOPUPMATE_CARD_CREATION_FEE_USD")),minimum=Number(Deno.env.get("TOPUPMATE_CARD_MIN_FUNDING_USD")),markup=Number(Deno.env.get("TOPUPMATE_CARD_MARKUP_USD")??"0");
-   if(!Number.isFinite(fee)||fee<0||!Number.isFinite(minimum)||minimum<=0||!Number.isFinite(markup)||markup<0||amount<minimum)throw new UserError("Card issuance pricing is not configured or the funding amount is below minimum.");
+   const {data:pricing,error:pricingError}=await admin.from("topupmate_card_pricing").select("*").eq("singleton",true).single();
+   if(pricingError||!pricing)throw new UserError("Card pricing is not configured yet. Please contact support.");
+   const fee=Number(pricing.creation_fee_usd),minimum=Number(pricing.minimum_initial_funding_usd),markup=Number(pricing.creation_markup_usd);
+   if(!pricing.card_creation_enabled)throw new UserError("Virtual card creation is temporarily unavailable.");
+   if(!Number.isFinite(fee)||fee<0||!Number.isFinite(minimum)||minimum<=0||!Number.isFinite(markup)||markup<0||amount<minimum)throw new UserError("The initial card funding is below the current minimum or card pricing is invalid.");
    const totalUsd=round2(amount+fee+markup),rate=await fxRate(totalUsd),walletAmount=ceil10(totalUsd*rate);
    const reference=ref();
    const {data:op,error}=await admin.rpc("reserve_virtual_card_operation",{p_user_id:user.id,p_action:"create",p_virtual_card_id:null,p_reference:reference,p_idempotency_key:idempotency,p_amount_usd:amount,p_wallet_amount_ngn:walletAmount,p_fx_rate:rate,p_metadata:{fee_usd:fee,markup_usd:markup,total_usd:totalUsd}});
@@ -145,7 +149,10 @@ Deno.serve(async request=>{
   let amount=0,rate=0,walletAmount=0;
   if(["topup","withdraw"].includes(action)){
    amount=num(body.amountUsd);if(amount<=0||amount>10000)throw new UserError("Enter a valid USD amount.");
-   rate=await fxRate(amount);walletAmount=ceil10(amount*rate*(action==="topup"?1+num(Deno.env.get("TOPUPMATE_CARD_TOPUP_MARKUP_PERCENT"))/100:1));
+   const {data:pricing,error:pricingError}=await admin.from("topupmate_card_pricing").select("*").eq("singleton",true).single();
+   if(pricingError||!pricing)throw new UserError("Card pricing is not configured yet. Please contact support.");
+   if(action==="topup"&&amount<Number(pricing.topup_minimum_usd))throw new UserError("The card funding amount is below the current minimum.");
+   rate=await fxRate(amount);walletAmount=ceil10(amount*rate*(action==="topup"?1+Number(pricing.topup_markup_percent)/100:1));
   }
   const reference=ref();
   const {data:op,error:reserveError}=await admin.rpc("reserve_virtual_card_operation",{p_user_id:user.id,p_action:action,p_virtual_card_id:card!.id,p_reference:reference,p_idempotency_key:idempotency,p_amount_usd:amount||null,p_wallet_amount_ngn:walletAmount||null,p_fx_rate:rate||null,p_metadata:{card_id:card!.id}});
