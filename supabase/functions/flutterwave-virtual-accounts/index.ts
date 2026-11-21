@@ -27,6 +27,8 @@ Deno.serve(async(req)=>{
   const {data:existing,error:existingError}=await admin.from("virtual_accounts").select("id,account_number,bank_name,account_name,currency,status,is_permanent").eq("user_id",auth.user.id).eq("provider","flutterwave").eq("is_permanent",true).eq("status","active").maybeSingle();
   if(existingError) return json({error:"Unable to check existing virtual account"},500);
   if(existing) return json({account:existing,existing:true});
+  let identity:string;
+  try{identity=await decryptIdentity(kyc.identity_ciphertext);}catch{return json({error:"Unable to securely read approved identity. Contact support."},500);}
   const txRef=ref(auth.user.id);
   const {data:claim,error:claimError}=await admin.from("virtual_accounts").insert({
     user_id:auth.user.id,provider:"flutterwave",provider_reference:txRef,account_reference:txRef,
@@ -41,8 +43,6 @@ Deno.serve(async(req)=>{
     }
     return json({error:"Virtual-account issuance is already pending or needs reconciliation. Do not submit another request."},409);
   }
-  let identity:string;
-  try{identity=await decryptIdentity(kyc.identity_ciphertext);}catch{return json({error:"Unable to securely read approved identity. Contact support."},500);}
   const names=(kyc.first_name+" "+kyc.last_name).trim().split(/\s+/);
   const payload:Record<string,unknown>={email:auth.user.email??profile.email,currency:"NGN",firstname:names[0]??"",lastname:names.slice(1).join(" ")||names[0]||"",phonenumber:kyc.phone_number??profile.phone,tx_ref:txRef,is_permanent:true,narration:"TolirexData wallet",bank_code:"090567"};
   payload[kyc.identity_kind==="bvn"?"bvn":"nin"]=identity;
