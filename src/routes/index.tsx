@@ -51,6 +51,7 @@ import type { Database as SupabaseDatabase } from "@/integrations/supabase/types
 import { useDexAuth } from "@/lib/dex-auth";
 import {
   getDexDashboard,
+  purchaseAirtimeOrData,
   reviewFunding,
 } from "@/lib/dex.functions";
 import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
@@ -157,7 +158,19 @@ function Index() {
 
   const handleBuy = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setNotice("Live supplier ordering is not enabled yet. No wallet debit has been made.");
+    if (!selectedPlan || !isValidNigerianPhone(phone)) { setNotice("Choose a published data plan and enter a valid Nigerian phone number."); return; }
+    await action(async () => {
+      const result = await purchaseAirtimeOrData({ data: { service:"data", productId:selectedPlan.id, networkCode:selectedPlan.network, recipient:phone, idempotencyKey:crypto.randomUUID().replace(/-/g,"") } });
+      setNotice(result.status==="successful" ? "Data purchase completed successfully." : result.status==="refunded" ? "Supplier rejected the order; your wallet refund has been processed." : "Your order is processing or being checked. Check Transactions before submitting again.");
+      await refreshDashboard();
+    });
+  };
+  const handleAirtimePurchase = async (payload:{networkCode:string;recipient:string;amount:number}) => {
+    await action(async () => {
+      const result = await purchaseAirtimeOrData({ data:{ service:"airtime", ...payload, idempotencyKey:crypto.randomUUID().replace(/-/g,"") } });
+      setNotice(result.status==="successful" ? "Airtime purchase completed successfully." : result.status==="refunded" ? "Supplier rejected the order; your wallet refund has been processed." : "Your order is processing or being checked. Check Transactions before submitting again.");
+      await refreshDashboard();
+    });
   };
 
   const handleFunding = async (event: FormEvent<HTMLFormElement>) => {
@@ -211,6 +224,7 @@ function Index() {
           phone={phone}
           setPhone={setPhone}
           onBuy={handleBuy}
+          onAirtimePurchase={handleAirtimePurchase}
           fundingAmount={fundingAmount}
           setFundingAmount={setFundingAmount}
           onFunding={handleFunding}
@@ -275,6 +289,7 @@ function DashboardShell(props: {
   network: Network; setNetwork: (network: Network) => void; networkChoices: string[]; plans: DataPlan[];
   selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
+  onAirtimePurchase: (payload: { networkCode: string; recipient: string; amount: number }) => Promise<void>;
   fundingAmount: string; setFundingAmount: (amount: string) => void;
   onFunding: (event: FormEvent<HTMLFormElement>) => void;
   onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
@@ -306,7 +321,7 @@ function DashboardShell(props: {
           {props.view === "buy" && <BuyDataView {...props}/>}
           {props.view === "fund" && <FundWalletView {...props}/>}
           {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
-          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType} catalogue={props.dashboard?.catalogue ?? []} catalogueOptions={props.dashboard?.catalogueOptions ?? []}/>}
+          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType} catalogue={props.dashboard?.catalogue ?? []} catalogueOptions={props.dashboard?.catalogueOptions ?? []} busy={props.busy} onAirtimePurchase={props.onAirtimePurchase}/>}
         </main>
       </div>
       <nav className="tr-mobile-nav" aria-label="Account navigation">{([{key:"overview" as ViewKey,label:"Home",icon:<House/>},{key:"buy" as ViewKey,label:"Data",icon:<Database/>},{key:"airtime" as ViewKey,label:"Airtime",icon:<Smartphone/>},{key:"referrals" as ViewKey,label:"Rewards",icon:<Gift/>},{key:"fund" as ViewKey,label:"Wallet",icon:<Wallet/>}] as const).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key || (item.key==="referrals" && ["referrals","coupons","promotions","cashback","loyalty"].includes(props.view))?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav>
@@ -382,7 +397,10 @@ const featureDetails: Record<FeatureView, {title:string;eyebrow:string;descripti
   loyalty:{title:"Loyalty",eyebrow:"REWARDS & GROWTH",description:"Track loyalty points, membership tier and eligible redemption options.",icon:<Award/>,group:"growth",emptyTitle:"Loyalty programme not configured",emptyCopy:"Your points, tier and redemption options will appear when the loyalty programme is configured and enabled."},
 };
 
-function FeatureWorkspace({view,accountType,catalogue,catalogueOptions}:{view:FeatureView;accountType:string;catalogue:CatalogueProduct[];catalogueOptions:CatalogueOption[]}) {
+function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAirtimePurchase}:{view:FeatureView;accountType:string;catalogue:CatalogueProduct[];catalogueOptions:CatalogueOption[];busy:boolean;onAirtimePurchase:(payload:{networkCode:string;recipient:string;amount:number})=>Promise<void>}) {
+  const [airtimeNetwork,setAirtimeNetwork]=useState("");
+  const [airtimePhone,setAirtimePhone]=useState("");
+  const [airtimeAmount,setAirtimeAmount]=useState("100");
   const feature=featureDetails[view];
   const categoryCode=({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view];
   const options=catalogueOptions.filter((option)=>option.category_code===categoryCode);
@@ -392,9 +410,15 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions}:{view:Fe
       <div><span className="tr-kicker">{feature.eyebrow}</span><h2>{feature.title}</h2><p>{feature.description}</p></div>
       <span className="tr-feature-account">{accountType.replace(/[_-]/g," ")}</span>
     </section>
-    {feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view])?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===categoryCode).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===categoryCode).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> :
-    <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
-    <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
+    {view==="airtime" ? <section className="tr-feature-panel">
+      <div className="tr-feature-panel-heading"><div><h3>Buy airtime</h3><p>Networks come from the supplier catalogue; rates must be configured by an administrator.</p></div><span className="tr-catalogue-state"><i/>{options.length?"Networks synced":"No networks published"}</span></div>
+      {options.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount)});}}>
+        <label className="grid gap-2 text-sm font-medium">Mobile network<select className="h-11 border bg-background px-3" value={airtimeNetwork} onChange={(event)=>setAirtimeNetwork(event.target.value)} required><option value="">Choose network</option>{options.map(option=><option key={option.id} value={option.option_code}>{option.name}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Phone number<Input inputMode="numeric" maxLength={11} placeholder="08012345678" value={airtimePhone} onChange={(event)=>setAirtimePhone(event.target.value.replace(/\D/g,""))} required/></label>
+        <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={(event)=>setAirtimeAmount(event.target.value)} required/></label>
+        <Button type="submit" disabled={busy||!airtimeNetwork||!/^\d{11}$/.test(airtimePhone)||Number(airtimeAmount)<50||Number(airtimeAmount)>200000}>{busy?"Processing…":"Continue to purchase"} <ArrowRight/></Button>
+      </form> : <EmptyState icon={<Smartphone/>} title="Airtime networks are not published" copy="Networks become selectable after the supplier catalogue is synchronized and published."/>}
+    </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===categoryCode)?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===categoryCode).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===categoryCode).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/ >}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> :    <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
   </div>;
 }
 
