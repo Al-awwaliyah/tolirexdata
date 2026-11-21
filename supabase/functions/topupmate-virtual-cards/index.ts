@@ -55,7 +55,7 @@ Deno.serve(async request=>{
  try{
  if(action==="save_profile"){
   const p:Obj={first_name:str(body.firstName),last_name:str(body.lastName),phone:str(body.phone),email:str(body.email||user.email),date_of_birth:str(body.dateOfBirth),address:str(body.address),state:str(body.state),city:str(body.city)};
-  if(p.first_name.length<2||p.last_name.length<2||!/^\\+?[0-9]{10,15}$/.test(p.phone)||!/^\\S+@\\S+\\.\\S+$/.test(p.email)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(p.date_of_birth)||p.address.length<5||p.state.length<2||p.city.length<2)
+  if(p.first_name.length<2||p.last_name.length<2||!/^\+?[0-9]{10,15}$/.test(p.phone)||!/^\S+@\S+\.\S+$/.test(p.email)||!/^\d{4}-\d{2}-\d{2}$/.test(p.date_of_birth)||p.address.length<5||p.state.length<2||p.city.length<2)
    throw new UserError("Complete all required cardholder details with valid information.");
   const {error}=await admin.from("cardholder_profiles").upsert({user_id:user.id,...p,updated_at:new Date().toISOString()},{onConflict:"user_id"});
   if(error)throw new UserError("Unable to save your cardholder details.");
