@@ -727,35 +727,24 @@ function BuyDataView(props: {
   );
 }
 
-function FundWalletView(props: { busy: boolean; fundingAmount: string; setFundingAmount: (amount: string) => void; onFunding: (event: FormEvent<HTMLFormElement>) => void }) {
-  return (
-    <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[1fr_.9fr]">
-      <form onSubmit={props.onFunding} className="border bg-background p-5 sm:p-6">
-        <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary"><ArrowDownLeft /></span><div><h2 className="font-semibold text-foreground">Request a wallet top-up</h2><p className="text-sm text-muted-foreground">Bank transfer</p></div></div>
-        <label htmlFor="funding-amount" className="mt-7 block text-sm font-medium text-foreground">Amount in naira</label>
-        <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-muted-foreground">₦</span><Input id="funding-amount" className="pl-8" type="number" min="1" step="1" inputMode="numeric" placeholder="5,000" value={props.fundingAmount} onChange={(event) => props.setFundingAmount(event.target.value)} required /></div>
-        <Button type="submit" className="mt-5 w-full" disabled={props.busy}>{props.busy ? "Submitting…" : "I Have Sent It"} <ArrowRight /></Button>
-        <p className="mt-3 text-xs leading-5 text-muted-foreground">Submit only after you have transferred the amount to verified ToliRex bank details.</p>
-      </form>
-      <div className="border bg-background p-5 sm:p-6">
-        <div className="flex items-start gap-3"><span className="grid size-9 place-items-center rounded-full bg-chart-4/20 text-chart-4"><CreditCard className="size-4" /></span><div><h2 className="font-semibold text-foreground">Bank transfer details</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Account details have not been configured yet. Confirm verified transfer details with ToliRex before sending any money.</p></div></div>
-        <div className="mt-6 border-t pt-5">
-          <p className="text-sm font-medium text-foreground">After your request</p>
-          <ul className="mt-3 space-y-3 text-sm text-muted-foreground">
-            <li className="flex gap-2"><Clock3 className="mt-0.5 size-4 shrink-0 text-primary" />Your request stays pending while it is reviewed.</li>
-            <li className="flex gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />Your wallet updates only after admin approval.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
+function FundWalletView(props: { dashboard: DashboardData | null; onRefresh: () => void }) {
+  const account=props.dashboard?.virtualAccount;
+  const [busy,setBusy]=useState(false); const [message,setMessage]=useState("");
+  const issue=async()=>{setBusy(true);setMessage("");try{await ensureFlutterwaveVirtualAccount();setMessage("Your permanent Flutterwave account is ready.");props.onRefresh();}catch(e){setMessage(messageOf(e,"Unable to generate your virtual account."));}finally{setBusy(false);}};
+  return <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[1fr_.9fr]">
+    <section className="rounded-2xl border bg-background p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary"><ArrowDownLeft/></span><div><h2 className="font-semibold">Fund your wallet by bank transfer</h2><p className="text-sm text-muted-foreground">Your dedicated permanent account</p></div></div>
+      {account?<div className="mt-6 rounded-xl bg-primary/5 p-5"><p className="text-xs text-muted-foreground">{account.bank_name}</p><p className="mt-2 text-3xl font-bold tracking-wider">{account.account_number}</p><p className="mt-2 text-sm font-semibold">{account.account_name}</p><p className="mt-1 text-xs text-muted-foreground">{account.currency} · Permanent virtual account</p><Button className="mt-4" variant="outline" onClick={()=>void navigator.clipboard?.writeText(account.account_number)}>Copy account number</Button></div>:<div className="mt-5"><p className="text-sm leading-6 text-muted-foreground">Complete and receive KYC approval to generate your permanent Flutterwave bank account.</p><Button className="mt-4 w-full" disabled={busy||props.dashboard?.kyc?.status!=="approved"} onClick={()=>void issue()}>{busy?"Generating…":"Generate permanent account"}</Button></div>}
+      {message&&<p role="status" className="mt-3 text-xs text-muted-foreground">{message}</p>}
+    </section>
+    <section className="rounded-2xl border bg-background p-5 sm:p-6"><h2 className="font-semibold">How wallet funding works</h2><ol className="mt-4 space-y-4 text-sm text-muted-foreground"><li>1. Transfer from any Nigerian bank to the virtual account shown here.</li><li>2. Flutterwave notifies TolirexData and the payment is verified against Flutterwave's transaction API.</li><li>3. Your wallet is credited automatically after successful verification.</li><li>4. Your transaction history and wallet balance refresh with the settled deposit.</li></ol><p className="mt-5 border-t pt-4 text-xs leading-5 text-muted-foreground">Never transfer to an account number that is not displayed inside your signed-in TolirexData dashboard. Do not submit manual funding claims.</p></section>
+  </div>;
 }
 
 function ActivityView({ dashboard }: { dashboard: DashboardData | null }) {
   const transactions = [...(dashboard?.transactions ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const orders = [...(dashboard?.orders ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const serviceOrders = [...(dashboard?.serviceOrders ?? [])].sort((a,b)=>b.created_at.localeCompare(a.created_at));
-  const fundings = [...(dashboard?.fundings ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  
   return (
     <div className="space-y-6">
       <section className="border bg-background">
@@ -771,13 +760,10 @@ function ActivityView({ dashboard }: { dashboard: DashboardData | null }) {
       </section>
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="border bg-background">
-          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Legacy Data orders</h2></div>
+          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Data purchase history</h2></div>
           {orders.length ? orders.map((order) => <OrderRow key={order.id} order={order} />) : <EmptyState icon={<Database />} title="No data orders yet" copy="Your completed purchases will show here." />}
         </section>
-        <section className="border bg-background">
-          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Funding requests</h2></div>
-          {fundings.length ? fundings.map((funding) => <FundingRow key={funding.id} funding={funding} />) : <EmptyState icon={<ArrowDownLeft />} title="No funding requests" copy="Requests you submit will show here." />}
-        </section>
+
       </div>
     </div>
   );
