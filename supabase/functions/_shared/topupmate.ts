@@ -1,6 +1,6 @@
 const LIVE="https://connect.topupmate.com/api/";
 export type TopupmateResult={ok:boolean;httpStatus:number;body:any};
-export function topupmateBase(){const configured=(Deno.env.get("TOPUPMATE_BASE_URL")??"").trim();if(configured)return configured.replace(/\/+$/,"")+"/";return (Deno.env.get("TOPUPMATE_ENV")??"live").toLowerCase()==="sandbox"?SANDBOX:LIVE;}
+export function topupmateBase(){return LIVE;}
 export async function topupmateRequest(path:string,init:RequestInit={}):Promise<TopupmateResult>{
  const key=(Deno.env.get("TOPUPMATE_API_KEY")??"").trim();if(!key)throw new Error("Topupmate API key is not configured");
  const headers=new Headers(init.headers);headers.set("Authorization","Token "+key);headers.set("Accept","application/json");if(init.body&&!headers.has("Content-Type"))headers.set("Content-Type","application/json");
