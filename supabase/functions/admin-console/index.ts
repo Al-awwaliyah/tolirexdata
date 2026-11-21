@@ -27,7 +27,22 @@ Deno.serve(async (request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body.action ?? "");
-  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : action === "airtime_pricing" ? "pricing.manage" : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
+  const workspacePermissions: Record<string, string> = {
+    kyc: "kyc.review", agents: "customers.read", businesses: "customers.read",
+    wallets: "wallets.read", "virtual-accounts": "finance.read", "virtual-cards": "finance.read",
+    fundings: "finance.read", transactions: "orders.read", catalogue: "services.manage",
+    providers: "providers.manage", pricing: "pricing.manage", referrals: "growth.manage",
+    promotions: "growth.manage", loyalty: "growth.manage", notifications: "notifications.manage",
+    support: "support.manage", reports: "finance.read", settings: "settings.manage",
+    "admin-team": "staff.manage", audit: "audit.read",
+  };
+  const workspaceModule = String(body.module ?? "");
+  const permission = action === "workspace" ? workspacePermissions[workspaceModule] ?? ""
+    : action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read"
+    : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
+    : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage"
+    : action === "provider_status" ? "providers.manage" : action === "airtime_pricing" ? "pricing.manage"
+    : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
@@ -195,6 +210,43 @@ Deno.serve(async (request) => {
     });
     if (error) return json({ error: error.message }, 400);
     return json({ product: data });
+  }
+
+  if (action === "workspace") {
+    const definitions: Record<string, { table: string; columns: string; order: string; search?: string }> = {
+      kyc: { table: "kyc_records", columns: "id,user_id,level,status,reviewer_id,reviewed_at,review_note,created_at,updated_at", order: "created_at", search: "user_id" },
+      agents: { table: "agent_accounts", columns: "id,user_id,business_name,status,commission_plan,approved_by,approved_at,created_at,updated_at", order: "created_at", search: "user_id" },
+      businesses: { table: "businesses", columns: "id,legal_name,trading_name,registration_number,country_code,status,created_by,created_at,updated_at", order: "created_at", search: "legal_name" },
+      wallets: { table: "wallets", columns: "id,user_id,balance,currency,wallet_status,created_at,updated_at", order: "updated_at", search: "user_id" },
+      "virtual-accounts": { table: "virtual_accounts", columns: "id,user_id,provider,provider_reference,bank_name,currency,is_permanent,status,created_at,updated_at", order: "created_at", search: "user_id" },
+      fundings: { table: "funding_events", columns: "id,user_id,virtual_account_id,provider,provider_event_id,provider_transaction_id,tx_reference,amount,currency,sender_name,sender_bank,sender_account_last4,status,processed_at,created_at", order: "created_at", search: "tx_reference" },
+      transactions: { table: "service_orders", columns: "id,user_id,category_id,product_id,provider_id,request_id,provider_order_id,recipient,amount,currency,status,provider_status,created_at,updated_at", order: "created_at", search: "request_id" },
+      catalogue: { table: "service_products", columns: "id,category_id,provider_id,provider_product_code,name,network_or_operator,description,face_value,cost_price,selling_price,currency,active,publication_status,supplier_last_seen_at,updated_at", order: "updated_at", search: "name" },
+      providers: { table: "service_providers", columns: "id,code,name,status,priority,supports_airtime,supports_data,supports_cable,supports_electricity,supports_epin,created_at,updated_at", order: "priority", search: "name" },
+      pricing: { table: "pricing_rules", columns: "id,category_id,product_id,account_type,markup_type,markup_value,fixed_selling_price,active,starts_at,ends_at,created_at,updated_at", order: "updated_at" },
+      referrals: { table: "referrals", columns: "id,referrer_user_id,referred_user_id,referral_code_id,status,qualifying_order_id,qualified_at,created_at", order: "created_at" },
+      promotions: { table: "coupons", columns: "id,code,description,discount_type,discount_value,max_discount,min_order_amount,total_redemption_limit,per_user_limit,starts_at,ends_at,budget_amount,budget_spent,active,created_at,updated_at", order: "created_at", search: "code" },
+      loyalty: { table: "loyalty_transactions", columns: "id,user_id,points,reason,reference_type,reference_id,idempotency_key,created_at", order: "created_at" },
+      notifications: { table: "notifications", columns: "id,user_id,title,body,channel,status,delivered_at,created_at", order: "created_at", search: "title" },
+      support: { table: "support_tickets", columns: "id,user_id,subject,category,status,priority,assigned_to,created_at,updated_at", order: "created_at", search: "subject" },
+      settings: { table: "platform_settings", columns: "setting_key,is_public,updated_by,updated_at", order: "setting_key", search: "setting_key" },
+      "admin-team": { table: "platform_admin_memberships", columns: "user_id,admin_role,active,granted_by,created_at,updated_at", order: "created_at" },
+      audit: { table: "audit_logs", columns: "id,actor_user_id,action,target_type,target_id,created_at", order: "created_at", search: "action" },
+    };
+    const definition = definitions[workspaceModule];
+    if (!definition) return json({ error: "Unsupported workspace" }, 400);
+    const page = Math.max(1, Math.min(10000, Number(body.page) || 1));
+    const pageSize = Math.max(10, Math.min(100, Number(body.pageSize) || 25));
+    const search = String(body.search ?? "").trim().slice(0, 80);
+    let query = admin.from(definition.table).select(definition.columns, { count: "exact" })
+      .order(definition.order, { ascending: false }).range((page - 1) * pageSize, page * pageSize - 1);
+    if (search && definition.search) {
+      const safe = search.replace(/[,%()]/g, " ").trim();
+      if (safe) query = query.ilike(definition.search, "%" + safe + "%");
+    }
+    const { data, count, error } = await query;
+    if (error) return json({ error: "Unable to load " + workspaceModule + " workspace" }, 500);
+    return json({ rows: data ?? [], total: count ?? 0, page, pageSize, module: workspaceModule });
   }
 
   const search = String(body.search ?? "").trim().slice(0, 100);
