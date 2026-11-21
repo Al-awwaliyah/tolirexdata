@@ -64,6 +64,9 @@ function AdminDashboard() {
   const [catalogueDrafts, setCatalogueDrafts] = useState<Record<string,{personal:string;agent:string;business:string}>>({});
   const [airtimePricingDrafts, setAirtimePricingDrafts] = useState<Record<string,{discountFactor:string;minimumAmount:string;maximumAmount:string}>>({});
   const [catalogueSaving, setCatalogueSaving] = useState<string | null>(null);
+  const [cardPricing, setCardPricing] = useState({cardCreationEnabled:false,creationFeeUsd:"",minimumInitialFundingUsd:"",creationMarkupUsd:"",topupMinimumUsd:"",topupMarkupPercent:""});
+  const [cardPricingLoading, setCardPricingLoading] = useState(false);
+  const [cardPricingSaving, setCardPricingSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const current = modules.find((item) => item.id === active) ?? modules[0];
@@ -80,6 +83,21 @@ function AdminDashboard() {
     });
     return () => { alive = false; };
   }, [user?.id, loading]);
+
+  const loadCardPricing = async () => {
+    setCardPricingLoading(true);
+    const {data,error:invokeError}=await supabase.functions.invoke("admin-console",{body:{action:"card_pricing"}});
+    if(invokeError||data?.error){setError(data?.error||invokeError?.message||"Unable to load card pricing.");}
+    else if(data?.pricing){const p=data.pricing;setCardPricing({cardCreationEnabled:p.card_creation_enabled===true,creationFeeUsd:String(p.creation_fee_usd??0),minimumInitialFundingUsd:String(p.minimum_initial_funding_usd??0),creationMarkupUsd:String(p.creation_markup_usd??0),topupMinimumUsd:String(p.topup_minimum_usd??0),topupMarkupPercent:String(p.topup_markup_percent??0)});}
+    setCardPricingLoading(false);
+  };
+  const saveCardPricing = async () => {
+    setCardPricingSaving(true);setError("");
+    const {data,error:invokeError}=await supabase.functions.invoke("admin-console",{body:{action:"card_pricing",save:true,...cardPricing,creationFeeUsd:Number(cardPricing.creationFeeUsd),minimumInitialFundingUsd:Number(cardPricing.minimumInitialFundingUsd),creationMarkupUsd:Number(cardPricing.creationMarkupUsd),topupMinimumUsd:Number(cardPricing.topupMinimumUsd),topupMarkupPercent:Number(cardPricing.topupMarkupPercent)}});
+    if(invokeError||data?.error)setError(data?.error||invokeError?.message||"Unable to save card pricing.");
+    else {setError("");await loadCardPricing();}
+    setCardPricingSaving(false);
+  };
 
   const loadOverview = async () => {
     setRefreshing(true);
@@ -216,6 +234,7 @@ function AdminDashboard() {
   };
 
   useEffect(() => { if (authorized) void loadOverview(); }, [authorized]);
+  useEffect(() => { if (authorized && active === "virtual-cards") void loadCardPricing(); }, [authorized, active]);
   useEffect(() => {
     if (authorized && active === "customers") void loadCustomers(customerPage, customerSearch);
   }, [authorized, active, customerPage]);
@@ -316,6 +335,24 @@ function AdminDashboard() {
             })}</div>}
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm font-semibold">Recent catalogue synchronization</h3>{catalogueRuns.length===0?<p className="mt-2 text-xs text-slate-500">No synchronization history yet.</p>:<div className="mt-3 space-y-2">{catalogueRuns.map(run=><div key={run.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs"><span className="font-medium text-slate-700">{new Date(run.started_at).toLocaleString()}</span><span className="text-slate-500">{run.discovered_products} products · {run.discovered_options} options</span><span className={run.status==="success"?"font-semibold text-emerald-700":run.status==="partial"?"font-semibold text-amber-700":"font-semibold text-rose-700"}>{run.status}</span></div>)}</div>}</div>
+        </section> : active==="virtual-cards" ? <section className="space-y-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Topupmate card pricing controls</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Manage card creation fees, minimum funding and platform markups here. Changes are audited and apply to new card operations. API credentials remain protected as server secrets.</p></div><button onClick={()=>void loadCardPricing()} disabled={cardPricingLoading} className="rounded-xl border px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"><RefreshCw size={13} className="mr-1 inline"/> Refresh</button></div>
+            {cardPricingLoading?<p className="mt-6 text-sm text-slate-500">Loading commercial settings…</p>:<>
+              <div className="mt-5 flex items-center justify-between rounded-xl bg-slate-50 p-4"><div><p className="text-sm font-semibold text-slate-800">Allow new virtual card creation</p><p className="mt-1 text-xs text-slate-500">Turn off issuance without disabling existing cards.</p></div><button type="button" role="switch" aria-checked={cardPricing.cardCreationEnabled} onClick={()=>setCardPricing(p=>({...p,cardCreationEnabled:!p.cardCreationEnabled}))} className={`relative h-7 w-12 rounded-full transition-colors ${cardPricing.cardCreationEnabled?"bg-emerald-600":"bg-slate-300"}`}><span className={`absolute top-1 size-5 rounded-full bg-white shadow transition-transform ${cardPricing.cardCreationEnabled?"translate-x-6":"translate-x-1"}`}/></button></div>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {([
+                  ["creationFeeUsd","Card creation fee (USD)","Fee charged by Topupmate per new card"],
+                  ["minimumInitialFundingUsd","Minimum initial funding (USD)","Minimum first card balance"],
+                  ["creationMarkupUsd","Card creation markup (USD)","TolirexData creation service markup"],
+                  ["topupMinimumUsd","Minimum card top-up (USD)","Minimum amount for a card funding request"],
+                  ["topupMarkupPercent","Card top-up markup (%)","Percentage markup applied to card funding"],
+                ] as const).map(([key,label,hint])=><label key={key} className="block text-xs font-semibold text-slate-700">{label}<input type="number" min="0" step="0.01" value={cardPricing[key]} onChange={e=>setCardPricing(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium outline-none focus:border-blue-500"/><span className="mt-1 block text-[10px] font-normal text-slate-400">{hint}</span></label>)}
+              </div>
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3"><p className="text-[11px] text-slate-500">Only Super Admin and Finance Admin can change these settings.</p><button onClick={()=>void saveCardPricing()} disabled={cardPricingSaving||!cardPricing.minimumInitialFundingUsd||![cardPricing.creationFeeUsd,cardPricing.minimumInitialFundingUsd,cardPricing.creationMarkupUsd,cardPricing.topupMinimumUsd,cardPricing.topupMarkupPercent].every(v=>v.trim()!==""&&Number.isFinite(Number(v))&&Number(v)>=0)} className="rounded-xl bg-[#14366f] px-5 py-3 text-xs font-semibold text-white disabled:opacity-40">{cardPricingSaving?"Saving settings…":"Save card pricing settings"}</button></div>
+            </>}
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm font-semibold">Pricing governance</h3><ul className="mt-3 list-disc space-y-2 pl-5 text-xs leading-5 text-slate-500"><li>Card fees and markups are stored in the database, not in Edge Function secrets.</li><li>Every settings update records the administrator and before/after values in the audit log.</li><li>Customer charges are recalculated server-side using the latest saved settings and current Topupmate FX quote.</li><li>Existing card operations retain the pricing snapshot used when they were created.</li></ul></div>
         </section> : active==="transactions" ? <ServiceOrdersWorkspace/> : <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_8px_rgba(15,23,42,.025)] sm:p-7"><div className="flex items-start gap-3"><span className="grid size-11 place-items-center rounded-xl bg-[#eff4fc] text-[#244d8e]"><current.icon size={20}/></span><div><h2 className="text-base font-semibold">{current.label} workspace</h2><p className="mt-1 text-xs text-slate-400">Dedicated administration module</p></div></div><div className="mt-7"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Included capabilities</h3><div className="mt-3 grid gap-3 md:grid-cols-2">{current.capabilities.map((cap)=> <div key={cap} className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3.5"><CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600"/><span className="text-sm text-slate-700">{cap}</span></div>)}</div></div><div className="mt-7 rounded-xl border border-amber-200 bg-amber-50/70 p-4"><p className="text-xs font-semibold text-amber-900">Module implementation status</p><p className="mt-1 text-xs leading-5 text-amber-800">This module is included in the dedicated admin navigation and architecture. Its live data tables, server functions and operational actions will be connected in the corresponding implementation phase. No placeholder action will alter customer balances or financial records.</p></div></section>}
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-5 text-[10px] text-slate-400"><span>TolirexData Administration · Restricted access</span><span>Developer/API product disabled for launch</span></footer>
       </main>
