@@ -1,4 +1,8 @@
 -- Correct card funding aggregates: amounts are denominated in card USD, not wallet NGN.
+alter table public.virtual_cards
+  add column if not exists total_funded_usd numeric(18,2) not null default 0
+  check(total_funded_usd>=0);
+
 create or replace function public.complete_virtual_card_operation(
   p_operation_id uuid,p_provider_status text,p_provider_reference text default null,
   p_message text default null,p_card jsonb default null
