@@ -33,7 +33,8 @@ The sync function reads provider catalogue keys for network, airtime, data, cabl
 ## Migrations
 
 Apply migrations in timestamp order, including:
-- `20261121140000_topupmate_services_and_virtual_cards.sql`
+- `20261121141000_topupmate_services_and_virtual_cards.sql`
+- `20261121142000_topupmate_provider_and_categories.sql`
 - `20261121150000_topupmate_airtime_data_purchase_provider.sql`
 - `20261121170000_admin_managed_topupmate_card_pricing.sql`
 - `20261121180000_topupmate_expanded_service_order_reservations.sql`
