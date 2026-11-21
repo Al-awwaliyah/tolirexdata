@@ -91,7 +91,7 @@ begin
    order by (r.product_id is not null) desc,r.updated_at desc limit 1;
 
   if found then
-    v_price:=coalesce(v_rule.fixed_selling_price,
+    v_price:=coalesce(v_rule.fixed_selling_price*v_quantity,
       case when v_rule.markup_type='percentage'
         then round(v_cost*(1+v_rule.markup_value/100),2)
         else round(v_cost+v_rule.markup_value*v_quantity,2) end);
