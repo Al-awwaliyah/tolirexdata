@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body.action ?? "");
-  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : action === "airtime_pricing" ? "pricing.manage" : "";
+  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : action === "airtime_pricing" ? "pricing.manage" : action === "card_pricing" ? "cards.pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
@@ -93,6 +93,26 @@ Deno.serve(async (request) => {
       .order("started_at", { ascending: false }).limit(10);
     if (productError || optionsError || runError || providersError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
     return json({ products: products ?? [], options: options ?? [], providers: providers ?? [], syncRuns: runs ?? [], canManagePricing: canManagePricing === true, canManageProviders: canManageProviders === true });
+  }
+
+  if (action === "card_pricing") {
+    if (body.save === true) {
+      const { data, error } = await caller.rpc("admin_set_topupmate_card_pricing", {
+        p_creation_enabled: body.cardCreationEnabled === true,
+        p_creation_fee_usd: Number(body.creationFeeUsd),
+        p_minimum_initial_funding_usd: Number(body.minimumInitialFundingUsd),
+        p_creation_markup_usd: Number(body.creationMarkupUsd),
+        p_topup_minimum_usd: Number(body.topupMinimumUsd),
+        p_topup_markup_percent: Number(body.topupMarkupPercent),
+      });
+      if (error) return json({ error: error.message }, 400);
+      return json({ pricing: data });
+    }
+    const { data, error } = await admin.from("topupmate_card_pricing")
+      .select("card_creation_enabled,creation_fee_usd,minimum_initial_funding_usd,creation_markup_usd,topup_minimum_usd,topup_markup_percent,updated_at")
+      .eq("singleton", true).single();
+    if (error) return json({ error: "Unable to load virtual-card pricing settings" }, 500);
+    return json({ pricing: data });
   }
 
   if (action === "provider_status") {
