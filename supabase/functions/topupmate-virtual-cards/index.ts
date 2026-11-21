@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "../_shared/cors.ts";
 import { decryptIdentity } from "../_shared/identity-crypto.ts";
-import { topupmateGet, topupmatePost, topupmateReference, topupmateMessage } from "../_shared/topupmate.ts";
+import { topupmatePost, topupmateReference } from "../_shared/topupmate.ts";
 
 type Obj=Record<string,any>;
 const str=(v:unknown)=>String(v??"").trim();
