@@ -11,15 +11,9 @@ type AuthContext = {
 };
 
 async function isAdmin(context: AuthContext): Promise<boolean> {
-  const { data, error } = await context.supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", context.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-
-  if (error) throw new Error("Unable to verify account permissions");
-  return data?.role === "admin";
+  const { data, error } = await context.supabase.rpc("is_platform_admin");
+  if (error) throw new Error("Unable to verify administrator membership");
+  return data === true;
 }
 
 async function requireAdmin(context: AuthContext): Promise<void> {
@@ -63,7 +57,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
         users: profiles.data ?? [],
-        isAdmin: true,
+        isAdmin: false,
       };
     }
 
