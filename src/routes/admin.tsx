@@ -55,7 +55,7 @@ function AdminDashboard() {
   const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);
   const [catalogueProviders, setCatalogueProviders] = useState<any[]>([]);
   const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);
-  const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);
+  const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);\n  const [catalogueCanManageProviders, setCatalogueCanManageProviders] = useState(false);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueSyncing, setCatalogueSyncing] = useState(false);
   const [catalogueDrafts, setCatalogueDrafts] = useState<Record<string,{personal:string;agent:string;business:string}>>({});
@@ -120,7 +120,7 @@ function AdminDashboard() {
       setCatalogueOptions(data?.options ?? []);
       setCatalogueProviders(data?.providers ?? []);
       setCatalogueRuns(data?.syncRuns ?? []);
-      setCatalogueCanPrice(data?.canManagePricing === true);
+      setCatalogueCanPrice(data?.canManagePricing === true);\n      setCatalogueCanManageProviders(data?.canManageProviders === true);
     }
     setCatalogueLoading(false);
   };
@@ -229,7 +229,7 @@ function AdminDashboard() {
             <button disabled={catalogueSyncing} onClick={()=>void syncCatalogue()} className="inline-flex items-center gap-2 rounded-xl bg-[#14366f] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50"><RefreshCw size={14} className={catalogueSyncing?"animate-spin":""}/>{catalogueSyncing?"Synchronizing…":"Sync ClubKonnect catalogue"}</button>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {catalogueProviders.map(provider=><div key={provider.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4"><div><p className="text-xs font-semibold text-slate-800">{provider.name}</p><p className="mt-1 text-[10px] text-slate-500">Priority {provider.priority} · {provider.code}</p><p className={provider.status==="active"?"mt-1 text-[10px] font-semibold text-emerald-700":"mt-1 text-[10px] font-semibold text-amber-700"}>{provider.status}</p></div>{provider.code==="clubkonnect"&&<div className="flex gap-2">{provider.status!=="active"?<button disabled={catalogueSaving===provider.id} onClick={()=>void setCatalogueProviderStatus(provider.id,"active")} className="rounded-lg bg-[#14366f] px-3 py-2 text-[10px] font-semibold text-white">Enable provider</button>:<button disabled={catalogueSaving===provider.id} onClick={()=>void setCatalogueProviderStatus(provider.id,"disabled")} className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-600">Disable provider</button>}</div>}</div>)}
+            {catalogueProviders.map(provider=><div key={provider.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4"><div><p className="text-xs font-semibold text-slate-800">{provider.name}</p><p className="mt-1 text-[10px] text-slate-500">Priority {provider.priority} · {provider.code}</p><p className={provider.status==="active"?"mt-1 text-[10px] font-semibold text-emerald-700":"mt-1 text-[10px] font-semibold text-amber-700"}>{provider.status}</p></div>{provider.code==="clubkonnect"&&catalogueCanManageProviders&&<div className="flex gap-2">{provider.status!=="active"?<button disabled={catalogueSaving===provider.id} onClick={()=>void setCatalogueProviderStatus(provider.id,"active")} className="rounded-lg bg-[#14366f] px-3 py-2 text-[10px] font-semibold text-white">Enable provider</button>:<button disabled={catalogueSaving===provider.id} onClick={()=>void setCatalogueProviderStatus(provider.id,"disabled")} className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-600">Disable provider</button>}</div>}</div>)}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-[11px] text-slate-500">Supplier products</p><p className="mt-2 text-2xl font-bold">{catalogueProducts.length}</p></div>
