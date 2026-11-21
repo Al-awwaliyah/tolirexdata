@@ -27,23 +27,40 @@ Deno.serve(async(req)=>{
   const {data:existing,error:existingError}=await admin.from("virtual_accounts").select("id,account_number,bank_name,account_name,currency,status,is_permanent").eq("user_id",auth.user.id).eq("provider","flutterwave").eq("is_permanent",true).eq("status","active").maybeSingle();
   if(existingError) return json({error:"Unable to check existing virtual account"},500);
   if(existing) return json({account:existing,existing:true});
+  const txRef=ref(auth.user.id);
+  const {data:claim,error:claimError}=await admin.from("virtual_accounts").insert({
+    user_id:auth.user.id,provider:"flutterwave",provider_reference:txRef,account_reference:txRef,
+    account_number:"PENDING",bank_name:"Flutterwave",account_name:String(profile.full_name),
+    currency:"NGN",is_permanent:true,status:"pending"
+  }).select("id").single();
+  if(claimError||!claim) {
+    const {data:pending}=await admin.from("virtual_accounts").select("id,status").eq("provider","flutterwave").eq("account_reference",txRef).maybeSingle();
+    if(pending?.status==="active") {
+      const {data:ready}=await admin.from("virtual_accounts").select("id,account_number,bank_name,account_name,currency,status,is_permanent").eq("id",pending.id).single();
+      return json({account:ready,existing:true});
+    }
+    return json({error:"Virtual-account issuance is already pending or needs reconciliation. Do not submit another request."},409);
+  }
   let identity:string;
   try{identity=await decryptIdentity(kyc.identity_ciphertext);}catch{return json({error:"Unable to securely read approved identity. Contact support."},500);}
-  const txRef=ref(auth.user.id);
   const names=(kyc.first_name+" "+kyc.last_name).trim().split(/\s+/);
   const payload:Record<string,unknown>={email:auth.user.email??profile.email,currency:"NGN",firstname:names[0]??"",lastname:names.slice(1).join(" ")||names[0]||"",phonenumber:kyc.phone_number??profile.phone,tx_ref:txRef,is_permanent:true,narration:"TolirexData wallet",bank_code:"090567"};
   payload[kyc.identity_kind==="bvn"?"bvn":"nin"]=identity;
-  const response=await fetch("https://api.flutterwave.com/v3/virtual-account-numbers",{method:"POST",headers:{Authorization:"Bearer "+flwKey,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify(payload)});
+  let response:Response;
+  try {
+    response=await fetch("https://api.flutterwave.com/v3/virtual-account-numbers",{method:"POST",headers:{Authorization:"Bearer "+flwKey,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify(payload)});
+  } catch {
+    return json({error:"Flutterwave account creation response is uncertain. The request is locked for reconciliation; do not retry."},502);
+  }
   const result=await response.json().catch(()=>null);
-  if(!response.ok||result?.status!=="success"||!result?.data?.account_number) return json({error:"Flutterwave could not issue your virtual account. Please try again later."},502);
+  if(!response.ok||result?.status!=="success"||!result?.data?.account_number) return json({error:"Flutterwave could not confirm account creation. The request is held for reconciliation; do not retry."},502);
   const account=result.data;
-  const {data:saved,error:saveError}=await admin.from("virtual_accounts").insert({
-    user_id:auth.user.id,provider:"flutterwave",provider_reference:account.flw_ref??account.order_ref??txRef,
-    provider_session_id:account.order_ref??null,account_reference:txRef,
+  const {data:saved,error:saveError}=await admin.from("virtual_accounts").update({
+    provider_reference:account.flw_ref??account.order_ref??txRef,provider_session_id:account.order_ref??null,
     account_number:String(account.account_number),bank_name:String(account.bank_name??"Flutterwave MFB"),
-    account_name:String(profile.full_name),currency:"NGN",is_permanent:true,status:"active",issued_at:new Date().toISOString()
-  }).select("id,account_number,bank_name,account_name,currency,status,is_permanent").single();
-  if(saveError||!saved) return json({error:"Flutterwave issued the account but TolirexData could not safely save its reference. Contact support before requesting another account."},500);
+    account_name:String(profile.full_name),status:"active",issued_at:new Date().toISOString()
+  }).eq("id",claim.id).eq("status","pending").select("id,account_number,bank_name,account_name,currency,status,is_permanent").single();
+  if(saveError||!saved) return json({error:"Flutterwave issued the account but TolirexData could not safely save its details. The request is held for reconciliation; do not retry."},500);
   await admin.from("audit_logs").insert({actor_user_id:auth.user.id,action:"virtual_account.issued",target_type:"virtual_account",target_id:saved.id,after_data:{provider:"flutterwave",permanent:true}});
   return json({account:saved,existing:false},201);
 });
