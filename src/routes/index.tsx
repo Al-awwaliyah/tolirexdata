@@ -53,6 +53,7 @@ import { useDexAuth } from "@/lib/dex-auth";
 import {
   getDexDashboard,
   manageTopupmateVirtualCard,
+  manageTopupmateExpandedService,
   purchaseAirtimeOrData,
   reviewFunding,
 } from "@/lib/dex.functions";
@@ -422,9 +423,94 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [airtimeNetwork,setAirtimeNetwork]=useState("");
   const [airtimePhone,setAirtimePhone]=useState("");
   const [airtimeAmount,setAirtimeAmount]=useState("100");
+  const [selectedProductId,setSelectedProductId]=useState("");
+  const [selectedOptionCode,setSelectedOptionCode]=useState("");
+  const [recipient,setRecipient]=useState("");
+  const [contactPhone,setContactPhone]=useState("");
+  const [meterType,setMeterType]=useState<"prepaid"|"postpaid">("prepaid");
+  const [serviceAmount,setServiceAmount]=useState("1000");
+  const [quantity,setQuantity]=useState("1");
+  const [internetAccountType,setInternetAccountType]=useState<"PhoneNumber"|"AccountNumber">("PhoneNumber");
+  const [verifiedName,setVerifiedName]=useState("");
+  const [serviceNotice,setServiceNotice]=useState("");
+  const [fulfilment,setFulfilment]=useState<any>(null);
+  const [lastGiftCardReference,setLastGiftCardReference]=useState("");
+  const [lastServiceReference,setLastServiceReference]=useState("");
+  const [servicePending,setServicePending]=useState(false);
+  const [giftCardRetrievalPending,setGiftCardRetrievalPending]=useState(false);
+  const [serviceBusy,setServiceBusy]=useState(false);
   const feature=featureDetails[view];
   const categoryCode=({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin","data-pin":"data_pin",education:"education",internet:"internet","gift-cards":"gift_card",cards:"virtual_card",fx:"fx_conversion"} as Record<string,string>)[view];
   const options=catalogueOptions.filter((option)=>option.category_code===categoryCode);
+  const products=catalogue.filter((item)=>item.category_code===categoryCode);
+  const selectedProduct=products.find((item)=>item.id===selectedProductId);
+  const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":"network";
+  const serviceOptions=options.filter((option)=>option.option_type===optionType);
+  const runExpanded=async(payload:any)=>{
+    const result=await manageTopupmateExpandedService({data:payload});
+    if(result?.error)throw new Error(String(result.error));
+    return result;
+  };
+  const verifyService=async()=>{
+    setServiceBusy(true);setServiceNotice("");setFulfilment(null);setVerifiedName("");
+    try{
+      const payload=view==="cable"
+        ? {action:"verify" as const,service:"cable_tv",providerCode:selectedOptionCode,iuc:recipient}
+        : {action:"verify" as const,service:"electricity",providerCode:selectedOptionCode,meterNumber:recipient,meterType};
+      const result=await runExpanded(payload);
+      setVerifiedName(result.customerName||"Verified customer");
+      setServiceNotice(result.message||"Customer verified successfully.");
+    }catch(error){setServiceNotice(messageOf(error,"Unable to verify this customer."));}
+    finally{setServiceBusy(false);}
+  };
+  const buyExpanded=async()=>{
+    if(!selectedProduct&&view!=="electricity"){setServiceNotice("Choose a published supplier product first.");return;}
+    setServiceBusy(true);setServiceNotice("");setFulfilment(null);
+    try{
+      const category=categoryCode;
+      const productPayload=selectedProduct?{productId:selectedProduct.id}:{};
+      const optionPayload=selectedOptionCode?{optionCode:selectedOptionCode}:{};
+      const base={action:"purchase" as const,categoryCode:category,...productPayload,...optionPayload,
+        recipient,quantity:Number(quantity)||1,contactPhone:contactPhone||undefined,idempotencyKey:crypto.randomUUID().replace(/-/g,"")};
+      const payload=view==="electricity"?{...base,amount:Number(serviceAmount),meterType}
+        :view==="cable"?{...base,subtype:"renew"}
+        :view==="internet"?{...base,accountType:internetAccountType}
+        :view==="gift-cards"?{...base}
+        :base;
+      const result=await runExpanded(payload);
+      setServiceNotice(result.status==="successful"?(result.fulfilmentPending?"Purchase completed. Your gift-card code can be retrieved again below.":"Purchase completed successfully."):"Your request is awaiting Topupmate confirmation. Do not submit it again.");
+      setFulfilment(result.fulfilment??null);
+      setLastServiceReference(result.reference??"");
+      setServicePending(["unknown","processing"].includes(result.status));
+      setGiftCardRetrievalPending(view==="gift-cards"&&result.status==="successful"&&result.fulfilmentPending===true);
+      setLastGiftCardReference(view==="gift-cards"&&result.status==="successful"?result.reference??"":"");
+      setVerifiedName("");
+    }catch(error){setServiceNotice(messageOf(error,"The purchase could not be completed."));}
+    finally{setServiceBusy(false);}
+  };
+  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode);
+  const checkExpandedStatus=async()=>{
+    if(!lastServiceReference)return;
+    setServiceBusy(true);setServiceNotice("");
+    try{
+      const result=await runExpanded({action:"status",reference:lastServiceReference});
+      setServicePending(["unknown","processing"].includes(result.status));
+      if(result.status==="successful"){
+        setServiceNotice("Topupmate confirmed this purchase as successful.");
+        if(view==="gift-cards"){setLastGiftCardReference(lastServiceReference);setGiftCardRetrievalPending(true);}
+      }else if(result.status==="refunded"||result.status==="failed"){
+        setServiceNotice("Topupmate confirmed the purchase failed. The wallet refund status is "+result.status+".");
+      }else setServiceNotice(result.message||"The supplier has not confirmed this purchase yet.");
+    }catch(error){setServiceNotice(messageOf(error,"Unable to check this purchase yet."));}
+    finally{setServiceBusy(false);}
+  };
+  const retrieveGiftCard=async()=>{
+    if(!lastGiftCardReference)return;
+    setServiceBusy(true);setServiceNotice("");
+    try{const result=await runExpanded({action:"giftcard_redeem",reference:lastGiftCardReference});setFulfilment(result.fulfilment??null);setGiftCardRetrievalPending(result.status==="fulfilment_pending");setServiceNotice(result.status==="successful"?"Gift-card code retrieved successfully.":result.message||"Gift-card code is still processing.");}
+    catch(error){setServiceNotice(messageOf(error,"Unable to retrieve the gift-card code."));}
+    finally{setServiceBusy(false);}
+  };
   return <div className="tr-feature-workspace">
     <section className="tr-feature-hero">
       <div className="tr-feature-icon">{feature.icon}</div>
@@ -439,7 +525,57 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={(event)=>setAirtimeAmount(event.target.value)} required/></label>
         <Button type="submit" disabled={busy||!airtimeNetwork||!/^\d{11}$/.test(airtimePhone)||Number(airtimeAmount)<50||Number(airtimeAmount)>200000}>{busy?"Processing…":"Continue to purchase"} <ArrowRight/></Button>
       </form> : <EmptyState icon={<Smartphone/>} title="Airtime networks are not published" copy="Networks become selectable after the supplier catalogue is synchronized and published."/>}
-    </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===categoryCode)?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===categoryCode).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===categoryCode).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
+    </section> : ["cable","electricity","epin","data-pin","education","internet","gift-cards"].includes(view) ? <section className="tr-feature-panel">
+      <div className="tr-feature-panel-heading"><div><h3>{view==="cable"?"Cable TV subscription":view==="electricity"?"Electricity payment":view==="epin"?"Recharge PINs":view==="data-pin"?"Data PINs":view==="education"?"Education PINs":view==="internet"?"Internet bundle":"Gift card purchase"}</h3><p>Live Topupmate catalogue · published products and admin-approved prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Products available":"No published products"}</span></div>
+      {serviceNotice&&<div role="status" className="my-4 rounded-xl border bg-secondary/50 p-3 text-sm">{serviceNotice}</div>}
+      {view==="cable"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">TV provider<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setSelectedProductId("");setVerifiedName("");}}><option value="">Choose provider</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">SmartCard / IUC number<Input value={recipient} onChange={e=>{setRecipient(e.target.value.replace(/\D/g,""));setVerifiedName("");}} maxLength={20} placeholder="Enter decoder number"/></label>
+        <Button type="button" variant="outline" disabled={serviceBusy||!selectedOptionCode||recipient.length<8} onClick={()=>void verifyService()}>{serviceBusy?"Verifying…":"Verify decoder"}</Button>
+        {verifiedName&&<p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Verified customer: {verifiedName}</p>}
+        <label className="grid gap-2 text-sm font-medium">Subscription package<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose package</option>{selectedProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Contact phone (optional)<Input value={contactPhone} onChange={e=>setContactPhone(e.target.value.replace(/\D/g,""))} maxLength={11} placeholder="08012345678"/></label>
+        <Button disabled={serviceBusy||!verifiedName||!selectedProductId||!selectedOptionCode} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Pay for subscription"} <ArrowRight/></Button>
+      </div>}
+      {view==="electricity"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Electricity distribution company<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setVerifiedName("");}}><option value="">Choose disco</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Meter type<select className="h-11 border bg-background px-3" value={meterType} onChange={e=>{setMeterType(e.target.value as "prepaid"|"postpaid");setVerifiedName("");}}><option value="prepaid">Prepaid</option><option value="postpaid">Postpaid</option></select></label>
+        <label className="grid gap-2 text-sm font-medium">Meter number<Input value={recipient} onChange={e=>{setRecipient(e.target.value.replace(/\D/g,""));setVerifiedName("");}} placeholder="Enter meter number"/></label>
+        <Button type="button" variant="outline" disabled={serviceBusy||!selectedOptionCode||!recipient} onClick={()=>void verifyService()}>{serviceBusy?"Verifying…":"Verify meter"}</Button>
+        {verifiedName&&<p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Verified customer: {verifiedName}</p>}
+        <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={1} max={1000000} value={serviceAmount} onChange={e=>setServiceAmount(e.target.value)}/></label>
+        <label className="grid gap-2 text-sm font-medium">Contact phone (optional)<Input value={contactPhone} onChange={e=>setContactPhone(e.target.value.replace(/\D/g,""))} maxLength={11}/></label>
+        <Button disabled={serviceBusy||!verifiedName||Number(serviceAmount)<=0||!selectedOptionCode} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Pay electricity bill"} <ArrowRight/></Button>
+      </div>}
+      {["epin","data-pin"].includes(view)&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Mobile network<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setSelectedProductId("");}}><option value="">Choose network</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">PIN denomination / plan<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose product</option>{selectedProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={100} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
+        <Button disabled={serviceBusy||!selectedProductId||!selectedOptionCode||Number(quantity)<1||Number(quantity)>100} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase PINs"} <ArrowRight/></Button>
+      </div>}
+      {view==="education"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Examination PIN product<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose exam PIN</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
+        <Button disabled={serviceBusy||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
+      </div>}
+      {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Internet plan<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose bundle</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">ISP account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Enter account number or phone"/></label>
+        <label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>
+        <Button disabled={serviceBusy||!selectedProductId||!recipient} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Buy internet plan"} <ArrowRight/></Button>
+      </div>}
+      {view==="gift-cards"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Gift card product / denomination<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose gift card</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Recipient email<Input type="email" value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="recipient@example.com"/></label>
+        <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
+        <Button disabled={serviceBusy||!selectedProductId||!/^\S+@\S+\.\S+$/.test(recipient)||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase gift card"} <ArrowRight/></Button>
+      </div>}
+      {products.length===0&&view!=="electricity"&&<EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}
+      {serviceNotice&&<div className="mt-4 text-sm text-muted-foreground">{serviceNotice}</div>}
+      {lastServiceReference&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><p className="text-xs font-semibold">Supplier reference</p><p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{lastServiceReference}</p></div>{servicePending&&<Button type="button" variant="outline" size="sm" disabled={serviceBusy} onClick={()=>void checkExpandedStatus()}>{serviceBusy?"Checking…":"Check transaction status"}</Button>}</div>}
+      {view==="gift-cards"&&lastGiftCardReference&&giftCardRetrievalPending&&<Button type="button" variant="outline" className="mt-4" disabled={serviceBusy} onClick={()=>void retrieveGiftCard()}>{serviceBusy?"Retrieving…":"Retrieve gift-card code"}</Button>}
+      {fulfilment&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h4 className="text-sm font-semibold text-emerald-900">Supplier fulfilment details</h4><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs text-emerald-950">{JSON.stringify(fulfilment,null,2)}</pre></div>}
+    </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Published catalogue":"Not yet published"}</span></div>{products.length ? <div className="tr-catalogue-products">{products.map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/ >}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
     <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
   </div>;
 }
@@ -453,6 +589,8 @@ function VirtualCardsWorkspace({busy}:{busy:boolean}) {
   const [notice,setNotice]=useState("");
   const [profile,setProfile]=useState({firstName:"",lastName:"",phone:"",email:"",dateOfBirth:"",address:"",state:"",city:""});
   const [amount,setAmount]=useState("10");
+  const [quoteResult,setQuoteResult]=useState<any|null>(null);
+  const [quoteAt,setQuoteAt]=useState(0);
   const [selected,setSelected]=useState<any|null>(null);
   const [details,setDetails]=useState<any|null>(null);
   const [transactions,setTransactions]=useState<any|null>(null);
@@ -469,7 +607,11 @@ function VirtualCardsWorkspace({busy}:{busy:boolean}) {
     setSaving(true);setNotice("");try{const r=await run(payload);setNotice(r.message??(r.status==="processing"?"Your request is processing.":"Request completed."));if(r.details){setDetails(r.details);setReveal(true);}if(r.transactions)setTransactions(r.transactions);await load();return r;}catch(e){setNotice(messageOf(e,"The card request could not be completed."));}finally{setSaving(false);}
   };
   const saveProfile=async()=>{const r=await perform({action:"save_profile",...profile});if(r?.success)setShowProfile(false);};
-  const create=async()=>{const amountUsd=Number(amount);if(!Number.isFinite(amountUsd)||amountUsd<=0){setNotice("Enter a valid initial funding amount in USD.");return;}const r=await perform({action:"create",amountUsd,brand:"VISA",idempotencyKey:crypto.randomUUID().replace(/-/g,"")});if(r?.success&&r.card){const latest=await run({action:"list"});const issued=(latest.cards??[])[0];setCards(latest.cards??[]);if(issued)setSelected(issued);setDetails(r.card);setReveal(true);}};
+  const quoteCard=async()=>{
+    const amountUsd=Number(amount);if(!Number.isFinite(amountUsd)||amountUsd<=0){setNotice("Enter a valid initial funding amount in USD.");return;}
+    setSaving(true);setNotice("");try{const r=await run({action:"quote",kind:"create",amountUsd});setQuoteResult(r);setQuoteAt(Date.now());setNotice("Card funding quote calculated using current Admin pricing.");}catch(e){setNotice(messageOf(e,"Unable to calculate card funding cost."));}finally{setSaving(false);}
+  };
+  const create=async()=>{const amountUsd=Number(amount);if(!Number.isFinite(amountUsd)||amountUsd<=0){setNotice("Enter a valid initial funding amount in USD.");return;}if(!quoteResult||Number(quoteResult.amountUsd)!==amountUsd||Date.now()-quoteAt>60000){setNotice("Calculate a fresh card funding quote before creating the card.");return;}const r=await perform({action:"create",amountUsd,brand:"VISA",idempotencyKey:crypto.randomUUID().replace(/-/g,"")});if(r?.success&&r.card){const latest=await run({action:"list"});const issued=(latest.cards??[])[0];setCards(latest.cards??[]);if(issued)setSelected(issued);setDetails(r.card);setReveal(true);}};
   const cardAction=(action:"topup"|"withdraw"|"freeze"|"unfreeze"|"terminate")=>{
     if(!selected?.id){setNotice("Select a card first.");return;}
     if(action==="freeze"||action==="unfreeze"||action==="terminate"){
@@ -486,7 +628,8 @@ function VirtualCardsWorkspace({busy}:{busy:boolean}) {
     {notice&&<div role="status" className="my-4 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">{notice}</div>}
     {loading?<LoadingScreen compact/>:cards.length===0?<div className="my-5 grid gap-4 rounded-xl border border-dashed p-5 sm:grid-cols-[1fr_auto] sm:items-center"><div><strong className="text-sm">Create your first virtual card</strong><p className="mt-1 text-sm text-muted-foreground">You need approved KYC and verified cardholder details before card issuance.</p></div><Button onClick={()=>setShowProfile(x=>!x)} variant="outline">Cardholder details</Button></div>:<div className="my-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map(card=><button key={card.id} onClick={()=>{setSelected(card);setDetails(null);setTransactions(null);setReveal(false);}} className={`rounded-xl border p-4 text-left transition-colors ${selected?.id===card.id?"border-primary bg-primary/5":"hover:bg-secondary"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-wider">{card.card_type} · {card.currency}</span><StatusBadge status={card.status}/></div><p className="mt-6 text-lg font-semibold tracking-widest">{card.masked_pan??"Virtual card"}</p><div className="mt-3 flex justify-between text-xs text-muted-foreground"><span>•••• {card.last4??"----"}</span><span>{card.expiry_month??"--"}/{card.expiry_year??"----"}</span></div></button>)}</div>}
     {showProfile&&<div className="my-4 rounded-xl border p-4"><h4 className="font-semibold">Cardholder details</h4><p className="mb-4 mt-1 text-xs text-muted-foreground">Saved securely for card issuance. Your approved BVN/NIN is taken from your KYC record, not this form.</p><div className="grid gap-3 sm:grid-cols-2">{([["firstName","First name"],["lastName","Last name"],["phone","Phone"],["email","Email"],["dateOfBirth","Date of birth"],["address","Street address"],["state","State"],["city","City"]] as const).map(([key,label])=><label key={key} className="grid gap-1 text-xs font-medium text-muted-foreground">{label}<Input type={key==="dateOfBirth"?"date":"text"} value={profile[key]} onChange={e=>setProfile(p=>({...p,[key]:e.target.value}))}/></label>)}</div><div className="mt-4 flex gap-2"><Button disabled={saving||busy} onClick={()=>void saveProfile()}>Save details</Button><Button variant="ghost" onClick={()=>setShowProfile(false)}>Cancel</Button></div></div>}
-    <div className="my-4 flex flex-wrap gap-2"><Button variant="outline" onClick={()=>setShowProfile(x=>!x)}> {showProfile?"Hide details":"Add / edit cardholder details"}</Button><Button variant="outline" onClick={()=>void create()} disabled={saving||busy||loading}>Create virtual card</Button><label className="flex items-center gap-2 text-xs text-muted-foreground">Initial funding (USD)<Input className="w-28" type="number" min="1" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>
+    <div className="my-4 flex flex-wrap items-end gap-2"><label className="flex items-center gap-2 text-xs text-muted-foreground">Initial funding (USD)<Input className="w-28" type="number" min="1" step="0.01" value={amount} onChange={e=>{setAmount(e.target.value);setQuoteResult(null);}}/></label><Button variant="outline" onClick={()=>void quoteCard()} disabled={saving||busy||loading}>Calculate wallet cost</Button><Button onClick={()=>void create()} disabled={saving||busy||loading||!quoteResult||Number(quoteResult.amountUsd)!==Number(amount)||Date.now()-quoteAt>60000}>Create virtual card</Button><Button variant="ghost" onClick={()=>setShowProfile(x=>!x)}>{showProfile?"Hide details":"Cardholder details"}</Button></div>
+    {quoteResult&&Number(quoteResult.amountUsd)===Number(amount)&&<div className="mb-4 rounded-xl border bg-secondary/40 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">Estimated wallet charge</strong><strong className="text-base tabular-nums">{formatNaira(quoteResult.walletAmountNgn)}</strong></div><div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3"><span>Card funding: ${Number(quoteResult.amountUsd).toFixed(2)} USD</span><span>Creation fee: ${Number(quoteResult.creationFeeUsd??0).toFixed(2)} USD</span><span>Platform markup: ${Number(quoteResult.markupUsd??0).toFixed(2)} USD</span></div><p className="mt-2 text-[10px] text-muted-foreground">Quote valid for 60 seconds. The server recalculates the charge when you create the card.</p></div>}
     {operations.length>0&&<div className="mt-5 rounded-xl border p-4"><h4 className="font-semibold">Recent card activity</h4><div className="mt-3 divide-y">{operations.slice(0,8).map(op=><div key={op.id} className="flex items-center justify-between gap-3 py-3 text-xs"><div><strong className="capitalize">{op.action.replace("_"," ")}</strong><p className="mt-1 text-muted-foreground">{new Date(op.created_at).toLocaleString("en-NG")} · {op.reference}</p>{op.message&&<p className="mt-1 text-muted-foreground">{op.message}</p>}</div><div className="text-right"><StatusBadge status={op.status}/>{op.wallet_amount_ngn>0&&<p className="mt-1 text-muted-foreground">{formatNaira(op.wallet_amount_ngn)}</p>}</div></div>)}</div></div>}
     {selected&&<div className="mt-5 rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold">Card controls</h4><p className="text-xs text-muted-foreground">{selected.masked_pan??"Selected card"} · {selected.status}</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={saving} onClick={()=>void perform({action:"details",cardId:selected.id})}>Card details</Button><Button size="sm" variant="outline" disabled={saving} onClick={()=>cardAction("topup")}>Fund card</Button><Button size="sm" variant="outline" disabled={saving} onClick={()=>cardAction("withdraw")}>Withdraw</Button><Button size="sm" variant="outline" disabled={saving} onClick={()=>cardAction(selected.status==="frozen"?"unfreeze":"freeze")}>{selected.status==="frozen"?"Unfreeze":"Freeze"}</Button><Button size="sm" variant="destructive" disabled={saving} onClick={()=>cardAction("terminate")}>Terminate</Button><Button size="sm" variant="ghost" onClick={()=>void perform({action:"transactions",cardId:selected.id,startDate:new Date(Date.now()-30*86400000).toISOString().slice(0,10),endDate:new Date().toISOString().slice(0,10),page:1})}>Transactions</Button></div></div>
     {reveal&&details&&<div className="mt-4 rounded-lg bg-secondary p-3"><div className="flex items-center justify-between"><strong className="text-sm">Card details</strong><Button size="sm" variant="ghost" onClick={()=>{setReveal(false);setDetails(null);}}>Hide</Button></div><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(details,null,2)}</pre><p className="mt-2 text-[10px] text-muted-foreground">Sensitive details are shown only on request. Do not share your card number, expiry or CVV.</p></div>}

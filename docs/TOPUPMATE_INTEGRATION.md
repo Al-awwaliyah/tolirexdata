@@ -12,14 +12,15 @@ Authentication is `Authorization: Token <API key>`.
 
 ## Implemented in this branch
 
-- `topupmate-sync-catalogue`: administrator-only supplier catalogue sync from `GET /services/?service=...` and private gift-card snapshot from `GET /giftcard/available/`.
+- `topupmate-sync-catalogue`: administrator-only supplier catalogue sync from `GET /services/?service=...`, provider lists from `GET /status/`, and normalized gift-card products from `GET /giftcard/available/`.
 - `purchase-airtime-data`: authenticated Airtime/Data order reservation, Topupmate submission, idempotent supplier reference, and same-reference status lookup using `GET /transaction/status/?reference=...`.
+- `topupmate-expanded-services`: authenticated Cable TV, Electricity, Recharge PIN, Data PIN, Education PIN, Internet and Gift Card verification/purchase/status operations. Cable and meter details are verified before wallet debit; PIN and gift-card products are dynamically synchronized and must be published by an administrator.
 - Supplier products remain private/unavailable until an administrator publishes them and configures Personal, Agent and Business prices.
 - Virtual-card schema and customer navigation are foundations only; card issuance, funding, FX and card lifecycle operations are not enabled yet.
 
 ## Catalogue service keys
 
-The sync function reads provider catalogue keys for network, airtime, data, cable-provider, cabletv, electricity, exampin, recharge-card, datapin, smile, alpha, kirani and ratel. It records raw responses in `provider_catalogue_snapshots`; only normalized products/options are candidates for publication. Gift-card catalogue is kept as a private snapshot until its product/denomination pricing and redemption mapping are verified.
+The sync function reads provider catalogue keys for network, airtime, data, cabletv, exampin, rechargepin, datapin, smile, alpha, kirani and ratel. Cable and electricity provider options are derived from the supplier `/status/` response, matching the IyanjuPay Topupmate service integration. It records raw responses in `provider_catalogue_snapshots`; only normalized products/options are candidates for publication. Gift-card products are normalized by supplier product ID and supplier-provided recipient denomination → sender-price mappings; the platform does not invent denominations or supplier prices.
 
 ## Purchase behaviour
 
@@ -32,8 +33,12 @@ The sync function reads provider catalogue keys for network, airtime, data, cabl
 ## Migrations
 
 Apply migrations in timestamp order, including:
-- `20261121140000_topupmate_services_and_virtual_cards.sql`
+- `20261121141000_topupmate_services_and_virtual_cards.sql`
+- `20261121142000_topupmate_provider_and_categories.sql`
+- `20261121143000_topupmate_expanded_capabilities.sql`
 - `20261121150000_topupmate_airtime_data_purchase_provider.sql`
+- `20261121170000_admin_managed_topupmate_card_pricing.sql`
+- `20261121180000_topupmate_expanded_service_order_reservations.sql`
 
 The base catalogue and Airtime/Data purchase migrations must also already be applied.
 
@@ -61,12 +66,7 @@ The `topupmate-virtual-cards` Edge Function implements authenticated card operat
 - Withdrawals credit the NGN wallet only after Topupmate confirms success.
 - Card transactions use `POST /cards/transactions/` with `card_id`, `start_date`, `end_date`, and `page`.
 
-Additional Supabase Edge Function secrets:
-- `TOPUPMATE_CARD_CREATION_FEE_USD`: exact card creation fee from the Topupmate account.
-- `TOPUPMATE_CARD_MIN_FUNDING_USD`: exact minimum initial funding from the Topupmate account.
-- `TOPUPMATE_CARD_MARKUP_USD`: optional business markup configured by the platform.
-- `TOPUPMATE_CARD_TOPUP_MARKUP_PERCENT`: optional top-up markup percentage.
-- `KYC_ENCRYPTION_KEY`: existing 32-byte base64 AES-GCM key used by the KYC submission function.
+Card commercial pricing is stored in the Admin-managed `topupmate_card_pricing` table and edited from Admin → Finance → Virtual Cards. The creation fee, minimum initial funding, creation markup, minimum top-up and top-up markup are not Edge Function secrets. Only the Topupmate API key and KYC encryption key remain secrets.
 
 Apply the card migrations after the service catalogue and wallet foundation migrations:
 - `20261121140000_topupmate_services_and_virtual_cards.sql`
@@ -74,4 +74,22 @@ Apply the card migrations after the service catalogue and wallet foundation migr
 - `20261121161000_virtual_card_operation_claim.sql`
 - `20261121162000_fix_virtual_card_usd_accounting.sql`
 
-Do not activate card issuance until the pricing secrets are verified against the Topupmate dashboard and sandbox create/fund/withdraw/freeze/unfreeze/terminate tests pass. The documented termination endpoint says remaining card funds are returned to the provider wallet; TolirexData does not automatically credit a customer's wallet from an unverified termination response.
+Do not activate card issuance until the Admin-managed supplier fee and minimum funding values are verified against the Topupmate dashboard and sandbox create/fund/withdraw/freeze/unfreeze/terminate tests pass. The documented termination endpoint says remaining card funds are returned to the provider wallet; TolirexData does not automatically credit a customer's wallet from an unverified termination response.
+
+## Expanded service operations
+
+The expanded service Edge Function reuses the authenticated Topupmate service patterns from the working IyanjuPay integration:
+- Cable verification: `POST /cabletv/verify/` with `provider` and `iucnumber`; purchase: `POST /cabletv/` with provider, IUC, supplier plan ID, reference and optional contact phone.
+- Electricity verification: `POST /electricity/verify/` with provider, meter number and meter type; purchase: `POST /electricity/` with provider, meter number, amount, meter type, phone and reference.
+- Recharge PIN: `POST /rechargepin/` with supplier plan code, network, quantity and reference.
+- Data PIN: `POST /datapin/` with supplier data-plan ID, network, quantity and reference.
+- Education PIN: `POST /exam/` with supplier exam-provider ID, quantity and reference.
+- Smile Internet: `POST /smile-data/` with phone/account identifier, bundle type code, account type and reference. Other synced internet products use the corresponding Topupmate provider route.
+- Gift cards: `POST /giftcard/` with supplier product ID, recipient denomination, recipient email, units and reference; successful purchase is followed by `GET /giftcard/redeem/?ref=...` to retrieve the voucher.
+
+These payload shapes follow the working IyanjuPay Edge Function at [Al-awwaliyah/iyanjupay](https://github.com/Al-awwaliyah/iyanjupay/blob/eaae5484c00a7d5e5acf9b61c9898bd6586ca6b0/supabase/functions/topupmate-services/index.ts) and the supplied [Topupmate API documentation](https://connect.topupmate.com/docs/). Validate actual request and response variants against the TolirexData sandbox account before activating the provider.
+
+Additional migration:
+- `20261121180000_topupmate_expanded_service_order_reservations.sql`
+
+Customer-facing PIN and gift-card fulfilment values are returned only after supplier success. Do not log PINs, gift-card redemption codes or card credentials.

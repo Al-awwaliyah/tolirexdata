@@ -1,0 +1,47 @@
+name: Verify TolirexData
+
+on:
+  push:
+    branches:
+      - feat/tolirexdata-platform-foundation
+    paths:
+      - "src/**"
+      - "supabase/functions/**"
+      - "supabase/migrations/**"
+      - "package.json"
+      - "bun.lock"
+      - "tsconfig.json"
+      - ".github/workflows/verify-tolirexdata.yml"
+  pull_request:
+    branches:
+      - feat/tolirexdata-platform-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  web-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build customer and admin application
+        run: bun run build
+
+  edge-function-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check changed Topupmate functions
+        run: |
+          deno check supabase/functions/topupmate-sync-catalogue/index.ts
+          deno check supabase/functions/topupmate-virtual-cards/index.ts
+          deno check supabase/functions/topupmate-expanded-services/index.ts
+          deno check supabase/functions/admin-console/index.ts
