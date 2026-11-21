@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body.action ?? "");
-  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : "";
+  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
@@ -65,14 +65,29 @@ Deno.serve(async (request) => {
       : "id,name,provider_product_code,network_or_operator,description,face_value,selling_price,currency,active,publication_status,supplier_last_seen_at,updated_at,service_categories(code,name),service_providers(code,name)";
     const { data: products, error: productError } = await admin.from("service_products")
       .select(productFields).order("updated_at", { ascending: false }).limit(500);
+    const { data: providers, error: providersError } = await admin.from("service_providers")
+      .select("id,code,name,status,priority,supports_airtime,supports_data,supports_cable,supports_electricity,supports_epin")
+      .order("priority");
     const { data: options, error: optionsError } = await admin.from("provider_service_options")
       .select("id,category_id,option_type,option_code,parent_option_code,name,active,publication_status,supplier_last_seen_at,service_categories(code,name)")
       .order("name").limit(500);
     const { data: runs, error: runError } = await admin.from("provider_catalogue_sync_runs")
       .select("id,status,discovered_products,discovered_options,failed_endpoints,summary,started_at,completed_at")
       .order("started_at", { ascending: false }).limit(10);
-    if (productError || optionsError || runError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
-    return json({ products: products ?? [], options: options ?? [], syncRuns: runs ?? [], canManagePricing: canManagePricing === true });
+    if (productError || optionsError || runError || providersError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
+    return json({ products: products ?? [], options: options ?? [], providers: providers ?? [], syncRuns: runs ?? [], canManagePricing: canManagePricing === true });
+  }
+
+  if (action === "provider_status") {
+    const providerId = String(body.providerId ?? "");
+    const status = String(body.status ?? "");
+    const priority = Math.max(1, Math.min(10000, Number(body.priority) || 100));
+    if (!providerId || !["active","degraded","disabled"].includes(status)) return json({ error: "Invalid provider control request" }, 400);
+    const { data, error } = await caller.rpc("admin_set_service_provider_status", {
+      p_provider_id: providerId, p_status: status, p_priority: priority,
+    });
+    if (error) return json({ error: error.message }, 400);
+    return json({ provider: data });
   }
 
   if (action === "publish_option") {
