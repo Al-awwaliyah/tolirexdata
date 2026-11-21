@@ -59,14 +59,16 @@ Deno.serve(async (request) => {
   }
 
   if (action === "catalogue") {
+    const { data: canManagePricing } = await caller.rpc("has_admin_permission", { p_permission: "pricing.manage" });
+    const productFields = canManagePricing === true
+      ? "id,name,provider_product_code,network_or_operator,description,face_value,cost_price,selling_price,currency,active,publication_status,supplier_last_seen_at,updated_at,service_categories(code,name),service_providers(code,name)"
+      : "id,name,provider_product_code,network_or_operator,description,face_value,selling_price,currency,active,publication_status,supplier_last_seen_at,updated_at,service_categories(code,name),service_providers(code,name)";
     const { data: products, error: productError } = await admin.from("service_products")
-      .select("id,name,provider_product_code,network_or_operator,description,face_value,cost_price,selling_price,currency,active,publication_status,supplier_last_seen_at,updated_at,service_categories(code,name),service_providers(code,name)")
-      .order("updated_at", { ascending: false }).limit(500);
+      .select(productFields).order("updated_at", { ascending: false }).limit(500);
     const { data: runs, error: runError } = await admin.from("provider_catalogue_sync_runs")
       .select("id,status,discovered_products,discovered_options,failed_endpoints,summary,started_at,completed_at")
       .order("started_at", { ascending: false }).limit(10);
     if (productError || runError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
-    const { data: canManagePricing } = await caller.rpc("has_admin_permission", { p_permission: "pricing.manage" });
     return json({ products: products ?? [], syncRuns: runs ?? [], canManagePricing: canManagePricing === true });
   }
 
