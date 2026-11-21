@@ -364,14 +364,14 @@ Deno.serve(async (request) => {
   }
 
   const succeeded = results.filter((item) => item.status === "success").length;
-  const failed = results.filter((item) => item.status === "failed" || item.status === "skipped").length;
+  const failed = results.filter((item) => item.status === "failed").length;\n  const skipped = results.filter((item) => item.status === "skipped").length;
   const products = results.reduce((sum,item) => sum + (item.status === "success" ? item.products : 0),0);
   const options = results.reduce((sum,item) => sum + (item.status === "success" ? item.options : 0),0);
   const finalStatus = failed === 0 && skipped === 0 ? "success" : succeeded === 0 ? "failed" : "partial";
-  await admin.from("provider_catalogue_sync_runs").update({
+  const { error: runUpdateError } = await admin.from("provider_catalogue_sync_runs").update({
     status: finalStatus, discovered_products: products, discovered_options: options,
-    inserted_products: products, failed_endpoints: results.filter((item) => item.status === "failed"),
-    summary: { endpoints: results.length, succeeded, failed, skipped, products, options },
+    inserted_products: 0, updated_products: 0, failed_endpoints: results.filter((item) => item.status === "failed" || item.status === "skipped"),
+    summary: { endpoints: results.length, succeeded, failed, skipped, normalized_products: products, normalized_options: options },
     completed_at: new Date().toISOString(),
   }).eq("id",run.id);
 
