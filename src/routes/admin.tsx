@@ -52,7 +52,8 @@ function AdminDashboard() {
   const [customerTotal, setCustomerTotal] = useState(0);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);
-  const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);\n  const [catalogueProviders, setCatalogueProviders] = useState<any[]>([]);
+  const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);
+  const [catalogueProviders, setCatalogueProviders] = useState<any[]>([]);
   const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);
   const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
@@ -116,7 +117,8 @@ function AdminDashboard() {
     } else {
       setError("");
       setCatalogueProducts(data?.products ?? []);
-      setCatalogueOptions(data?.options ?? []);\n      setCatalogueProviders(data?.providers ?? []);
+      setCatalogueOptions(data?.options ?? []);
+      setCatalogueProviders(data?.providers ?? []);
       setCatalogueRuns(data?.syncRuns ?? []);
       setCatalogueCanPrice(data?.canManagePricing === true);
     }
