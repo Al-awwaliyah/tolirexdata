@@ -23,6 +23,7 @@ Apply only those not already applied, in this exact order:
 - `20261121140000_preserve_admin_airtime_pricing_on_sync.sql`
 - `20261121141000_topupmate_services_and_virtual_cards.sql`
 - `20261121142000_topupmate_provider_and_categories.sql`
+- `20261121143000_topupmate_expanded_capabilities.sql`
 - `20261121150000_topupmate_airtime_data_purchase_provider.sql`
 - `20261121160000_topupmate_virtual_card_lifecycle.sql`
 - `20261121161000_virtual_card_operation_claim.sql`
