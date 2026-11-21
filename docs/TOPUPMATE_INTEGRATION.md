@@ -49,3 +49,29 @@ Before enabling Topupmate in production:
 7. Confirm ledger balances and customer-facing history before activating the provider.
 
 Never enable a provider or publish a product solely because an endpoint returned a non-empty payload.
+
+## Virtual cards
+
+The `topupmate-virtual-cards` Edge Function implements authenticated card operations:
+- `list`, `quote`, `save_profile`, `create`, `topup`, `withdraw`, `details`, `transactions`, `freeze`, `unfreeze`, and `terminate`.
+- Cardholder address and date of birth are stored in the service-role-only `cardholder_profiles` table. BVN/NIN is read from the user's approved encrypted KYC record and decrypted only inside the Edge Function.
+- Card number/CVV are not persisted. Card credentials are retrieved from Topupmate on demand and returned only to the authenticated card owner.
+- Card creation and funding debit the NGN wallet through an atomic, balanced journal reservation. Confirmed provider failures refund through an idempotent ledger transaction.
+- Provider timeouts, HTTP errors and `processing` responses remain unknown/processing and are not automatically refunded or resubmitted. These require reconciliation; do not retry with a new reference.
+- Withdrawals credit the NGN wallet only after Topupmate confirms success.
+- Card transactions use `POST /cards/transactions/` with `card_id`, `start_date`, `end_date`, and `page`.
+
+Additional Supabase Edge Function secrets:
+- `TOPUPMATE_CARD_CREATION_FEE_USD`: exact card creation fee from the Topupmate account.
+- `TOPUPMATE_CARD_MIN_FUNDING_USD`: exact minimum initial funding from the Topupmate account.
+- `TOPUPMATE_CARD_MARKUP_USD`: optional business markup configured by the platform.
+- `TOPUPMATE_CARD_TOPUP_MARKUP_PERCENT`: optional top-up markup percentage.
+- `KYC_ENCRYPTION_KEY`: existing 32-byte base64 AES-GCM key used by the KYC submission function.
+
+Apply the card migrations after the service catalogue and wallet foundation migrations:
+- `20261121140000_topupmate_services_and_virtual_cards.sql`
+- `20261121160000_topupmate_virtual_card_lifecycle.sql`
+- `20261121161000_virtual_card_operation_claim.sql`
+- `20261121162000_fix_virtual_card_usd_accounting.sql`
+
+Do not activate card issuance until the pricing secrets are verified against the Topupmate dashboard and sandbox create/fund/withdraw/freeze/unfreeze/terminate tests pass. The documented termination endpoint says remaining card funds are returned to the provider wallet; TolirexData does not automatically credit a customer's wallet from an unverified termination response.
