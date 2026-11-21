@@ -434,6 +434,8 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [verifiedName,setVerifiedName]=useState("");
   const [serviceNotice,setServiceNotice]=useState("");
   const [fulfilment,setFulfilment]=useState<any>(null);
+  const [lastGiftCardReference,setLastGiftCardReference]=useState("");
+  const [giftCardRetrievalPending,setGiftCardRetrievalPending]=useState(false);
   const [serviceBusy,setServiceBusy]=useState(false);
   const feature=featureDetails[view];
   const categoryCode=({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin","data-pin":"data_pin",education:"education",internet:"internet","gift-cards":"gift_card",cards:"virtual_card",fx:"fx_conversion"} as Record<string,string>)[view];
@@ -474,13 +476,22 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         :view==="gift-cards"?{...base}
         :base;
       const result=await runExpanded(payload);
-      setServiceNotice(result.status==="successful"?(result.fulfilmentPending?"Purchase completed. Gift-card code retrieval is pending; contact support if it does not appear.":"Purchase completed successfully."):"Your request is awaiting Topupmate confirmation. Do not submit it again.");
+      setServiceNotice(result.status==="successful"?(result.fulfilmentPending?"Purchase completed. Your gift-card code can be retrieved again below.":"Purchase completed successfully."):"Your request is awaiting Topupmate confirmation. Do not submit it again.");
       setFulfilment(result.fulfilment??null);
+      setGiftCardRetrievalPending(view==="gift-cards"&&result.status==="successful"&&result.fulfilmentPending===true);
+      setLastGiftCardReference(view==="gift-cards"&&result.status==="successful"?result.reference??"":"");
       setVerifiedName("");
     }catch(error){setServiceNotice(messageOf(error,"The purchase could not be completed."));}
     finally{setServiceBusy(false);}
   };
   const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode);
+  const retrieveGiftCard=async()=>{
+    if(!lastGiftCardReference)return;
+    setServiceBusy(true);setServiceNotice("");
+    try{const result=await runExpanded({action:"giftcard_redeem",reference:lastGiftCardReference});setFulfilment(result.fulfilment??null);setGiftCardRetrievalPending(result.status==="fulfilment_pending");setServiceNotice(result.status==="successful"?"Gift-card code retrieved successfully.":result.message||"Gift-card code is still processing.");}
+    catch(error){setServiceNotice(messageOf(error,"Unable to retrieve the gift-card code."));}
+    finally{setServiceBusy(false);}
+  };
   return <div className="tr-feature-workspace">
     <section className="tr-feature-hero">
       <div className="tr-feature-icon">{feature.icon}</div>
@@ -542,6 +553,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       </div>}
       {products.length===0&&view!=="electricity"&&<EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}
       {serviceNotice&&<div className="mt-4 text-sm text-muted-foreground">{serviceNotice}</div>}
+      {view==="gift-cards"&&lastGiftCardReference&&giftCardRetrievalPending&&<Button type="button" variant="outline" className="mt-4" disabled={serviceBusy} onClick={()=>void retrieveGiftCard()}>{serviceBusy?"Retrieving…":"Retrieve gift-card code"}</Button>}
       {fulfilment&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h4 className="text-sm font-semibold text-emerald-900">Supplier fulfilment details</h4><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs text-emerald-950">{JSON.stringify(fulfilment,null,2)}</pre></div>}
     </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Published catalogue":"Not yet published"}</span></div>{products.length ? <div className="tr-catalogue-products">{products.map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/ >}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
     <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
