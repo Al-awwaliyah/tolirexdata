@@ -29,17 +29,16 @@ export const getDexDashboard = createServerFn({ method: "GET" })
 
     if (adminAccess) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const [profiles, wallets, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
+      const [profiles, wallets, orders, serviceOrders, transactions, catalogue, catalogueOptions] = await Promise.all([
         supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallets").select("*").limit(500),
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
         (supabaseAdmin as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,created_at,updated_at").order("created_at", { ascending: false }).limit(500),
-        supabaseAdmin.from("fundings").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
         (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
         (supabaseAdmin as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
       ]);
-      const results = [profiles, wallets, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions];
+      const results = [profiles, wallets, orders, serviceOrders, transactions, catalogue, catalogueOptions];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
 
       return {
@@ -54,26 +53,24 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         catalogueOptions: catalogueOptions.data ?? [],
         orders: orders.data ?? [],
         serviceOrders: serviceOrders.data ?? [],
-        fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
         users: profiles.data ?? [],
         isAdmin: false,
       };
     }
 
-    const [profile, wallet, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions, kycResult, accountResult] = await Promise.all([
+    const [profile, wallet, orders, serviceOrders, transactions, catalogue, catalogueOptions, kycResult, accountResult] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("data_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       (supabase as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,created_at,updated_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(100),
-      supabase.from("fundings").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
       (supabase as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
       (supabase as any).from("kyc_records").select("id,status,level,review_note,created_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(1).maybeSingle(),
       (supabase as any).from("virtual_accounts").select("id,account_number,bank_name,account_name,currency,status,is_permanent").eq("user_id",userId).eq("provider","flutterwave").eq("status","active").eq("is_permanent",true).maybeSingle(),
     ]);
-    const results = [profile, wallet, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions, kycResult, accountResult];
+    const results = [profile, wallet, orders, serviceOrders, transactions, catalogue, catalogueOptions, kycResult, accountResult];
     if (results.some((result) => result.error)) throw new Error("Unable to load your TolirexData account");
 
     return {
@@ -88,7 +85,6 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       catalogueOptions: catalogueOptions.data ?? [],
       orders: orders.data ?? [],
       serviceOrders: serviceOrders.data ?? [],
-      fundings: fundings.data ?? [],
       transactions: transactions.data ?? [],
       users: [],
       isAdmin: false,
