@@ -15,11 +15,10 @@ type NormalizedOption = {
 const API_ROOT = "https://www.nellobytesystems.com";
 const ENDPOINTS: CatalogueEndpoint[] = [
   { key: "data_networks", path: "/APIDatabundleNetworkV1.asp" },
-  { key: "data_plans", path: "/APIDatabundlePlansV3.asp" },
+  { key: "data_plans", path: "/APIDatabundlePlansV2.asp" },
   { key: "airtime_networks", path: "/APIAirtimeNetworkV2.asp" },
   { key: "cable_types", path: "/APICableTVTypeV2.asp" },
   { key: "cable_packages", path: "/APICableTVPackagesV2.asp" },
-  { key: "electricity_discos", path: "/APIElectricityDiscosV1.asp" },
   { key: "epin_catalogue", path: "/APIEPINDiscountV2.asp" },
 ];
 const CATEGORIES = [
@@ -150,6 +149,24 @@ function normalizeCableProducts(payload: unknown): NormalizedProduct[] {
   });
   return [...output.values()];
 }
+function normalizeElectricityOptions(payload: unknown): NormalizedOption[] {
+  const output = new Map<string, NormalizedOption>();
+  walk(payload, (obj) => {
+    const code = first(obj, ["ElectricCompany","electricCompany","electric_company","biller_code","billerCode","code","id","ID"]);
+    const name = first(obj, ["ElectricCompanyName","electric_company_name","CompanyName","companyName","company_name","BillerName","biller_name","name","Name","label"]);
+    if (code && name) output.set("operator:"+code,{category:"electricity",type:"operator",code,name});
+    const meters = obj.meterTypes ?? obj.meter_types ?? obj.MeterTypes;
+    if (code && Array.isArray(meters)) {
+      for (const meterValue of meters) {
+        const meter=record(meterValue);
+        const meterCode=first(meter,["code","Code","id","ID","MeterType","meterType"]);
+        const meterName=first(meter,["name","Name","label","Label","MeterTypeName","meterTypeName"]);
+        if (meterCode && meterName) output.set("meter:"+code+":"+meterCode,{category:"electricity",type:"meter_type",code:meterCode,name:meterName,parentCode:code});
+      }
+    }
+  });
+  return [...output.values()];
+}
 function normalizeEpin(payload: unknown): NormalizedProduct[] {
   const output = new Map<string, NormalizedProduct>();
   const walkDiscounts = (value: unknown, inheritedNetwork = "", inheritedDenomination = 0, path: string[] = [], depth = 0) => {
@@ -247,7 +264,6 @@ function normalize(endpointKey: string, payload: unknown) {
   if (endpointKey === "airtime_networks") return { products: [], options: normalizeNamedOptions(payload,"airtime","network") };
   if (endpointKey === "cable_types") return { products: [], options: normalizeNamedOptions(payload,"cable_tv","cable_provider") };
   if (endpointKey === "cable_packages") return { products: normalizeCableProducts(payload), options: [] };
-  if (endpointKey === "electricity_discos") return { products: [], options: normalizeNamedOptions(payload,"electricity","operator") };
   if (endpointKey === "epin_catalogue") return { products: normalizeEpin(payload), options: [] };
   return { products: [], options: [] };
 }
