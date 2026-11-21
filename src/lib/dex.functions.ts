@@ -153,37 +153,6 @@ export const completeDataOrder = createServerFn({ method: "POST" })
     return order;
   });
 
-export const createFundingRequest = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ amount: z.number().positive().max(10_000_000) }).parse(input))
-  .handler(async ({ data, context }) => {
-    const authContext = context as AuthContext;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: funding, error } = await supabaseAdmin.rpc("create_funding_request", {
-      p_user_id: authContext.userId,
-      p_amount: data.amount,
-      p_method: "bank_transfer",
-    });
-    if (error || !funding) throw new Error(error?.message ?? "Unable to save this funding request");
-    return funding;
-  });
-
-export const reviewFunding = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ fundingId: z.string().uuid(), decision: z.enum(["approved", "rejected"]) }).parse(input))
-  .handler(async ({ data, context }) => {
-    const authContext = context as AuthContext;
-    await requireAdmin(authContext);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: funding, error } = await supabaseAdmin.rpc("review_funding", {
-      p_admin_id: authContext.userId,
-      p_funding_id: data.fundingId,
-      p_decision: data.decision,
-    });
-    if (error || !funding) throw new Error(error?.message ?? "Unable to review this request");
-    return funding;
-  });
-
 /**
  * Loads administration metrics on the server. The browser role is checked
  * before the service-role client is ever used; admin tables remain private
