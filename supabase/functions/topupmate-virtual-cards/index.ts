@@ -48,9 +48,17 @@ Deno.serve(async request=>{
  if(authError||!authData.user)return json({error:"Invalid session"},401);
  let body:Obj;try{body=await request.json()}catch{return json({error:"Invalid request"},400)}
  const action=str(body.action).toLowerCase();
- const allowed=["list","quote","create","topup","withdraw","details","transactions","freeze","unfreeze","terminate"];
+ const allowed=["list","quote","save_profile","create","topup","withdraw","details","transactions","freeze","unfreeze","terminate"];
  if(!allowed.includes(action))return json({error:"Unsupported card action"},400);
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ if(action==="save_profile"){
+  const p:Obj={first_name:str(body.firstName),last_name:str(body.lastName),phone:str(body.phone),email:str(body.email||user.email),date_of_birth:str(body.dateOfBirth),address:str(body.address),state:str(body.state),city:str(body.city)};
+  if(p.first_name.length<2||p.last_name.length<2||!/^\\+?[0-9]{10,15}$/.test(p.phone)||!/^\\S+@\\S+\\.\\S+$/.test(p.email)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(p.date_of_birth)||p.address.length<5||p.state.length<2||p.city.length<2)
+   throw new UserError("Complete all required cardholder details with valid information.");
+  const {error}=await admin.from("cardholder_profiles").upsert({user_id:user.id,...p,updated_at:new Date().toISOString()},{onConflict:"user_id"});
+  if(error)throw new UserError("Unable to save your cardholder details.");
+  return json({success:true,message:"Cardholder details saved securely."});
+ }
  const user=authData.user;
  try{
   if(action==="list"){
