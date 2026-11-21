@@ -107,8 +107,8 @@ begin
       when service_products.selling_price < excluded.cost_price
         or exists (
           select 1 from public.pricing_rules r
-          where r.product_id=service_products.id and r.active
-            and coalesce(r.fixed_selling_price,service_products.selling_price)<excluded.cost_price
+          where (r.product_id=service_products.id or (r.product_id is null and r.category_id=service_products.category_id)) and r.active
+            and coalesce(r.fixed_selling_price,case when r.markup_type='percentage' then excluded.cost_price*(1+r.markup_value/100) else excluded.cost_price+r.markup_value end,service_products.selling_price)<excluded.cost_price
         ) then false
       else service_products.active
     end,
@@ -116,8 +116,8 @@ begin
       when service_products.selling_price < excluded.cost_price
         or exists (
           select 1 from public.pricing_rules r
-          where r.product_id=service_products.id and r.active
-            and coalesce(r.fixed_selling_price,service_products.selling_price)<excluded.cost_price
+          where (r.product_id=service_products.id or (r.product_id is null and r.category_id=service_products.category_id)) and r.active
+            and coalesce(r.fixed_selling_price,case when r.markup_type='percentage' then excluded.cost_price*(1+r.markup_value/100) else excluded.cost_price+r.markup_value end,service_products.selling_price)<excluded.cost_price
         ) then 'pending'
       else service_products.publication_status
     end,
@@ -125,8 +125,8 @@ begin
       when service_products.selling_price < excluded.cost_price
         or exists (
           select 1 from public.pricing_rules r
-          where r.product_id=service_products.id and r.active
-            and coalesce(r.fixed_selling_price,service_products.selling_price)<excluded.cost_price
+          where (r.product_id=service_products.id or (r.product_id is null and r.category_id=service_products.category_id)) and r.active
+            and coalesce(r.fixed_selling_price,case when r.markup_type='percentage' then excluded.cost_price*(1+r.markup_value/100) else excluded.cost_price+r.markup_value end,service_products.selling_price)<excluded.cost_price
         ) then null
       else service_products.reviewed_by
     end,
@@ -134,8 +134,8 @@ begin
       when service_products.selling_price < excluded.cost_price
         or exists (
           select 1 from public.pricing_rules r
-          where r.product_id=service_products.id and r.active
-            and coalesce(r.fixed_selling_price,service_products.selling_price)<excluded.cost_price
+          where (r.product_id=service_products.id or (r.product_id is null and r.category_id=service_products.category_id)) and r.active
+            and coalesce(r.fixed_selling_price,case when r.markup_type='percentage' then excluded.cost_price*(1+r.markup_value/100) else excluded.cost_price+r.markup_value end,service_products.selling_price)<excluded.cost_price
         ) then null
       else service_products.reviewed_at
     end,
