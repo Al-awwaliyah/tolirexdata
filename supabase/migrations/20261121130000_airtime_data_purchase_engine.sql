@@ -218,3 +218,53 @@ grant execute on function public.mark_service_order_processing(uuid,text,text,te
 grant execute on function public.mark_service_order_unknown(uuid,text,text) to service_role;
 grant execute on function public.complete_catalogue_service_order(uuid,text,text,text) to service_role;
 grant execute on function public.fail_and_refund_catalogue_service_order(uuid,text,text) to service_role;
+
+
+-- Airtime supplier discount is account-specific and must be explicitly verified/configured
+-- by an authorized pricing administrator before Airtime can be purchased.
+create or replace function public.admin_configure_airtime_network_pricing(
+  p_option_id uuid,
+  p_discount_factor numeric,
+  p_minimum_amount numeric,
+  p_maximum_amount numeric
+) returns public.provider_service_options
+language plpgsql security definer set search_path=public as $$
+declare
+  v_option public.provider_service_options%rowtype;
+  v_actor uuid:=auth.uid();
+  v_before jsonb;
+begin
+  if v_actor is null or not public.has_admin_permission('services.manage')
+     or not public.has_admin_permission('pricing.manage') then
+    raise exception 'Service and pricing administrator permissions are required';
+  end if;
+  if p_discount_factor is null or p_discount_factor<=0 or p_discount_factor>1
+     or p_minimum_amount is null or p_minimum_amount<50
+     or p_maximum_amount is null or p_maximum_amount<p_minimum_amount then
+    raise exception 'Invalid supplier airtime pricing configuration';
+  end if;
+  select * into v_option from public.provider_service_options
+   where id=p_option_id and option_type='network'
+     and category_id=(select id from public.service_categories where code='airtime')
+   for update;
+  if not found then raise exception 'Airtime network option not found'; end if;
+  v_before:=jsonb_build_object('discount_factor',v_option.metadata->'discount_factor',
+    'minimum_amount',v_option.metadata->'minimum_amount','maximum_amount',v_option.metadata->'maximum_amount');
+  update public.provider_service_options set
+    metadata=coalesce(metadata,'{}'::jsonb)||jsonb_build_object(
+      'discount_factor',p_discount_factor,
+      'minimum_amount',p_minimum_amount,
+      'maximum_amount',p_maximum_amount,
+      'pricing_verified_by',v_actor,
+      'pricing_verified_at',now()
+    ),updated_at=now()
+  where id=p_option_id returning * into v_option;
+  insert into public.audit_logs(actor_user_id,action,target_type,target_id,before_data,after_data)
+  values(v_actor,'airtime.network.pricing.configured','provider_service_option',p_option_id::text,
+    v_before,jsonb_build_object('discount_factor',p_discount_factor,
+      'minimum_amount',p_minimum_amount,'maximum_amount',p_maximum_amount));
+  return v_option;
+end;
+$$;
+revoke all on function public.admin_configure_airtime_network_pricing(uuid,numeric,numeric,numeric) from public,anon;
+grant execute on function public.admin_configure_airtime_network_pricing(uuid,numeric,numeric,numeric) to authenticated;
