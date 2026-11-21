@@ -52,7 +52,7 @@ function AdminDashboard() {
   const [customerTotal, setCustomerTotal] = useState(0);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);
-  const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);
+  const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);\n  const [catalogueProviders, setCatalogueProviders] = useState<any[]>([]);
   const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);
   const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
@@ -116,7 +116,7 @@ function AdminDashboard() {
     } else {
       setError("");
       setCatalogueProducts(data?.products ?? []);
-      setCatalogueOptions(data?.options ?? []);
+      setCatalogueOptions(data?.options ?? []);\n      setCatalogueProviders(data?.providers ?? []);
       setCatalogueRuns(data?.syncRuns ?? []);
       setCatalogueCanPrice(data?.canManagePricing === true);
     }
@@ -132,6 +132,16 @@ function AdminDashboard() {
       await loadCatalogue();
     }
     setCatalogueSyncing(false);
+  };
+
+  const setCatalogueProviderStatus = async (providerId: string, status: "active" | "degraded" | "disabled") => {
+    setCatalogueSaving(providerId);
+    const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
+      body: { action: "provider_status", providerId, status, priority: 100 },
+    });
+    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Unable to update provider status.");
+    else { setError(""); await loadCatalogue(); }
+    setCatalogueSaving(null);
   };
 
   const publishCatalogueOption = async (optionId: string, status: "published" | "paused") => {
