@@ -347,6 +347,11 @@ function Overview({ dashboard, accountType, onNavigate }: { dashboard: Dashboard
     {icon:<Tv/>,title:"Cable TV",sub:"TV subscriptions and packages",status:"Supplier catalogue",tone:"orange",view:"cable"},
     {icon:<Lightbulb/>,title:"Electricity",sub:"Meter verification and payments",status:"Supplier catalogue",tone:"green",view:"electricity"},
     {icon:<Pin/>,title:"Recharge PINs",sub:"Available PIN products",status:"Supplier catalogue",tone:"blue",view:"epin"},
+    {icon:<PackageCheck/>,title:"Data PINs",sub:"Data vouchers for distribution",status:"Supplier catalogue",tone:"blue",view:"data-pin"},
+    {icon:<ShieldCheck/>,title:"Education PINs",sub:"Examination vouchers",status:"Supplier catalogue",tone:"purple",view:"education"},
+    {icon:<RadioTower/>,title:"Internet",sub:"Broadband and specialist data",status:"Supplier catalogue",tone:"green",view:"internet"},
+    {icon:<Gift/>,title:"Gift Cards",sub:"Digital gift-card products",status:"Supplier catalogue",tone:"orange",view:"gift-cards"},
+    {icon:<CreditCard/>,title:"Virtual Cards",sub:"Create and manage payment cards",status:"Card service",tone:"blue",view:"cards"},
   ];
   return <div className="tr-dashboard-content">
     <section className="tr-overview-grid"><div className="tr-balance-panel"><div className="tr-panel-top"><span>{accountType.toUpperCase().replace(/[_-]/g, " ")} ACCOUNT · NGN</span><button aria-label="Wallet options"><MoreHorizontal/></button></div><p className="tr-balance-caption">Total balance</p><div className="tr-balance-amount">{typeof balance === "number" ? formatNaira(balance) : "—"}</div><div className="tr-balance-bottom"><span><span className="tr-status-dot"/> {dashboard?.profile?.account_status === "suspended" ? "Account suspended" : dashboard?.profile?.account_status === "restricted" ? "Account restricted" : dashboard?.wallet ? "Account active" : "Wallet setup pending"}</span><button onClick={()=>onNavigate("fund")}>Add money <ArrowUpRight/></button></div></div>
