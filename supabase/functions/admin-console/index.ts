@@ -234,6 +234,26 @@ Deno.serve(async (request) => {
       "admin-team": { table: "platform_admin_memberships", columns: "user_id,admin_role,active,granted_by,created_at,updated_at", order: "created_at" },
       audit: { table: "audit_logs", columns: "id,actor_user_id,action,target_type,target_id,created_at", order: "created_at", search: "action" },
     };
+    if (workspaceModule === "reports") {
+      const count = async (table: string, configure?: (query: any) => any) => {
+        let query = admin.from(table).select("id", { count: "exact", head: true });
+        if (configure) query = configure(query);
+        const result = await query;
+        if (result.error) throw new Error("Unable to calculate report metrics");
+        return result.count ?? 0;
+      };
+      try {
+        const [customers, agents, businesses, products, publishedProducts, orders, successfulOrders, failedOrders, creditedFundingEvents, activeCards] = await Promise.all([
+          count("profiles"), count("agent_accounts"), count("businesses"), count("service_products"),
+          count("service_products", q => q.eq("active", true).eq("publication_status", "published")),
+          count("service_orders"), count("service_orders", q => q.eq("status", "successful")),
+          count("service_orders", q => q.eq("status", "failed")),
+          count("funding_events", q => q.eq("status", "credited")),
+          count("virtual_cards", q => q.eq("status", "active")),
+        ]);
+        return json({ metrics: { customers, agents, businesses, products, publishedProducts, orders, successfulOrders, failedOrders, creditedFundingEvents, activeCards }, generatedAt: new Date().toISOString() });
+      } catch { return json({ error: "Unable to generate reports" }, 500); }
+    }
     const definition = definitions[workspaceModule];
     if (!definition) return json({ error: "Unsupported workspace" }, 400);
     const page = Math.max(1, Math.min(10000, Number(body.page) || 1));
