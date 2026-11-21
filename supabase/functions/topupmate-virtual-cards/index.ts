@@ -51,6 +51,8 @@ Deno.serve(async request=>{
  const allowed=["list","quote","save_profile","create","topup","withdraw","details","transactions","freeze","unfreeze","terminate"];
  if(!allowed.includes(action))return json({error:"Unsupported card action"},400);
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ const user=authData.user;
+ try{
  if(action==="save_profile"){
   const p:Obj={first_name:str(body.firstName),last_name:str(body.lastName),phone:str(body.phone),email:str(body.email||user.email),date_of_birth:str(body.dateOfBirth),address:str(body.address),state:str(body.state),city:str(body.city)};
   if(p.first_name.length<2||p.last_name.length<2||!/^\\+?[0-9]{10,15}$/.test(p.phone)||!/^\\S+@\\S+\\.\\S+$/.test(p.email)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(p.date_of_birth)||p.address.length<5||p.state.length<2||p.city.length<2)
@@ -59,8 +61,6 @@ Deno.serve(async request=>{
   if(error)throw new UserError("Unable to save your cardholder details.");
   return json({success:true,message:"Cardholder details saved securely."});
  }
- const user=authData.user;
- try{
   if(action==="list"){
    const {data,error}=await admin.from("virtual_cards").select("id,masked_pan,last4,card_type,currency,name_on_card,expiry_month,expiry_year,status,amount_funded,total_funded_usd,last_balance_usd,last_provider_sync_at,created_at").eq("user_id",user.id).eq("provider","topupmate").neq("status","terminated").order("created_at",{ascending:false});
    if(error)throw new UserError("Unable to load your cards.");
