@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body.action ?? "");
-  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : action === "airtime_pricing" ? "pricing.manage" : action === "card_pricing" ? "cards.pricing.manage" : "";
+  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : action === "airtime_pricing" ? "pricing.manage" : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
@@ -93,6 +93,27 @@ Deno.serve(async (request) => {
       .order("started_at", { ascending: false }).limit(10);
     if (productError || optionsError || runError || providersError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
     return json({ products: products ?? [], options: options ?? [], providers: providers ?? [], syncRuns: runs ?? [], canManagePricing: canManagePricing === true, canManageProviders: canManageProviders === true });
+  }
+
+  if (action === "electricity_pricing") {
+    if (body.save === true) {
+      const { data, error } = await caller.rpc("admin_set_service_category_markup", {
+        p_category_code: "electricity",
+        p_account_type: String(body.accountType),
+        p_markup_type: String(body.markupType),
+        p_markup_value: Number(body.markupValue),
+      });
+      if (error) return json({ error: error.message }, 400);
+      return json({ pricing: data });
+    }
+    const { data: category, error: categoryError } = await admin.from("service_categories")
+      .select("id").eq("code", "electricity").maybeSingle();
+    if (categoryError || !category) return json({ error: "Electricity category is not registered" }, 404);
+    const { data, error } = await admin.from("pricing_rules")
+      .select("account_type,markup_type,markup_value,active,updated_at")
+      .eq("category_id", category.id).is("product_id", null);
+    if (error) return json({ error: "Unable to load electricity pricing" }, 500);
+    return json({ pricing: data ?? [] });
   }
 
   if (action === "card_pricing") {
