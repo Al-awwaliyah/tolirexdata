@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body.action ?? "");
-  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : "";
+  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "transactions.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
@@ -56,6 +56,22 @@ Deno.serve(async (request) => {
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Unable to load overview metrics" }, 500);
     }
+  }
+
+  if (action === "transactions") {
+    const status = String(body.status ?? "").trim();
+    const search = String(body.search ?? "").trim().slice(0, 80);
+    const page = Math.max(1, Math.min(10000, Number(body.page) || 1));
+    const pageSize = Math.max(10, Math.min(100, Number(body.pageSize) || 25));
+    let query = admin.from("service_orders")
+      .select("id,user_id,category_id,product_id,request_id,provider_order_id,recipient,amount,currency,status,provider_status,created_at,updated_at,service_categories(code,name),service_providers(code,name)", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range((page - 1) * pageSize, page * pageSize - 1);
+    if (status && ["pending","processing","successful","failed","refunded","reversal_pending","unknown"].includes(status)) query = query.eq("status", status);
+    if (search) { const safe = search.replace(/[,%()]/g, " "); if (safe) query = query.or("request_id.ilike.%" + safe + "%,recipient.ilike.%" + safe + "%"); }
+    const { data, count, error } = await query;
+    if (error) return json({ error: "Unable to load service orders" }, 500);
+    return json({ orders: data ?? [], total: count ?? 0, page, pageSize });
   }
 
   if (action === "catalogue") {
