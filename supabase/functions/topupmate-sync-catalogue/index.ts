@@ -45,7 +45,8 @@ Deno.serve(async req => {
   if(req.method==="OPTIONS") return new Response("ok",{headers:corsHeaders});
   if(req.method!=="POST") return json({error:"Method not allowed"},405);
   const url=Deno.env.get("SUPABASE_URL"), anon=Deno.env.get("SUPABASE_ANON_KEY"), serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), token=Deno.env.get("TOPUPMATE_API_KEY");
-  if(!url||!anon||!serviceKey||!token) return json({error:"Topupmate or Supabase server configuration is incomplete"},503);
+  const missingConfig=[!url?"SUPABASE_URL":null,!anon?"SUPABASE_ANON_KEY":null,!serviceKey?"SUPABASE_SERVICE_ROLE_KEY":null,!token?"TOPUPMATE_API_KEY":null].filter((name): name is string => Boolean(name));
+  if(!url||!anon||!serviceKey||!token) return json({error:"Required Edge Function configuration is missing",missing:missingConfig},503);
   const authHeader=req.headers.get("Authorization")||"";
   const caller=createClient(url,anon,{global:{headers:{Authorization:authHeader}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:{user}}=await caller.auth.getUser();
