@@ -41,7 +41,7 @@ Deno.serve(async (request) => {
     : action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read"
     : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
     : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage"
-    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "airtime_pricing" ? "pricing.manage"
+    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" ? "growth.manage" : action === "airtime_pricing" ? "pricing.manage"
     : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
@@ -227,6 +227,56 @@ Deno.serve(async (request) => {
     if (updated.error) return json({ error: "Unable to update account application" }, 500);
     await admin.from("audit_logs").insert({ actor_user_id: auth.user.id, action: module + ".application_" + status, target_type: module === "agents" ? "agent_account" : "business", target_id: id, before_data: { status: before.data.status }, after_data: { status } });
     return json({ application: updated.data });
+  }
+
+  if (action === "coupon_save") {
+    const id = String(body.id ?? "").trim();
+    const code = String(body.code ?? "").trim().toUpperCase();
+    const description = String(body.description ?? "").trim().slice(0,500);
+    const discountType = String(body.discountType ?? "");
+    const discountValue = Number(body.discountValue);
+    const maxDiscount = body.maxDiscount === "" || body.maxDiscount == null ? null : Number(body.maxDiscount);
+    const minOrderAmount = Number(body.minOrderAmount ?? 0);
+    const totalLimit = body.totalRedemptionLimit === "" || body.totalRedemptionLimit == null ? null : Number(body.totalRedemptionLimit);
+    const perUserLimit = Number(body.perUserLimit ?? 1);
+    const budget = body.budgetAmount === "" || body.budgetAmount == null ? null : Number(body.budgetAmount);
+    const startsAt = body.startsAt ? new Date(String(body.startsAt)).toISOString() : new Date().toISOString();
+    const endsAt = body.endsAt ? new Date(String(body.endsAt)).toISOString() : null;
+    if (!/^[A-Z0-9_-]{4,32}$/.test(code) || !["fixed","percentage"].includes(discountType) ||
+      !Number.isFinite(discountValue) || discountValue <= 0 || (discountType === "percentage" && discountValue > 100) ||
+      !Number.isFinite(minOrderAmount) || minOrderAmount < 0 || !Number.isInteger(perUserLimit) || perUserLimit < 1 ||
+      (maxDiscount !== null && (!Number.isFinite(maxDiscount) || maxDiscount < 0)) ||
+      (totalLimit !== null && (!Number.isInteger(totalLimit) || totalLimit < 1)) ||
+      (budget !== null && (!Number.isFinite(budget) || budget <= 0)) ||
+      (endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime())) {
+      return json({ error: "Check the campaign code, discount, limits, budget and date range." }, 400);
+    }
+    const patch = {
+      code, description: description || null, discount_type: discountType, discount_value: discountValue,
+      max_discount: maxDiscount, min_order_amount: minOrderAmount, total_redemption_limit: totalLimit,
+      per_user_limit: perUserLimit, budget_amount: budget, starts_at: startsAt, ends_at: endsAt,
+      active: body.active !== false, updated_at: new Date().toISOString()
+    };
+    let saved: any;
+    let previous: any = null;
+    if (id) {
+      const before = await admin.from("coupons").select("id,code,active,discount_type,discount_value").eq("id",id).maybeSingle();
+      if (before.error || !before.data) return json({ error: "Campaign not found" },404);
+      previous = before.data;
+      const result = await admin.from("coupons").update(patch).eq("id",id).select("id,code,active,discount_type,discount_value,starts_at,ends_at").single();
+      if (result.error) return json({ error: "Unable to update campaign. Check that its code is unique." },400);
+      saved = result.data;
+    } else {
+      const result = await admin.from("coupons").insert(patch).select("id,code,active,discount_type,discount_value,starts_at,ends_at").single();
+      if (result.error) return json({ error: "Unable to create campaign. The code may already exist." },400);
+      saved = result.data;
+    }
+    await admin.from("audit_logs").insert({
+      actor_user_id: auth.user.id, action: id ? "coupon.updated" : "coupon.created",
+      target_type: "coupon", target_id: saved.id,
+      before_data: previous, after_data: { code:saved.code,active:saved.active,discount_type:saved.discount_type,discount_value:saved.discount_value }
+    });
+    return json({ coupon:saved });
   }
 
   if (action === "platform_setting") {
