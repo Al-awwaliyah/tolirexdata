@@ -184,6 +184,18 @@ Deno.serve(async request=>{
    await admin.rpc("mark_service_order_unknown",{p_order_id:order.id,p_provider_status:response.ok?state:"http_"+response.httpStatus,p_message:"Topupmate outcome requires same-reference reconciliation"});
    return json({orderId:order.id,status:"unknown",reference:ref,message:"Your purchase is awaiting supplier confirmation. Do not submit it again."},202);
   }
+  if(action==="giftcard_redeem"){
+   const reference=text(body.reference);
+   if(!reference)return json({error:"Gift-card transaction reference is required."},400);
+   const {data:category}=await admin.from("service_categories").select("id").eq("code","gift_card").maybeSingle();
+   if(!category)return json({error:"Gift-card service is unavailable."},503);
+   const {data:order,error}=await admin.from("service_orders").select("id,status,request_id")
+    .eq("user_id",auth.user.id).eq("category_id",category.id).eq("request_id",reference).maybeSingle();
+   if(error||!order||order.status!=="successful")return json({error:"A successful gift-card purchase with this reference was not found."},404);
+   const redeemed=await topupmateGet("/giftcard/redeem/",{ref:reference});
+   if(!redeemed.ok||classify(redeemed.body)==="fail")return json({orderId:order.id,status:"fulfilment_pending",reference,message:"The gift-card code is not available yet. Try retrieving it again shortly."},202);
+   return json({orderId:order.id,status:"successful",reference,fulfilment:resultPayload(redeemed.body)});
+  }
   if(action==="status"){
    const reference=text(body.reference);
    if(!reference)return json({error:"Transaction reference is required."},400);
