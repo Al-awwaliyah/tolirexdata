@@ -56,6 +56,8 @@ import {
   manageTopupmateExpandedService,
   purchaseAirtimeOrData,
   reviewFunding,
+  submitCustomerKyc,
+  ensureFlutterwaveVirtualAccount,
 } from "@/lib/dex.functions";
 import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
@@ -81,12 +83,39 @@ type DashboardData = {
   transactions: WalletTransaction[];
   users: Profile[];
   isAdmin: boolean;
+  kyc?: { id: string; status: string; level: number; review_note?: string | null; created_at: string } | null;
+  virtualAccount?: { id: string; account_number: string; bank_name: string; account_name: string; currency: string; status: string; is_permanent: boolean } | null;
 };
 type ViewKey = "overview" | "buy" | "fund" | "activity" | "airtime" | "cable" | "electricity" | "epin" | "data-pin" | "education" | "internet" | "gift-cards" | "cards" | "fx" | "referrals" | "coupons" | "promotions" | "cashback" | "loyalty";
 type Network = string;
 type AuthMode = "signin" | "signup";
 
 
+
+
+function KycAndFundingOnboarding({dashboard,onRefresh}:{dashboard:DashboardData;onRefresh:()=>void}) {
+ const [firstName,setFirstName]=useState(""); const [lastName,setLastName]=useState("");
+ const [phone,setPhone]=useState(String((dashboard.profile as any)?.phone??""));
+ const [kind,setKind]=useState<"bvn"|"nin">("nin"); const [identity,setIdentity]=useState("");
+ const [consent,setConsent]=useState(false); const [busy,setBusy]=useState(false); const [message,setMessage]=useState("");
+ const kyc=dashboard.kyc; const account=dashboard.virtualAccount;
+ const submit=async()=>{if(!consent||!/^[0-9]{11}$/.test(identity)||firstName.trim().length<2||lastName.trim().length<2){setMessage("Enter your legal name, valid 11-digit identity number and consent.");return;}
+ setBusy(true);setMessage("");try{await submitCustomerKyc({data:{firstName:firstName.trim(),lastName:lastName.trim(),phone,identityType:kind,identityNumber:identity,consent:true}});setIdentity("");setMessage("KYC submitted for compliance review.");onRefresh();}catch(e){setMessage(messageOf(e,"Unable to submit KYC."));}finally{setBusy(false);}};
+ const issue=async()=>{setBusy(true);setMessage("");try{await ensureFlutterwaveVirtualAccount();setMessage("Your permanent Flutterwave virtual account is ready.");onRefresh();}catch(e){setMessage(messageOf(e,"Unable to issue your virtual account."));}finally{setBusy(false);}};
+ return <section className="mb-6 grid gap-4 lg:grid-cols-2">
+ <div className="rounded-2xl border bg-background p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase text-muted-foreground">Identity verification</p><h2 className="mt-1 font-semibold">{kyc?.status==="approved"?"KYC approved":kyc?.status==="pending"?"KYC under review":"Complete your KYC"}</h2></div><StatusBadge status={kyc?.status??"not_submitted"}/></div>
+ {kyc?.status==="approved"?<p className="mt-3 text-sm text-muted-foreground">Your identity is verified. You can now generate your permanent wallet account.</p>:kyc?.status==="pending"?<p className="mt-3 text-sm text-muted-foreground">Your KYC submission is awaiting compliance review.</p>:<div className="mt-4 grid gap-3 sm:grid-cols-2">
+ <Field label="Legal first name"><Input value={firstName} onChange={e=>setFirstName(e.target.value)}/></Field><Field label="Legal last name"><Input value={lastName} onChange={e=>setLastName(e.target.value)}/></Field>
+ <Field label="Phone number"><Input value={phone} onChange={e=>setPhone(e.target.value)}/></Field>
+ <Field label="Identity type"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={kind} onChange={e=>setKind(e.target.value as "bvn"|"nin")}><option value="nin">NIN</option><option value="bvn">BVN</option></select></Field>
+ <div className="sm:col-span-2"><Field label={kind.toUpperCase()}><Input type="password" maxLength={11} inputMode="numeric" value={identity} onChange={e=>setIdentity(e.target.value.replace(/\D/g,"").slice(0,11))}/></Field></div>
+ <label className="sm:col-span-2 flex gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>I consent to secure processing of my identity details for KYC and account eligibility.</label>
+ <Button className="sm:col-span-2" disabled={busy} onClick={()=>void submit()}>{busy?"Submitting…":"Submit KYC"}</Button></div>}
+ {message&&<p role="status" className="mt-3 text-xs text-muted-foreground">{message}</p>}<p className="mt-3 text-[10px] text-muted-foreground">BVN/NIN is encrypted server-side and is not displayed in your profile.</p></div>
+ <div className="rounded-2xl border bg-background p-5"><p className="text-xs font-semibold uppercase text-muted-foreground">Permanent wallet account</p><h2 className="mt-1 font-semibold">Flutterwave bank transfer</h2>
+ {account?<div className="mt-4 rounded-xl bg-primary/5 p-4"><p className="text-xs text-muted-foreground">{account.bank_name}</p><p className="mt-1 text-2xl font-bold tracking-wider">{account.account_number}</p><p className="mt-2 text-sm font-medium">{account.account_name}</p><p className="mt-1 text-xs text-muted-foreground">Permanent {account.currency} account</p></div>:<><p className="mt-3 text-sm text-muted-foreground">Your permanent account is generated after KYC approval.</p><Button className="mt-4 w-full" disabled={busy||kyc?.status!=="approved"} onClick={()=>void issue()}>{busy?"Please wait…":"Generate my virtual account"}</Button></>}
+ </div></section>;
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -330,6 +359,7 @@ function DashboardShell(props: {
       <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{(["Main","Services","Finance","Rewards & growth"] as const).map((group)=><section className="tr-nav-group" key={group}><p className="tr-sidebar-label">{group}</p>{navItems.filter((item)=>item.group===group).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</section>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Your account, payments and personal information are protected by access controls.</p></div></aside>
         <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{accountLabel.toUpperCase()} ACCOUNT · {new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
           {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice}/>}
+          {props.dashboard && <KycAndFundingOnboarding dashboard={props.dashboard} onRefresh={props.onRefresh}/>}
           {props.loading && !props.dashboard ? <LoadingScreen compact/> : null}
           {props.view === "overview" && <Overview dashboard={props.dashboard} accountType={props.accountType} onNavigate={props.setView}/>}
           {props.view === "buy" && <BuyDataView {...props}/>}
