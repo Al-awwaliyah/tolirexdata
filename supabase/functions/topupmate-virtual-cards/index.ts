@@ -159,7 +159,6 @@ Deno.serve(async request=>{
   if(reserveError||!op)throw new UserError(reserveError?.message??"Unable to reserve card operation.");
   const {data:claimed}=await admin.rpc("claim_virtual_card_operation",{p_operation_id:op.id});
   if(!claimed)return json({success:true,status:op.status,reference:op.reference,message:"This card request is already being processed or requires review. Do not retry it."},202);
-  let q;
   let q;try{if(action==="topup")q=await topupmatePost("/cards/topup/",{card_id:card!.provider_card_id,amount});
   else if(action==="withdraw")q=await topupmatePost("/cards/withdraw/",{card_id:card!.provider_card_id,amount});
   else q=await topupmatePost(action==="freeze"?"/cards/freeze/":action==="unfreeze"?"/cards/unfreeze/":"/cards/terminate/",{card_id:card!.provider_card_id});}
