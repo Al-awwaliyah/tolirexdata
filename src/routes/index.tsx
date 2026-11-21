@@ -435,6 +435,8 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [serviceNotice,setServiceNotice]=useState("");
   const [fulfilment,setFulfilment]=useState<any>(null);
   const [lastGiftCardReference,setLastGiftCardReference]=useState("");
+  const [lastServiceReference,setLastServiceReference]=useState("");
+  const [servicePending,setServicePending]=useState(false);
   const [giftCardRetrievalPending,setGiftCardRetrievalPending]=useState(false);
   const [serviceBusy,setServiceBusy]=useState(false);
   const feature=featureDetails[view];
@@ -478,6 +480,8 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       const result=await runExpanded(payload);
       setServiceNotice(result.status==="successful"?(result.fulfilmentPending?"Purchase completed. Your gift-card code can be retrieved again below.":"Purchase completed successfully."):"Your request is awaiting Topupmate confirmation. Do not submit it again.");
       setFulfilment(result.fulfilment??null);
+      setLastServiceReference(result.reference??"");
+      setServicePending(["unknown","processing"].includes(result.status));
       setGiftCardRetrievalPending(view==="gift-cards"&&result.status==="successful"&&result.fulfilmentPending===true);
       setLastGiftCardReference(view==="gift-cards"&&result.status==="successful"?result.reference??"":"");
       setVerifiedName("");
@@ -485,6 +489,21 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     finally{setServiceBusy(false);}
   };
   const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode);
+  const checkExpandedStatus=async()=>{
+    if(!lastServiceReference)return;
+    setServiceBusy(true);setServiceNotice("");
+    try{
+      const result=await runExpanded({action:"status",reference:lastServiceReference});
+      setServicePending(["unknown","processing"].includes(result.status));
+      if(result.status==="successful"){
+        setServiceNotice("Topupmate confirmed this purchase as successful.");
+        if(view==="gift-cards"){setLastGiftCardReference(lastServiceReference);setGiftCardRetrievalPending(true);}
+      }else if(result.status==="refunded"||result.status==="failed"){
+        setServiceNotice("Topupmate confirmed the purchase failed. The wallet refund status is "+result.status+".");
+      }else setServiceNotice(result.message||"The supplier has not confirmed this purchase yet.");
+    }catch(error){setServiceNotice(messageOf(error,"Unable to check this purchase yet."));}
+    finally{setServiceBusy(false);}
+  };
   const retrieveGiftCard=async()=>{
     if(!lastGiftCardReference)return;
     setServiceBusy(true);setServiceNotice("");
@@ -553,6 +572,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       </div>}
       {products.length===0&&view!=="electricity"&&<EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}
       {serviceNotice&&<div className="mt-4 text-sm text-muted-foreground">{serviceNotice}</div>}
+      {lastServiceReference&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><p className="text-xs font-semibold">Supplier reference</p><p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{lastServiceReference}</p></div>{servicePending&&<Button type="button" variant="outline" size="sm" disabled={serviceBusy} onClick={()=>void checkExpandedStatus()}>{serviceBusy?"Checking…":"Check transaction status"}</Button>}</div>}
       {view==="gift-cards"&&lastGiftCardReference&&giftCardRetrievalPending&&<Button type="button" variant="outline" className="mt-4" disabled={serviceBusy} onClick={()=>void retrieveGiftCard()}>{serviceBusy?"Retrieving…":"Retrieve gift-card code"}</Button>}
       {fulfilment&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h4 className="text-sm font-semibold text-emerald-900">Supplier fulfilment details</h4><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs text-emerald-950">{JSON.stringify(fulfilment,null,2)}</pre></div>}
     </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Published catalogue":"Not yet published"}</span></div>{products.length ? <div className="tr-catalogue-products">{products.map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/ >}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
