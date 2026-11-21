@@ -25,6 +25,7 @@ import {
   Coins,
   Award,
   Gift,
+  Globe2,
   Users,
   Pin,
   Plus,
@@ -321,7 +322,7 @@ function DashboardShell(props: {
   return (
     <div className="tr-app-shell">
       <header className="tr-app-header"><div className="tr-header-inner"><Brand/><div className="tr-header-search"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input aria-label="Search" placeholder="Search" /></div><div className="tr-header-actions"><span className="tr-account-chip">{props.accountType.replace(/[_-]/g, " ")}</span><button className="tr-icon-button" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button><button className="tr-user-pill" onClick={props.onSignOut} title="Sign out"><span>{(props.userName || "T").slice(0,1).toUpperCase()}</span><b>{props.userName.split(" ")[0]}</b><ChevronDown className="size-4"/></button></div></div></header>
-      <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{(["Main","Services","Rewards & growth"] as const).map((group)=><section className="tr-nav-group" key={group}><p className="tr-sidebar-label">{group}</p>{navItems.filter((item)=>item.group===group).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</section>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Your account, payments and personal information are protected by access controls.</p></div></aside>
+      <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{(["Main","Services","Finance","Rewards & growth"] as const).map((group)=><section className="tr-nav-group" key={group}><p className="tr-sidebar-label">{group}</p>{navItems.filter((item)=>item.group===group).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</section>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Your account, payments and personal information are protected by access controls.</p></div></aside>
         <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{accountLabel.toUpperCase()} ACCOUNT · {new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
           {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice}/>}
           {props.loading && !props.dashboard ? <LoadingScreen compact/> : null}
