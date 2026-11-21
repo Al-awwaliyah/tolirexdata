@@ -130,10 +130,38 @@ function AdminDashboard() {
 
   const syncCatalogue = async () => {
     setCatalogueSyncing(true);
+    setError("");
     const { data, error: invokeError } = await supabase.functions.invoke("clubkonnect-sync-catalogue", { body: {} });
-    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Catalogue synchronization failed.");
-    else {
-      setError("");
+
+    if (invokeError) {
+      let detail = invokeError.message || "Catalogue synchronization failed.";
+      const response = (invokeError as any).context;
+      if (response && typeof response.clone === "function") {
+        try {
+          const payload = await response.clone().json();
+          const reasons = Array.isArray(payload?.results)
+            ? payload.results.filter((item: any) => item.status === "failed")
+                .map((item: any) => item.key + ": " + item.error).join(" | ")
+            : "";
+          detail = [payload?.error || detail, reasons].filter(Boolean).join(" — ");
+        } catch {
+          try {
+            const bodyText = await response.clone().text();
+            if (bodyText) detail = bodyText.slice(0, 1000);
+          } catch { /* Keep the original Functions error. */ }
+        }
+      }
+      setError(detail);
+      await loadCatalogue();
+    } else if (data?.error) {
+      setError(data.error);
+      await loadCatalogue();
+    } else {
+      const failed = Array.isArray(data?.results)
+        ? data.results.filter((item: any) => item.status === "failed")
+        : [];
+      const summary = failed.map((item: any) => item.key + ": " + item.error).join(" | ");
+      setError(summary || (data?.status === "partial" ? "Catalogue sync completed partially. Review the sync history." : ""));
       await loadCatalogue();
     }
     setCatalogueSyncing(false);
