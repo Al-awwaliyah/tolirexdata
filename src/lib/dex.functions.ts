@@ -319,7 +319,7 @@ export const manageTopupmateVirtualCard = createServerFn({ method: "POST" })
 export const manageTopupmateExpandedService = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({
-    action: z.enum(["verify","purchase","status"]),
+    action: z.enum(["verify","purchase","status","giftcard_redeem"]),
     service: z.string().optional(),
     categoryCode: z.string().optional(),
     productId: z.string().uuid().optional(),
