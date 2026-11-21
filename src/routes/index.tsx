@@ -541,7 +541,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       </div>}
       {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
         <label className="grid gap-2 text-sm font-medium">Internet plan<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose bundle</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
-        <label className="grid gap-2 text-sm font-medium">Smile account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Enter account number or phone"/></label>
+        <label className="grid gap-2 text-sm font-medium">ISP account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Enter account number or phone"/></label>
         <label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>
         <Button disabled={serviceBusy||!selectedProductId||!recipient} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Buy internet plan"} <ArrowRight/></Button>
       </div>}
