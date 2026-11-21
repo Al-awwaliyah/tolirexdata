@@ -55,7 +55,7 @@ Deno.serve(async req => {
   const admin=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:provider,error:providerError}=await admin.from("service_providers").select("id,code").eq("code","topupmate").single();
   if(providerError||!provider) return json({error:"Topupmate provider is not registered. Apply the Topupmate services migration first."},409);
-  const root=(Deno.env.get("TOPUPMATE_BASE_URL")||"https://connect.topupmate.com/api").replace(/\/$/,"");
+  const root="https://connect.topupmate.com/api";
   const fetchEndpoint=async(path:string) => {
     const response=await fetch(root+path,{headers:{Authorization:"Token "+token,Accept:"application/json"},signal:AbortSignal.timeout(25000)});
     const body=await response.json().catch(()=>null);
