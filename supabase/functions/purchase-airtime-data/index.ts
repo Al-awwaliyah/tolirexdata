@@ -9,7 +9,8 @@ const stateOf=(body:Obj)=>clean(body?.status??body?.response?.status??body?.data
 const messageOf=(body:Obj)=>clean(body?.message??body?.detail??body?.response?.message??body?.data?.message??body?.status);
 const referenceOf=(body:Obj)=>clean(body?.reference??body?.ref??body?.transaction_id??body?.response?.reference??body?.data?.reference);
 async function topupmate(path:string,method:"GET"|"POST",token:string,payload?:Obj):Promise<Obj>{
-  const root=(Deno.env.get("TOPUPMATE_BASE_URL")||"https://connect.topupmate.com/api").replace(/\/$/,"");\n  const url=new URL(root+path);
+  const root=(Deno.env.get("TOPUPMATE_BASE_URL")||"https://connect.topupmate.com/api").replace(/\/$/,"");
+  const url=new URL(root+path);
   if(method==="GET"&&payload) for(const [k,v] of Object.entries(payload)) if(v!==undefined&&v!==null) url.searchParams.set(k,String(v));
   const response=await fetch(url,{method,headers:{"Authorization":"Token "+token,"Accept":"application/json","Content-Type":"application/json"},...(method==="POST"?{body:JSON.stringify(payload??{})}:{}),signal:AbortSignal.timeout(25000)});
   const body=await response.json().catch(()=>({}));
