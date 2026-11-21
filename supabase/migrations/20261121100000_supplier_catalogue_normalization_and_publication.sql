@@ -166,3 +166,35 @@ comment on column public.service_products.cost_price is
   'Private supplier cost. Never expose through customer catalogue projections.';
 comment on column public.service_products.publication_status is
   'Admin review state. Supplier sync never publishes a product or changes its customer price.';
+
+
+create or replace function public.admin_set_service_option_publication(
+  p_option_id uuid,
+  p_publication_status text
+) returns public.provider_service_options
+language plpgsql security definer set search_path=public as $$
+declare v_option public.provider_service_options%rowtype; v_before jsonb; v_actor uuid:=auth.uid();
+begin
+  if v_actor is null or not public.has_admin_permission('services.manage') then
+    raise exception 'Service management permission is required';
+  end if;
+  if p_publication_status not in ('published','paused','rejected') then
+    raise exception 'Invalid option publication status';
+  end if;
+  select * into v_option from public.provider_service_options where id=p_option_id for update;
+  if not found then raise exception 'Supplier option not found'; end if;
+  v_before:=jsonb_build_object('active',v_option.active,'publication_status',v_option.publication_status);
+  update public.provider_service_options set
+    active=(p_publication_status='published'),
+    publication_status=p_publication_status,
+    reviewed_by=v_actor,reviewed_at=now(),updated_at=now()
+  where id=p_option_id returning * into v_option;
+  insert into public.audit_logs(actor_user_id,action,target_type,target_id,before_data,after_data)
+  values(v_actor,'catalogue.option.'||p_publication_status,'provider_service_option',p_option_id::text,
+    v_before,jsonb_build_object('active',v_option.active,'publication_status',v_option.publication_status,
+      'option_type',v_option.option_type,'option_code',v_option.option_code));
+  return v_option;
+end;
+$$;
+revoke all on function public.admin_set_service_option_publication(uuid,text) from public,anon;
+grant execute on function public.admin_set_service_option_publication(uuid,text) to authenticated;
