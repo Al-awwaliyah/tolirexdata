@@ -52,7 +52,6 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         wallet: wallets.data?.find((wallet) => wallet.user_id === userId) ?? null,
         plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
         catalogue: catalogue.data ?? [],
-      catalogueOptions: catalogueOptions.data ?? [],
         catalogueOptions: catalogueOptions.data ?? [],
         orders: orders.data ?? [],
         fundings: fundings.data ?? [],
@@ -72,13 +71,14 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       (supabase as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
     ]);
     const results = [profile, wallet, orders, fundings, transactions, catalogue, catalogueOptions];
-    if (results.some((result) => result.error)) throw new Error("Unable to load your DEX Sub account");
+    if (results.some((result) => result.error)) throw new Error("Unable to load your TolirexData account");
 
     return {
       profile: profile.data,
       wallet: wallet.data,
       plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
       catalogue: catalogue.data ?? [],
+      catalogueOptions: catalogueOptions.data ?? [],
       orders: orders.data ?? [],
       fundings: fundings.data ?? [],
       transactions: transactions.data ?? [],
