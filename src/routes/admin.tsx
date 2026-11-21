@@ -51,7 +51,8 @@ function AdminDashboard() {
   const [customerPage, setCustomerPage] = useState(1);
   const [customerTotal, setCustomerTotal] = useState(0);
   const [customersLoading, setCustomersLoading] = useState(false);
-  const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);\n  const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);
+  const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);
+  const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);
   const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);
   const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
@@ -114,7 +115,8 @@ function AdminDashboard() {
       setError(data?.error || invokeError?.message || "Unable to load supplier catalogue.");
     } else {
       setError("");
-      setCatalogueProducts(data?.products ?? []);\n      setCatalogueOptions(data?.options ?? []);
+      setCatalogueProducts(data?.products ?? []);
+      setCatalogueOptions(data?.options ?? []);
       setCatalogueRuns(data?.syncRuns ?? []);
       setCatalogueCanPrice(data?.canManagePricing === true);
     }
