@@ -28,7 +28,7 @@ const services = [
   {key:"cabletv", category:"cable_tv", kind:"products"},
   {key:"electricity", category:"electricity", kind:"options", optionType:"operator"},
   {key:"exampin", category:"education", kind:"products"},
-  {key:"recharge-card", category:"recharge_pin", kind:"products"},
+  {key:"rechargepin", category:"recharge_pin", kind:"products"},
   {key:"datapin", category:"data_pin", kind:"products"},
   {key:"smile", category:"internet", kind:"products"},
   {key:"alpha", category:"internet", kind:"products"},
@@ -73,8 +73,17 @@ Deno.serve(async req => {
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
       const list=rows(payload);
       for(const item of list) {
-        const code=first(item,["id","plan_id","planid","planId","provider_id","code","product_id","productId"]);
-        const label=first(item,["name","plan_name","planName","product_name","productName","provider","provider_name","description"]);
+        const codeKeys=spec.key==="data"
+          ? ["planid","plan_id","planId","data_plan","dataplan","id","code"]
+          : spec.key==="rechargepin"
+            ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
+            : spec.key==="datapin"
+              ? ["data_plan","dataplan","planid","plan_id","planId","item_code","id","code"]
+              : spec.key==="smile"
+                ? ["BundleTypeCode","bundle_type_code","planid","plan_id","planId","id","code"]
+                : ["id","plan_id","planid","planId","provider_id","providerId","code","product_id","productId"];
+        const code=first(item,codeKeys);
+        const label=first(item,["name","plan_name","planName","product_name","productName","package_name","packageName","provider","provider_name","description"]);
         if(!code||!label) continue;
         if(spec.kind==="options") {
           const {error}=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:spec.category,p_option_type:spec.optionType,p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:spec.key,supplier_discount:item.discount??item.discount_percent??item.discountPercentage??null}});
