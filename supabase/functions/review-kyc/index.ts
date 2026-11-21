@@ -39,6 +39,11 @@ Deno.serve(async (request) => {
   if (error) return json({ error: "Unable to update KYC review" }, 500);
   if (!record) return json({ error: "KYC record is not pending or does not exist" }, 409);
 
+  if (decision === "approved") {
+    const { error: profileError } = await admin.from("profiles").update({ kyc_level: record.level, updated_at: new Date().toISOString() }).eq("id", record.user_id);
+    if (profileError) return json({ error: "KYC was approved but account verification status needs reconciliation" }, 500);
+  }
+
   await admin.from("audit_logs").insert({
     actor_user_id: authData.user.id,
     action: "kyc.reviewed",
