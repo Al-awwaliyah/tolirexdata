@@ -86,7 +86,7 @@ The expanded service Edge Function reuses the authenticated Topupmate service pa
 - Smile Internet: `POST /smile-data/` with phone/account identifier, bundle type code, account type and reference. Other synced internet products use the corresponding Topupmate provider route.
 - Gift cards: `POST /giftcard/` with supplier product ID, recipient denomination, recipient email, units and reference; successful purchase is followed by `GET /giftcard/redeem/?ref=...` to retrieve the voucher.
 
-These payload shapes follow the working IyanjuPay Edge Function at [Al-awwaliyah/iyanjupay](https://github.com/Al-awwaliyah/iyanjupay/blob/eaae5484c00a7d5e5acf9b61c9898bd6586ca6b0/supabase/functions/topupmate-services/index.ts). Topupmate's full interactive developer docs currently require an authenticated developer account, so endpoint response variants must still be verified against the TolirexData sandbox account before activating the provider.
+These payload shapes follow the working IyanjuPay Edge Function at [Al-awwaliyah/iyanjupay](https://github.com/Al-awwaliyah/iyanjupay/blob/eaae5484c00a7d5e5acf9b61c9898bd6586ca6b0/supabase/functions/topupmate-services/index.ts) and the supplied [Topupmate API documentation](https://connect.topupmate.com/docs/). Validate actual request and response variants against the TolirexData sandbox account before activating the provider.
 
 Additional migration:
 - `20261121180000_topupmate_expanded_service_order_reservations.sql`
