@@ -79,7 +79,7 @@ type DashboardData = {
   users: Profile[];
   isAdmin: boolean;
 };
-type ViewKey = "overview" | "buy" | "fund" | "activity" | "airtime" | "cable" | "electricity" | "epin" | "referrals" | "coupons" | "promotions" | "cashback" | "loyalty";
+type ViewKey = "overview" | "buy" | "fund" | "activity" | "airtime" | "cable" | "electricity" | "epin" | "data-pin" | "education" | "internet" | "gift-cards" | "cards" | "fx" | "referrals" | "coupons" | "promotions" | "cashback" | "loyalty";
 type Network = string;
 type AuthMode = "signin" | "signup";
 
@@ -304,6 +304,12 @@ function DashboardShell(props: {
     { key: "cable", label: "Cable TV", icon: <Tv />, group: "Services" },
     { key: "electricity", label: "Electricity", icon: <Lightbulb />, group: "Services" },
     { key: "epin", label: "Recharge PINs", icon: <Pin />, group: "Services" },
+    { key: "data-pin", label: "Data PINs", icon: <PackageCheck />, group: "Services" },
+    { key: "education", label: "Education PINs", icon: <ShieldCheck />, group: "Services" },
+    { key: "internet", label: "Internet services", icon: <RadioTower />, group: "Services" },
+    { key: "gift-cards", label: "Gift Cards", icon: <Gift />, group: "Services" },
+    { key: "cards", label: "Virtual Cards", icon: <CreditCard />, group: "Finance" },
+    { key: "fx", label: "FX Exchange", icon: <Globe2 />, group: "Finance" },
     { key: "referrals", label: "Referrals", icon: <Users />, group: "Rewards & growth" },
     { key: "coupons", label: "Coupons", icon: <TicketPercent />, group: "Rewards & growth" },
     { key: "promotions", label: "Promotions", icon: <Megaphone />, group: "Rewards & growth" },
@@ -323,7 +329,7 @@ function DashboardShell(props: {
           {props.view === "buy" && <BuyDataView {...props}/>}
           {props.view === "fund" && <FundWalletView {...props}/>}
           {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
-          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType} catalogue={props.dashboard?.catalogue ?? []} catalogueOptions={props.dashboard?.catalogueOptions ?? []} busy={props.busy} onAirtimePurchase={props.onAirtimePurchase}/>}
+          {(["airtime","cable","electricity","epin","data-pin","education","internet","gift-cards","cards","fx","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType} catalogue={props.dashboard?.catalogue ?? []} catalogueOptions={props.dashboard?.catalogueOptions ?? []} busy={props.busy} onAirtimePurchase={props.onAirtimePurchase}/>}
         </main>
       </div>
       <nav className="tr-mobile-nav" aria-label="Account navigation">{([{key:"overview" as ViewKey,label:"Home",icon:<House/>},{key:"buy" as ViewKey,label:"Data",icon:<Database/>},{key:"airtime" as ViewKey,label:"Airtime",icon:<Smartphone/>},{key:"referrals" as ViewKey,label:"Rewards",icon:<Gift/>},{key:"fund" as ViewKey,label:"Wallet",icon:<Wallet/>}] as const).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key || (item.key==="referrals" && ["referrals","coupons","promotions","cashback","loyalty"].includes(props.view))?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav>
@@ -391,7 +397,13 @@ const featureDetails: Record<FeatureView, {title:string;eyebrow:string;descripti
   airtime:{title:"Buy airtime",eyebrow:"DIGITAL SERVICES",description:"Top up a mobile number using live supplier availability and your account's applicable price.",icon:<Smartphone/>,group:"service",emptyTitle:"Airtime catalogue unavailable",emptyCopy:"Airtime networks and denominations will appear when a supplier catalogue is successfully synchronized and published."},
   cable:{title:"Cable TV",eyebrow:"DIGITAL SERVICES",description:"Verify a decoder or smart-card number, choose an available package and review the price before payment.",icon:<Tv/>,group:"service",emptyTitle:"TV packages not available yet",emptyCopy:"Only packages returned by a connected supplier and published by the platform will be shown here."},
   electricity:{title:"Electricity",eyebrow:"DIGITAL SERVICES",description:"Choose a supported distribution company, verify the meter and review the payable amount before purchase.",icon:<Lightbulb/>,group:"service",emptyTitle:"Electricity providers unavailable",emptyCopy:"Supported discos and meter-payment options will appear after the live provider catalogue is connected."},
-  epin:{title:"Recharge PINs",eyebrow:"DIGITAL SERVICES",description:"Browse available recharge PIN products and denominations. PIN delivery details are shown only after a verified order.",icon:<Pin/>,group:"service",emptyTitle:"Recharge PIN catalogue unavailable",emptyCopy:"Only supplier-confirmed PIN products, denominations and prices will be listed here."},
+  epin:{title:"Recharge PINs",eyebrow:"DIGITAL SERVICES",description:"Browse Topupmate recharge vouchers and denominations, with secure PIN delivery after confirmed fulfilment.",icon:<Pin/>,group:"service",emptyTitle:"Recharge PIN catalogue unavailable",emptyCopy:"Only supplier-confirmed PIN products and prices will be listed here."},
+  "data-pin":{title:"Data PINs",eyebrow:"DIGITAL SERVICES",description:"Generate and manage supplier-backed mobile data vouchers for distribution.",icon:<PackageCheck/>,group:"service",emptyTitle:"Data PIN catalogue unavailable",emptyCopy:"Available data PIN plans will appear after Topupmate catalogue sync and admin publication."},
+  education:{title:"Education PINs",eyebrow:"DIGITAL SERVICES",description:"Purchase supported WAEC, NECO and other examination PINs.",icon:<ShieldCheck/>,group:"service",emptyTitle:"Education PINs unavailable",emptyCopy:"Exam providers and current prices will load from Topupmate when published."},
+  internet:{title:"Internet services",eyebrow:"DIGITAL SERVICES",description:"Explore supported broadband and specialist data services from Topupmate.",icon:<RadioTower/>,group:"service",emptyTitle:"Internet services unavailable",emptyCopy:"Only supplier-returned plans will appear here."},
+  "gift-cards":{title:"Gift Cards",eyebrow:"DIGITAL SERVICES",description:"Browse digital gift-card products and purchase eligible denominations.",icon:<Gift/>,group:"service",emptyTitle:"Gift-card catalogue is being connected",emptyCopy:"Topupmate gift cards require a dedicated catalogue normalizer and verified purchase/redeem flow before publication."},
+  cards:{title:"Virtual Cards",eyebrow:"CARDS & PAYMENTS",description:"Create and manage virtual payment cards, fund cards, review transactions and control card security.",icon:<CreditCard/>,group:"service",emptyTitle:"Virtual card issuance is being prepared",emptyCopy:"Card creation will be enabled after Topupmate card pricing, KYC requirements, wallet settlement and card lifecycle tests are verified."},
+  fx:{title:"FX Exchange",eyebrow:"CURRENCY",description:"Get a live provider quote and convert currencies using a time-limited rate.",icon:<Globe2/>,group:"service",emptyTitle:"FX conversion is not enabled yet",emptyCopy:"Live quotes and execution will be connected after quote expiry, wallet currency and settlement controls are implemented."},
   referrals:{title:"Refer and earn",eyebrow:"REWARDS & GROWTH",description:"Invite people to TolirexData and follow referral qualification and reward settlement.",icon:<Users/>,group:"growth",emptyTitle:"Your referral programme is not active yet",emptyCopy:"Your referral code and reward history will appear here when the programme is enabled by the platform."},
   coupons:{title:"Coupons",eyebrow:"REWARDS & GROWTH",description:"Use eligible coupon codes for discounts on supported services. Eligibility and limits are checked securely at redemption.",icon:<TicketPercent/>,group:"growth",emptyTitle:"No eligible coupons to show",emptyCopy:"Active coupons published for your account type will appear here. Expired or ineligible codes will not be presented as available."},
   promotions:{title:"Promotions",eyebrow:"REWARDS & GROWTH",description:"Discover platform campaigns, welcome offers and limited-time benefits available to your account.",icon:<Megaphone/>,group:"growth",emptyTitle:"No active promotions",emptyCopy:"Campaigns published by TolirexData will appear here with their eligibility, dates and terms."},
@@ -404,7 +416,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [airtimePhone,setAirtimePhone]=useState("");
   const [airtimeAmount,setAirtimeAmount]=useState("100");
   const feature=featureDetails[view];
-  const categoryCode=({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view];
+  const categoryCode=({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin","data-pin":"data_pin",education:"education",internet:"internet","gift-cards":"gift_card",cards:"virtual_card",fx:"fx_conversion"} as Record<string,string>)[view];
   const options=catalogueOptions.filter((option)=>option.category_code===categoryCode);
   return <div className="tr-feature-workspace">
     <section className="tr-feature-hero">
