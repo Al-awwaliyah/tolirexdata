@@ -55,7 +55,6 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         catalogue: catalogue.data ?? [],
         catalogueOptions: catalogueOptions.data ?? [],
         orders: orders.data ?? [],
-      serviceOrders: serviceOrders.data ?? [],
         serviceOrders: serviceOrders.data ?? [],
         fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
