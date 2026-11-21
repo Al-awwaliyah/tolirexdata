@@ -72,7 +72,9 @@ Deno.serve(async req => {
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
           ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","id","code"]
-          : spec.key==="data"
+          : spec.key==="network"||spec.key==="airtime"
+            ? ["network_id","networkId","network","id","code","provider_id","providerId"]
+            : spec.key==="data"
             ? ["planid","plan_id","planId","data_plan","dataplan","id","code"]
             : spec.key==="rechargepin"
               ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
