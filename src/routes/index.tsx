@@ -59,6 +59,7 @@ import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
 type DataPlan = { id: string; network: string; data_amount: string; validity: string; price: number; active: boolean };
 type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
+type CatalogueOption = { id: string; category_code: string; option_type: string; option_code: string; parent_option_code: string | null; name: string };
 type DataOrder = TableRows<"data_orders">;
 type Funding = TableRows<"fundings">;
 type WalletTransaction = TableRows<"wallet_transactions">;
@@ -68,6 +69,7 @@ type DashboardData = {
   wallet: TableRows<"wallets"> | null;
   plans: DataPlan[];
   catalogue: CatalogueProduct[];
+  catalogueOptions: CatalogueOption[];
   orders: DataOrder[];
   fundings: Funding[];
   transactions: WalletTransaction[];
@@ -304,7 +306,7 @@ function DashboardShell(props: {
           {props.view === "buy" && <BuyDataView {...props}/>}
           {props.view === "fund" && <FundWalletView {...props}/>}
           {props.view === "activity" && <ActivityView dashboard={props.dashboard}/>}
-          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType} catalogue={props.dashboard?.catalogue ?? []}/>}
+          {(["airtime","cable","electricity","epin","referrals","coupons","promotions","cashback","loyalty"] as ViewKey[]).includes(props.view) && <FeatureWorkspace view={props.view as FeatureView} accountType={props.accountType} catalogue={props.dashboard?.catalogue ?? []} catalogueOptions={props.dashboard?.catalogueOptions ?? []}/>}
         </main>
       </div>
       <nav className="tr-mobile-nav" aria-label="Account navigation">{([{key:"overview" as ViewKey,label:"Home",icon:<House/>},{key:"buy" as ViewKey,label:"Data",icon:<Database/>},{key:"airtime" as ViewKey,label:"Airtime",icon:<Smartphone/>},{key:"referrals" as ViewKey,label:"Rewards",icon:<Gift/>},{key:"fund" as ViewKey,label:"Wallet",icon:<Wallet/>}] as const).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key || (item.key==="referrals" && ["referrals","coupons","promotions","cashback","loyalty"].includes(props.view))?"active":""}><span>{item.icon}</span>{item.label}</button>)}</nav>
@@ -380,15 +382,17 @@ const featureDetails: Record<FeatureView, {title:string;eyebrow:string;descripti
   loyalty:{title:"Loyalty",eyebrow:"REWARDS & GROWTH",description:"Track loyalty points, membership tier and eligible redemption options.",icon:<Award/>,group:"growth",emptyTitle:"Loyalty programme not configured",emptyCopy:"Your points, tier and redemption options will appear when the loyalty programme is configured and enabled."},
 };
 
-function FeatureWorkspace({view,accountType,catalogue}:{view:FeatureView;accountType:string;catalogue:CatalogueProduct[]}) {
+function FeatureWorkspace({view,accountType,catalogue,catalogueOptions}:{view:FeatureView;accountType:string;catalogue:CatalogueProduct[];catalogueOptions:CatalogueOption[]}) {
   const feature=featureDetails[view];
+  const categoryCode=({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view];
+  const options=catalogueOptions.filter((option)=>option.category_code===categoryCode);
   return <div className="tr-feature-workspace">
     <section className="tr-feature-hero">
       <div className="tr-feature-icon">{feature.icon}</div>
       <div><span className="tr-kicker">{feature.eyebrow}</span><h2>{feature.title}</h2><p>{feature.description}</p></div>
       <span className="tr-feature-account">{accountType.replace(/[_-]/g," ")}</span>
     </section>
-    {feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view])?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view]).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view]).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}</section> :
+    {feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin"} as Record<string,string>)[view])?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===categoryCode).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===categoryCode).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/ >}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> :
     <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
     <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
   </div>;
