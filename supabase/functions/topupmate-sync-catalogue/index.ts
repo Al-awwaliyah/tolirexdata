@@ -70,6 +70,8 @@ Deno.serve(async req => {
         : spec.key==="electricity"
           ? {response:(statusPayload as Obj).electricity??(statusPayload as any).response?.electricity??[]}
           : await fetchEndpoint("/services/?service="+encodeURIComponent(spec.key));
+      if((spec.key==="cable-provider"||spec.key==="electricity")&&rows(payload).length===0)
+        throw new Error("Topupmate /status/ did not return any "+spec.key+" options.");
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
       const list=rows(payload);
       for(const item of list) {
