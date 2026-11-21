@@ -59,6 +59,11 @@ Deno.serve(async request=>{
  if(!allowed.includes(action))return json({error:"Unsupported card action"},400);
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const user=authData.user;
+ if(action!=="list"){
+  const {data:provider,error:providerError}=await admin.from("service_providers").select("status").eq("code","topupmate").maybeSingle();
+  if(providerError||!provider||!["active","degraded"].includes(provider.status))
+   throw new UserError("Topupmate virtual-card services are currently disabled.");
+ }
  try{
  if(action==="save_profile"){
   const p:Obj={first_name:str(body.firstName),last_name:str(body.lastName),phone:str(body.phone),email:str(body.email||user.email),date_of_birth:str(body.dateOfBirth),address:str(body.address),state:str(body.state),city:str(body.city)};
