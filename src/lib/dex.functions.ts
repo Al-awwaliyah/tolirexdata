@@ -54,7 +54,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => {
           const networkCode = String(item.network_or_operator ?? "");
           const networkOption = (catalogueOptions.data ?? []).find((option: any) => option.category_code === "data" && option.option_type === "network" && option.option_code === networkCode);
-          return { id: item.id, network: networkOption?.name ?? networkCode || item.category_name, networkCode, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
+          return { id: item.id, network: (networkOption?.name ?? networkCode) || item.category_name, networkCode, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
         }),
         catalogue: catalogue.data ?? [],
         catalogueOptions: catalogueOptions.data ?? [],
@@ -86,7 +86,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => {
           const networkCode = String(item.network_or_operator ?? "");
           const networkOption = (catalogueOptions.data ?? []).find((option: any) => option.category_code === "data" && option.option_type === "network" && option.option_code === networkCode);
-          return { id: item.id, network: networkOption?.name ?? networkCode || item.category_name, networkCode, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
+          return { id: item.id, network: (networkOption?.name ?? networkCode) || item.category_name, networkCode, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
         }),
       catalogue: catalogue.data ?? [],
       catalogueOptions: catalogueOptions.data ?? [],
