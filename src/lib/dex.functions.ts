@@ -292,3 +292,25 @@ export const getTolirexAdminOverview = createServerFn({ method: "GET" })
       generatedAt: new Date().toISOString(),
     };
   });
+
+/** Authenticated Topupmate virtual-card actions. Provider credentials remain in Supabase Edge Functions. */
+export const manageTopupmateVirtualCard = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    action: z.enum(["list","quote","save_profile","create","topup","withdraw","details","transactions","freeze","unfreeze","terminate"]),
+    kind: z.string().optional(), amountUsd: z.number().positive().optional(),
+    cardId: z.string().uuid().optional(), idempotencyKey: z.string().min(12).max(100).optional(),
+    firstName: z.string().optional(), lastName: z.string().optional(), phone: z.string().optional(),
+    email: z.string().optional(), dateOfBirth: z.string().optional(), address: z.string().optional(),
+    state: z.string().optional(), city: z.string().optional(), brand: z.string().optional(),
+    startDate: z.string().optional(), endDate: z.string().optional(), page: z.number().int().positive().optional(),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    const authContext = context as AuthContext;
+    const { data: result, error } = await authContext.supabase.functions.invoke("topupmate-virtual-cards", { body: data });
+    if (error) throw new Error("Unable to contact the virtual-card service. Check your card activity before trying again.");
+    if (!result) throw new Error("The virtual-card service returned no result.");
+    if (result.error && !result.success) throw new Error(String(result.error));
+    return result;
+  });
+
