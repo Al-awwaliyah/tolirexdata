@@ -21,7 +21,7 @@ Deno.serve(async req=>{
   const results=[];
   for(const order of orders??[]){
     try{
-      const target=new URL("https://connect.topupmate.com/api/transaction/status/");
+      const root=(Deno.env.get("TOPUPMATE_BASE_URL")||"https://connect.topupmate.com/api").replace(/\\/$/,"");\n      const target=new URL(root+"/transaction/status/");
       target.searchParams.set("reference",order.request_id);
       const response=await fetch(target,{headers:{Authorization:"Token "+token,Accept:"application/json"},signal:AbortSignal.timeout(20000)});
       const body=await response.json().catch(()=>({}));
