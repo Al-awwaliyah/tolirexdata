@@ -64,6 +64,7 @@ type CatalogueOption = { id: string; category_code: string; option_type: string;
 type DataOrder = TableRows<"data_orders">;
 type Funding = TableRows<"fundings">;
 type WalletTransaction = TableRows<"wallet_transactions">;
+type ServiceOrder = { id:string; user_id:string; category_id:string; product_id:string|null; request_id:string; recipient:string; amount:number; currency:string; status:string; provider_status:string|null; provider_message:string|null; created_at:string; updated_at:string };
 type Profile = TableRows<"profiles">;
 type DashboardData = {
   profile: Profile | null;
@@ -72,6 +73,7 @@ type DashboardData = {
   catalogue: CatalogueProduct[];
   catalogueOptions: CatalogueOption[];
   orders: DataOrder[];
+  serviceOrders: ServiceOrder[];
   fundings: Funding[];
   transactions: WalletTransaction[];
   users: Profile[];
@@ -505,6 +507,7 @@ function FundWalletView(props: { busy: boolean; fundingAmount: string; setFundin
 function ActivityView({ dashboard }: { dashboard: DashboardData | null }) {
   const transactions = [...(dashboard?.transactions ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const orders = [...(dashboard?.orders ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const serviceOrders = [...(dashboard?.serviceOrders ?? [])].sort((a,b)=>b.created_at.localeCompare(a.created_at));
   const fundings = [...(dashboard?.fundings ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
     <div className="space-y-6">
@@ -512,9 +515,16 @@ function ActivityView({ dashboard }: { dashboard: DashboardData | null }) {
         <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Wallet transactions</h2><p className="mt-1 text-sm text-muted-foreground">Credits and data purchase debits</p></div>
         {transactions.length ? transactions.map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} />) : <EmptyState icon={<Wallet />} title="No transactions yet" copy="Wallet credits and purchases will appear here." />}
       </section>
+      <section className="border bg-background">
+        <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Airtime & Data purchases</h2><p className="mt-1 text-sm text-muted-foreground">Live supplier order status and recipient details</p></div>
+        {serviceOrders.length ? serviceOrders.map((order) => <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 last:border-0">
+          <div className="min-w-0"><p className="font-medium text-foreground">{order.recipient}</p><p className="mt-1 text-xs text-muted-foreground">Ref {order.request_id} · {new Date(order.created_at).toLocaleString("en-NG")}</p>{order.provider_message && <p className="mt-1 max-w-xl text-xs text-muted-foreground">{order.provider_message}</p>}</div>
+          <div className="text-right"><p className="font-semibold text-foreground">{formatNaira(order.amount)}</p><span className="text-xs capitalize text-muted-foreground">{order.status.replace(/_/g," ")}</span></div>
+        </div>) : <EmptyState icon={<Smartphone/>} title="No Airtime or Data purchases yet" copy="Purchases and their supplier status will appear here."/>}
+      </section>
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="border bg-background">
-          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Data orders</h2></div>
+          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Legacy Data orders</h2></div>
           {orders.length ? orders.map((order) => <OrderRow key={order.id} order={order} />) : <EmptyState icon={<Database />} title="No data orders yet" copy="Your completed purchases will show here." />}
         </section>
         <section className="border bg-background">
