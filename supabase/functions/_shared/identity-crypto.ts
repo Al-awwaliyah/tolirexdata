@@ -1,18 +1,18 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
+function decodeBase64(value: string): ArrayBuffer {
   const binary = atob(value);
   const bytes = new Uint8Array(new ArrayBuffer(binary.length));
   for (let index = 0; index < binary.length; index++) {
     bytes[index] = binary.charCodeAt(index);
   }
-  return bytes;
+  return bytes.buffer as ArrayBuffer;
 }
 
-function encodeBase64(value: Uint8Array): string {
+function encodeBase64(value: ArrayBuffer): string {
   let binary = "";
-  for (const byte of value) binary += String.fromCharCode(byte);
+  for (const byte of new Uint8Array(value)) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
 
@@ -27,8 +27,8 @@ async function encryptionKey() {
 export async function encryptIdentity(value: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await encryptionKey();
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(value));
-  return `${encodeBase64(iv)}.${encodeBase64(new Uint8Array(encrypted))}`;
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv.buffer as ArrayBuffer }, key, encoder.encode(value).buffer as ArrayBuffer);
+  return `${encodeBase64(iv.buffer as ArrayBuffer)}.${encodeBase64(encrypted)}`;
 }
 
 export async function decryptIdentity(value: string): Promise<string> {
