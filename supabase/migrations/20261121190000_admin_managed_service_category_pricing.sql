@@ -1,4 +1,8 @@
 -- Admin-managed electricity service fees/markups for amount-based meter payments.
+insert into public.admin_role_permissions(admin_role,permission_key)
+values('finance_admin','pricing.manage')
+on conflict do nothing;
+
 create unique index if not exists pricing_rules_category_account_uidx
   on public.pricing_rules(category_id,account_type)
   where product_id is null;
