@@ -306,7 +306,7 @@ Deno.serve(async (request) => {
   }).select("id").single();
   if (runError || !run) return json({ error: "Could not create catalogue sync record" }, 500);
 
-  const results = await Promise.all(ENDPOINTS.map(async (endpoint) => {
+  const results: Array<{key:string;status:"success"|"failed"|"skipped";products?:number;options?:number;error?:string}> = await Promise.all(ENDPOINTS.map(async (endpoint) => {
     try {
       const payload = await fetchCatalogue(endpoint, supplierUserId, supplierApiKey);
       const { error: snapshotError } = await admin.from("provider_catalogue_snapshots").upsert({
@@ -367,11 +367,11 @@ Deno.serve(async (request) => {
   const failed = results.filter((item) => item.status === "failed" || item.status === "skipped").length;
   const products = results.reduce((sum,item) => sum + (item.status === "success" ? item.products : 0),0);
   const options = results.reduce((sum,item) => sum + (item.status === "success" ? item.options : 0),0);
-  const finalStatus = failed === 0 ? "success" : succeeded === 0 ? "failed" : "partial";
+  const finalStatus = failed === 0 && skipped === 0 ? "success" : succeeded === 0 ? "failed" : "partial";
   await admin.from("provider_catalogue_sync_runs").update({
     status: finalStatus, discovered_products: products, discovered_options: options,
     inserted_products: products, failed_endpoints: results.filter((item) => item.status === "failed"),
-    summary: { endpoints: results.length, succeeded, failed, products, options },
+    summary: { endpoints: results.length, succeeded, failed, skipped, products, options },
     completed_at: new Date().toISOString(),
   }).eq("id",run.id);
 
@@ -383,7 +383,7 @@ Deno.serve(async (request) => {
 
   return json({
     provider:"clubkonnect",run_id:run.id,completed_at:new Date().toISOString(),
-    succeeded,failed,products,options,results,
+    succeeded,failed,skipped,products,options,results,
     note:"Imported products remain unpublished and inactive. Admin must configure account prices and explicitly publish each product. Airtime top-ups are amount-based; recharge PIN products are imported only when supplier discount data can be normalized.",
-  },failed===ENDPOINTS.length?502:200);
+  },failed===results.length?502:200);
 });
