@@ -141,7 +141,7 @@ function AdminDashboard() {
           const payload = await response.clone().json();
           const reasons = Array.isArray(payload?.results)
             ? payload.results.filter((item: any) => item.status === "failed")
-                .map((item: any) => item.key + ": " + item.error).join(" | ")
+                .map((item: any) => (item.service || item.key || "endpoint") + ": " + item.error).join(" | ")
             : "";
           detail = [payload?.error || detail, reasons].filter(Boolean).join(" — ");
         } catch {
@@ -160,7 +160,7 @@ function AdminDashboard() {
       const failed = Array.isArray(data?.results)
         ? data.results.filter((item: any) => item.status === "failed")
         : [];
-      const summary = failed.map((item: any) => item.key + ": " + item.error).join(" | ");
+      const summary = failed.map((item: any) => (item.service || item.key || "endpoint") + ": " + item.error).join(" | ");
       setError(summary || (data?.status === "partial" ? "Catalogue sync completed partially. Review the sync history." : ""));
       await loadCatalogue();
     }
@@ -268,7 +268,7 @@ function AdminDashboard() {
             <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-[11px] text-slate-500">Awaiting review</p><p className="mt-2 text-2xl font-bold">{catalogueProducts.filter(p=>p.publication_status==="pending").length}</p></div>
           </div>
           <div className="space-y-3">
-            {catalogueLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-400">Loading supplier catalogue…</div> : catalogueProducts.length===0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><Package className="mx-auto text-slate-400" size={26}/><p className="mt-3 text-sm font-semibold text-slate-700">No supplier products imported yet</p><p className="mt-1 text-xs text-slate-500">Run a supplier sync when Topupmate API credentials and catalogue endpoints are configured.</p></div> : catalogueProducts.map((product)=>{
+            {catalogueLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-400">Loading supplier catalogue…</div> : catalogueProducts.length===0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><Package className="mx-auto text-slate-400" size={26}/><p className="mt-3 text-sm font-semibold text-slate-700">No Topupmate products imported yet</p><p className="mt-1 text-xs text-slate-500">Run a supplier sync when Topupmate API credentials and catalogue endpoints are configured.</p></div> : catalogueProducts.map((product)=>{
               const draft=catalogueDrafts[product.id]??{personal:"",agent:"",business:""};
               const category=product.service_categories?.name??product.service_categories?.code??"Service";
               const provider=product.service_providers?.name??"Supplier";
