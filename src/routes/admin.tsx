@@ -50,7 +50,14 @@ function AdminDashboard() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerPage, setCustomerPage] = useState(1);
   const [customerTotal, setCustomerTotal] = useState(0);
-  const [customersLoading, setCustomersLoading] = useState(false);\n  const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);\n  const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);\n  const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);\n  const [catalogueLoading, setCatalogueLoading] = useState(false);\n  const [catalogueSyncing, setCatalogueSyncing] = useState(false);\n  const [catalogueDrafts, setCatalogueDrafts] = useState<Record<string,{personal:string;agent:string;business:string}>>({});\n  const [catalogueSaving, setCatalogueSaving] = useState<string | null>(null);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);
+  const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);
+  const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);
+  const [catalogueLoading, setCatalogueLoading] = useState(false);
+  const [catalogueSyncing, setCatalogueSyncing] = useState(false);
+  const [catalogueDrafts, setCatalogueDrafts] = useState<Record<string,{personal:string;agent:string;business:string}>>({});
+  const [catalogueSaving, setCatalogueSaving] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const current = modules.find((item) => item.id === active) ?? modules[0];
