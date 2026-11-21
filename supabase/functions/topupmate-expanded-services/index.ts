@@ -67,7 +67,7 @@ Deno.serve(async request=>{
    const category=text(body.categoryCode),productId=text(body.productId),optionType=text(body.optionType),optionCode=text(body.optionCode);
    const idempotency=text(body.idempotencyKey);
    if(!/^[A-Za-z0-9_-]{12,100}$/.test(idempotency))return json({error:"A valid request reference is required."},400);
-   const supported=["cable_tv","electricity","recharge_pin","data_pin","education","internet"];
+   const supported=["cable_tv","electricity","recharge_pin","data_pin","education","internet","gift_card"];
    if(!supported.includes(category))return json({error:"This Topupmate service is not enabled yet."},400);
    const quantity=Math.max(1,Math.min(100,Math.floor(number(body.quantity)||1)));
    const recipient=text(body.recipient);
@@ -102,12 +102,18 @@ Deno.serve(async request=>{
    }
    if(category==="education"&&quantity>20)return json({error:"Exam PIN quantity cannot exceed 20."},400);
    if(category==="internet"&&!recipient)return json({error:"Enter the ISP account number or phone number."},400);
+   if(category==="gift_card"&&(!product||!/^\\S+@\\S+\\.\\S+$/.test(recipient)||quantity>20))return json({error:"Select a gift card, enter a valid recipient email and choose a valid quantity."},400);
    const metadata:Obj={quantity};
    if(body.meterType)metadata.meter_type=text(body.meterType);
    if(body.subtype)metadata.subtype=text(body.subtype);
    if(body.accountType)metadata.account_type=text(body.accountType);
    if(body.contactPhone){const phone=cleanPhone(text(body.contactPhone));if(!phone)return json({error:"Enter a valid contact phone number."},400);metadata.contact_phone=phone;}
    if(category==="internet")metadata.internet_provider=text(product?.metadata?.source_service||"smile");
+   if(category==="gift_card"){
+    metadata.supplier_product_id=text(product?.metadata?.supplier_product_id);
+    metadata.recipient_denomination=number(product?.face_value);
+    metadata.recipient_currency=text(product?.metadata?.recipient_currency||"USD");
+   }
    const {data:order,error:reserveError}=await admin.rpc("reserve_topupmate_service_order",{
     p_user_id:auth.user.id,p_category_code:category,p_product_id:product?.id??null,
     p_option_type:optionType||(["electricity","cable_tv"].includes(category)?"operator":"network"),
@@ -131,6 +137,11 @@ Deno.serve(async request=>{
     path="/datapin/";payload={network:optionCode,quantity,data_plan:supplierPlan,businessname:"TolirexData",ref};
    }else if(category==="education"){
     path="/exam/";payload={provider:supplierPlan,quantity,ref};
+   }else if(category==="gift_card"){
+    const supplierProductId=text(product?.metadata?.supplier_product_id);
+    const denomination=number(product?.face_value);
+    if(!supplierProductId||denomination<=0)throw new Error("Gift card product mapping is incomplete.");
+    path="/giftcard/";payload={product:supplierProductId,amount:denomination,email:recipient,sender:"TolirexData Customer",units:quantity,ref};
    }else if(category==="internet"){
     const isp=text(product?.metadata?.source_service||"smile");
     if(isp==="smile"){
@@ -156,8 +167,16 @@ Deno.serve(async request=>{
    if(response.ok&&state==="success"){
     const {error}=await admin.rpc("complete_catalogue_service_order",{p_order_id:order.id,p_provider_order_id:topupmateReference(response.body),p_provider_status:"success",p_message:"Topupmate confirmed success"});
     if(error)return json({orderId:order.id,status:"unknown",reference:ref,message:"Supplier success is being reconciled with your wallet."},202);
-    const fulfilment=["recharge_pin","data_pin","education"].includes(category)?resultPayload(response.body):null;
-    return json({orderId:order.id,status:"successful",reference:ref,fulfilment});
+    let fulfilment=["recharge_pin","data_pin","education"].includes(category)?resultPayload(response.body):null;
+    let fulfilmentPending=false;
+    if(category==="gift_card"){
+     try{
+      const redeemed=await topupmateGet("/giftcard/redeem/",{ref});
+      if(redeemed.ok&&classify(redeemed.body)==="success")fulfilment=resultPayload(redeemed.body);
+      else fulfilmentPending=true;
+     }catch{fulfilmentPending=true;}
+    }
+    return json({orderId:order.id,status:"successful",reference:ref,fulfilment,fulfilmentPending});
    }
    if(response.ok&&state==="fail"){
     const {error}=await admin.rpc("fail_and_refund_catalogue_service_order",{p_order_id:order.id,p_provider_status:"fail",p_reason:topupmateMessage(response.body)});
