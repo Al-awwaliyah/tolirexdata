@@ -179,18 +179,6 @@ export const reviewFunding = createServerFn({ method: "POST" })
   });
 
 /**
- * Loads the live ClubKonnect product catalog from the server.
- * Credentials are read only in the server module and never reach the browser.
- */
-export const getClubKonnectCatalog = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async () => {
-    const { getClubKonnectCatalog: loadCatalog } = await import("@/lib/clubkonnect.server");
-    return loadCatalog();
-  });
-
-
-/**
  * Creates a pending card-funding request and a Flutterwave hosted checkout link.
  * A verified webhook must settle the funding through an atomic database routine
  * before the wallet is credited; the browser redirect is never proof of payment.
