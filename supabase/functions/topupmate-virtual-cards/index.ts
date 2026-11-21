@@ -122,14 +122,14 @@ Deno.serve(async request=>{
    if(!claimed)return json({success:true,status:op.status,reference:op.reference,message:"This card request has already been submitted or is being checked. Do not retry it."},202);
    const parts=str(profile.first_name).split(/\s+/);
    const payload={first_name:profile.first_name,last_name:profile.last_name,phone:profile.phone,email:profile.email,dob:profile.date_of_birth,kycType:str(kyc.identity_kind).toUpperCase(),kycNo:identity,address:profile.address,state:profile.state,city:profile.city,amount,brand:str(body.brand||"VISA").toUpperCase(),ref:reference};
-   const q=await topupmatePost("/cards/create/",payload);
+   let q;try{q=await topupmatePost("/cards/create/",payload);}catch(error){await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:"transport_error",p_message:"Topupmate card creation response was not received"});return json({success:true,status:"unknown",reference,message:"We are checking your card creation request. Do not submit it again."},202);}
    const state=topupmateStatus(q.body);
-   if(!q.ok||state==="fail"){
+   if(q.ok&&state==="fail"){
     const {error:refundError}=await admin.rpc("refund_virtual_card_operation",{p_operation_id:op.id,p_provider_status:"fail",p_reason:"Topupmate confirmed card creation failure"});
     return json({success:false,status:refundError?"unknown":"refunded",error:refundError?"The card provider rejected the request. Contact support to reconcile your wallet.":"The card provider rejected the request; your wallet has been refunded."},refundError?202:400);
    }
-   if(state==="processing"){
-    await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:"processing",p_provider_reference:topupmateReference(q.body),p_message:"Topupmate is processing card creation"});
+   if(!q.ok||state==="processing"){
+    await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:!q.ok?"http_"+q.httpStatus:"processing",p_provider_reference:topupmateReference(q.body),p_message:"Topupmate is processing or card creation requires reconciliation"});
     return json({success:true,status:"processing",reference,message:"Your card is being created. Do not submit another request."},202);
    }
    const d=q.body?.response??q.body?.data??q.body;
@@ -153,11 +153,12 @@ Deno.serve(async request=>{
   const {data:claimed}=await admin.rpc("claim_virtual_card_operation",{p_operation_id:op.id});
   if(!claimed)return json({success:true,status:op.status,reference:op.reference,message:"This card request is already being processed or requires review. Do not retry it."},202);
   let q;
-  if(action==="topup")q=await topupmatePost("/cards/topup/",{card_id:card!.provider_card_id,amount});
+  let q;try{if(action==="topup")q=await topupmatePost("/cards/topup/",{card_id:card!.provider_card_id,amount});
   else if(action==="withdraw")q=await topupmatePost("/cards/withdraw/",{card_id:card!.provider_card_id,amount});
-  else q=await topupmatePost(action==="freeze"?"/cards/freeze/":action==="unfreeze"?"/cards/unfreeze/":"/cards/terminate/",{card_id:card!.provider_card_id});
+  else q=await topupmatePost(action==="freeze"?"/cards/freeze/":action==="unfreeze"?"/cards/unfreeze/":"/cards/terminate/",{card_id:card!.provider_card_id});}
+  catch(error){await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:"transport_error",p_message:"Topupmate card operation response was not received"});return json({success:true,status:"unknown",reference,message:"We are checking this card operation. Do not submit it again."},202);}
   const state=topupmateStatus(q.body);
-  if(!q.ok||state==="fail"){
+  if(q.ok&&state==="fail"){
    if(["topup"].includes(action)){
     const {error:refundError}=await admin.rpc("refund_virtual_card_operation",{p_operation_id:op.id,p_provider_status:"fail",p_reason:"Topupmate confirmed card funding failure"});
     return json({success:false,status:refundError?"unknown":"refunded",error:refundError?"Funding failed; contact support for reconciliation.":"Funding failed and your wallet has been refunded."},refundError?202:400);
@@ -165,8 +166,8 @@ Deno.serve(async request=>{
    await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:"fail",p_message:"Provider rejected card operation; manual status review required"});
    return json({success:false,status:"unknown",error:generic},202);
   }
-  if(state==="processing"){
-   await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:"processing",p_provider_reference:topupmateReference(q.body),p_message:"Topupmate operation is processing"});
+  if(!q.ok||state==="processing"){
+   await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:!q.ok?"http_"+q.httpStatus:"processing",p_provider_reference:topupmateReference(q.body),p_message:"Topupmate operation is processing or requires reconciliation"});
    return json({success:true,status:"processing",reference,message:"Your card operation is processing. Do not submit it again."},202);
   }
   const {error:completeError}=await admin.rpc("complete_virtual_card_operation",{p_operation_id:op.id,p_provider_status:"success",p_provider_reference:topupmateReference(q.body),p_message:"Topupmate confirmed "+action});
