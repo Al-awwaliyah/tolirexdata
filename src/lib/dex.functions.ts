@@ -35,15 +35,17 @@ export const getDexDashboard = createServerFn({ method: "GET" })
 
     if (adminAccess) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const [profiles, wallets, orders, fundings, transactions, catalogue] = await Promise.all([
+      const [profiles, wallets, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
         supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallets").select("*").limit(500),
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
+        (supabaseAdmin as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,created_at,updated_at").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("fundings").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
         (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+        (supabaseAdmin as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
       ]);
-      const results = [profiles, wallets, orders, fundings, transactions, catalogue];
+      const results = [profiles, wallets, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
 
       return {
@@ -51,7 +53,9 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         wallet: wallets.data?.find((wallet) => wallet.user_id === userId) ?? null,
         plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
         catalogue: catalogue.data ?? [],
+        catalogueOptions: catalogueOptions.data ?? [],
         orders: orders.data ?? [],
+        serviceOrders: serviceOrders.data ?? [],
         fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
         users: profiles.data ?? [],
@@ -59,28 +63,59 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       };
     }
 
-    const [profile, wallet, orders, fundings, transactions, catalogue] = await Promise.all([
+    const [profile, wallet, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("data_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
+      (supabase as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,created_at,updated_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(100),
       supabase.from("fundings").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+      (supabase as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
     ]);
-    const results = [profile, wallet, orders, fundings, transactions, catalogue];
-    if (results.some((result) => result.error)) throw new Error("Unable to load your DEX Sub account");
+    const results = [profile, wallet, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions];
+    if (results.some((result) => result.error)) throw new Error("Unable to load your TolirexData account");
 
     return {
       profile: profile.data,
       wallet: wallet.data,
       plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
       catalogue: catalogue.data ?? [],
+      catalogueOptions: catalogueOptions.data ?? [],
       orders: orders.data ?? [],
+      serviceOrders: serviceOrders.data ?? [],
       fundings: fundings.data ?? [],
       transactions: transactions.data ?? [],
       users: [],
       isAdmin: false,
     };
+  });
+
+export const purchaseAirtimeOrData = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    service: z.enum(["airtime", "data"]),
+    networkCode: z.string().min(1).max(30),
+    recipient: z.string().regex(/^\d{10,14}$/),
+    productId: z.string().uuid().optional(),
+    amount: z.number().int().min(50).max(200000).optional(),
+    idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{12,100}$/),
+  }).superRefine((value, ctx) => {
+    if (value.service === "data" && !value.productId) {
+      ctx.addIssue({ code: "custom", path: ["productId"], message: "Choose a data plan." });
+    }
+    if (value.service === "airtime" && value.amount === undefined) {
+      ctx.addIssue({ code: "custom", path: ["amount"], message: "Enter an airtime amount." });
+    }
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    const authContext = context as AuthContext;
+    const { data: result, error } = await authContext.supabase.functions.invoke("purchase-airtime-data", {
+      body: data,
+    });
+    if (error) throw new Error("Unable to submit purchase. Check your transaction history before trying again.");
+    if (!result) throw new Error("The purchase service returned no result.");
+    return result;
   });
 
 export const createDataOrder = createServerFn({ method: "POST" })
