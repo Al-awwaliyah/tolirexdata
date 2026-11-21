@@ -103,6 +103,42 @@ begin
     face_value=excluded.face_value,
     cost_price=excluded.cost_price,
     metadata=excluded.metadata,
+    active=case
+      when service_products.selling_price < excluded.cost_price
+        or exists (
+          select 1 from public.pricing_rules r
+          where r.product_id=service_products.id and r.active
+            and coalesce(r.fixed_selling_price,service_products.selling_price)<excluded.cost_price
+        ) then false
+      else service_products.active
+    end,
+    publication_status=case
+      when service_products.selling_price < excluded.cost_price
+        or exists (
+          select 1 from public.pricing_rules r
+          where r.product_id=service_products.id and r.active
+            and coalesce(r.fixed_selling_price,service_products.selling_price)<excluded.cost_price
+        ) then 'pending'
+      else service_products.publication_status
+    end,
+    reviewed_by=case
+      when service_products.selling_price < excluded.cost_price
+        or exists (
+          select 1 from public.pricing_rules r
+          where r.product_id=service_products.id and r.active
+            and coalesce(r.fixed_selling_price,service_products.selling_price)<excluded.cost_price
+        ) then null
+      else service_products.reviewed_by
+    end,
+    reviewed_at=case
+      when service_products.selling_price < excluded.cost_price
+        or exists (
+          select 1 from public.pricing_rules r
+          where r.product_id=service_products.id and r.active
+            and coalesce(r.fixed_selling_price,service_products.selling_price)<excluded.cost_price
+        ) then null
+      else service_products.reviewed_at
+    end,
     supplier_last_seen_at=now(),
     updated_at=now()
   returning id into v_product_id;
