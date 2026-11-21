@@ -187,7 +187,8 @@ function AdminDashboard() {
             ? payload.results.filter((item: any) => item.status === "failed")
                 .map((item: any) => (item.service || item.key || "endpoint") + ": " + item.error).join(" | ")
             : "";
-          const missing = Array.isArray(payload?.missing) && payload.missing.length ? "Missing configuration: " + payload.missing.join(", ") : "";\n          detail = [payload?.error || detail, missing, reasons].filter(Boolean).join(" — ");
+          const missing = Array.isArray(payload?.missing) && payload.missing.length ? "Missing configuration: " + payload.missing.join(", ") : "";
+          detail = [payload?.error || detail, missing, reasons].filter(Boolean).join(" — ");
         } catch {
           try {
             const bodyText = await response.clone().text();
