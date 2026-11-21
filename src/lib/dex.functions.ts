@@ -35,16 +35,17 @@ export const getDexDashboard = createServerFn({ method: "GET" })
 
     if (adminAccess) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const [profiles, wallets, orders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
+      const [profiles, wallets, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
         supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallets").select("*").limit(500),
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
+        (supabaseAdmin as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,provider_message,created_at,updated_at").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("fundings").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
         (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
         (supabaseAdmin as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
       ]);
-      const results = [profiles, wallets, orders, fundings, transactions, catalogue, catalogueOptions];
+      const results = [profiles, wallets, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
 
       return {
@@ -54,6 +55,8 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         catalogue: catalogue.data ?? [],
         catalogueOptions: catalogueOptions.data ?? [],
         orders: orders.data ?? [],
+      serviceOrders: serviceOrders.data ?? [],
+        serviceOrders: serviceOrders.data ?? [],
         fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
         users: profiles.data ?? [],
@@ -61,16 +64,17 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       };
     }
 
-    const [profile, wallet, orders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
+    const [profile, wallet, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("data_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
+      (supabase as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,provider_message,created_at,updated_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(100),
       supabase.from("fundings").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
       (supabase as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
     ]);
-    const results = [profile, wallet, orders, fundings, transactions, catalogue, catalogueOptions];
+    const results = [profile, wallet, orders, serviceOrders, fundings, transactions, catalogue, catalogueOptions];
     if (results.some((result) => result.error)) throw new Error("Unable to load your TolirexData account");
 
     return {
