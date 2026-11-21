@@ -6,6 +6,11 @@ const json = (body: unknown, status=200) => new Response(JSON.stringify(body), {
 const text = (v: unknown) => String(v ?? "").trim();
 const first = (o:Obj, keys:string[]) => { for (const k of keys) { const v=text(o[k]); if(v) return v; } return ""; };
 const num = (v:unknown) => { const n=Number(String(v??"").replace(/[₦,$,\s]/g,"")); return Number.isFinite(n) && n>0 ? n : null; };
+const networkCode = (value:unknown) => {
+  const raw=text(value), key=raw.toLowerCase().replace(/[^a-z0-9]/g,"");
+  const aliases:Record<string,string>={mtn:"1","01":"1",airtel:"2","02":"2",glo:"3",globacom:"3","03":"3","9mobile":"4",ninemobile:"4",etisalat:"4","04":"4"};
+  return aliases[key]??raw;
+};
 function rows(value:unknown): Obj[] {
   if (Array.isArray(value)) return value.filter(x=>x && typeof x==="object" && !Array.isArray(x)) as Obj[];
   if (!value || typeof value!=="object") return [];
@@ -66,12 +71,12 @@ Deno.serve(async req => {
         const label=first(item,["name","plan_name","planName","product_name","productName","provider","provider_name","description"]);
         if(!code||!label) continue;
         if(spec.kind==="options") {
-          const {error}=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:spec.category,p_option_type:spec.optionType,p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:spec.key}});
+          const {error}=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:spec.category,p_option_type:spec.optionType,p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:spec.key,supplier_discount:item.discount??item.discount_percent??item.discountPercentage??null}});
           if(!error) options++;
         } else {
           const cost=num(item.price??item.amount??item.cost??item.provider_price??item.providerPrice??item.selling_price);
           if(!cost) continue;
-          const network=first(item,["network","network_name","networkName","provider","provider_name"]);
+          const network=networkCode(first(item,["networkid","network_id","networkId","network_code","networkCode","network","network_name","networkName","provider_id","provider","provider_name"]));
           const validity=first(item,["validity","duration","period","validity_period"]);
           const {error}=await admin.rpc("sync_provider_catalogue_product",{p_provider_code:"topupmate",p_category_code:spec.category,p_product_code:spec.key+":"+code,p_name:label,p_network_or_operator:network||null,p_description:validity||null,p_face_value:num(item.face_value??item.denomination),p_cost_price:cost,p_metadata:{source_service:spec.key,supplier_plan_id:code}});
           if(!error) products++;
