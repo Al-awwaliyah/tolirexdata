@@ -13,6 +13,7 @@ const pick = (o:Obj, keys:string[]):unknown => {
   }
   return undefined;
 };
+const numberOrZero=(v:unknown)=>Number.isFinite(Number(v))?Number(v):0;
 const num = (v:unknown) => { const n=Number(String(v??"").replace(/[₦,$,\s]/g,"")); return Number.isFinite(n) && n>0 ? n : null; };
 const networkCode = (value:unknown) => text(value);
 function rows(value:unknown): Obj[] {
