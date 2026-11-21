@@ -15,7 +15,7 @@ function credentials() {
 async function getJson(path: string, params: Record<string, string> = {}): Promise<unknown> {
   const url = new URL(path, API_ROOT);
   Object.entries({ ...credentials(), ...params }).forEach(([key, value]) => url.searchParams.set(key, value));
-  const response = await fetch(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-store" });
+  const response = await fetch(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`ClubKonnect catalogue request failed (${response.status}).`);
   const payload: unknown = await response.json();
   if (payload && typeof payload === "object" && "status" in payload) {
@@ -38,5 +38,5 @@ export async function getClubKonnectCatalog() {
       getJson("/APIElectricityDiscosV1.asp", {}),
       getJson("/APIEPINDiscountV2.asp"),
     ]);
-  return { dataNetworks, dataPlans, airtimeNetworks, cableTypes, cablePackages, electricityDiscos, epinDiscounts };
+  const electricityConfig = process.env.CLUBKONNECT_ELECTRICITY_BILLERS_JSON;\n  let electricityDiscos: unknown = null;\n  if (electricityConfig) {\n    try { electricityDiscos = JSON.parse(electricityConfig); }\n    catch { throw new Error("CLUBKONNECT_ELECTRICITY_BILLERS_JSON is not valid JSON."); }\n  }\n  return { dataNetworks, dataPlans, airtimeNetworks, cableTypes, cablePackages, electricityDiscos, epinDiscounts };
 }
