@@ -1,5 +1,4 @@
 const LIVE="https://connect.topupmate.com/api/";
-const SANDBOX="https://connect.topupmate.com/sandbox/";
 export type TopupmateResult={ok:boolean;httpStatus:number;body:any};
 export function topupmateBase(){const configured=(Deno.env.get("TOPUPMATE_BASE_URL")??"").trim();if(configured)return configured.replace(/\/+$/,"")+"/";return (Deno.env.get("TOPUPMATE_ENV")??"live").toLowerCase()==="sandbox"?SANDBOX:LIVE;}
 export async function topupmateRequest(path:string,init:RequestInit={}):Promise<TopupmateResult>{
