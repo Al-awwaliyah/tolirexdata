@@ -56,6 +56,7 @@ function AdminDataWorkspace({ moduleId, moduleLabel, onError }: { moduleId: stri
       body: { action: "workspace", module: aliases[moduleId] ?? moduleId, page, pageSize, search },
     });
     if (error || data?.error) { setRows([]); setTotal(0); onError(data?.error ?? error?.message ?? "Unable to load this workspace."); }
+    else if (data?.metrics) { setRows(Object.entries(data.metrics).map(([metric, value]) => ({ metric, value }))); setTotal(Object.keys(data.metrics).length); onError(""); }
     else { setRows(data?.rows ?? []); setTotal(data?.total ?? 0); onError(""); }
     setBusy(false);
   };
