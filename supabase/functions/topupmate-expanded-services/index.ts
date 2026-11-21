@@ -150,7 +150,7 @@ Deno.serve(async request=>{
      if(!["PhoneNumber","AccountNumber"].includes(actype))return json({error:"Select a valid Smile phone number or 10-digit account number type."},400);
      path="/smile-data/";payload={PhoneNumber:phone,BundleTypeCode:Number(supplierPlan),actype,ref};
     }else{
-     const amount=number(body.amount);if(amount<=0)return json({error:"Enter a valid ISP top-up amount."},400);
+     const amount=number(product?.cost_price);if(amount<=0)return json({error:"The selected ISP supplier price is unavailable."},409);
      path=isp==="alpha"?"/alphatopup/":isp==="kirani"?"/kirani/":"/ratel/";
      payload={phone:recipient,amount,ref};
     }
@@ -171,7 +171,7 @@ Deno.serve(async request=>{
     if(category==="gift_card"){
      try{
       const redeemed=await topupmateGet("/giftcard/redeem/",{ref});
-      if(redeemed.ok&&classify(redeemed.body)==="success")fulfilment=resultPayload(redeemed.body);
+      if(redeemed.ok&&classify(redeemed.body)!=="fail")fulfilment=resultPayload(redeemed.body);
       else fulfilmentPending=true;
      }catch{fulfilmentPending=true;}
     }
