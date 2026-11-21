@@ -18,7 +18,7 @@ select
       else round(p.cost_price + pr.markup_value,2)
     end,
     p.selling_price
-  ) as selling_price,
+  )::numeric(18,2) as selling_price,
   p.currency,
   p.sort_order
 from public.service_products p
