@@ -788,6 +788,8 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<"personal"|"agent"|"business">("personal");
+  const [businessName, setBusinessName] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -806,7 +808,7 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
           password,
           options: {
             emailRedirectTo: window.location.origin,
-            data: { full_name: name.trim(), phone },
+            data: { full_name: name.trim(), phone, account_type: accountType, business_legal_name: accountType === "business" ? businessName.trim() : "", agent_business_name: accountType === "agent" ? businessName.trim() : "" },
           },
         });
         if (error) throw error;
@@ -838,6 +840,8 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
         </DialogHeader>
         <form onSubmit={(event) => void submit(event)} className="mt-2 space-y-4">
           {mode === "signup" && <>
+            <Field label="Account type"><select value={accountType} onChange={(event)=>setAccountType(event.target.value as "personal"|"agent"|"business")} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="personal">Personal account</option><option value="agent">Agent / Reseller account</option><option value="business">Business account</option></select></Field>
+            {accountType !== "personal" && <Field label={accountType === "business" ? "Registered business name" : "Business / store name"}><Input value={businessName} onChange={event=>setBusinessName(event.target.value)} required/></Field>}
             <Field label="Full name"><Input autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} required /></Field>
             <Field label="Phone number"><Input autoComplete="tel" inputMode="numeric" maxLength={11} placeholder="08012345678" value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))} required /></Field>
           </>}
