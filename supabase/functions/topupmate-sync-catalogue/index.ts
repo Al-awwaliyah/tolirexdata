@@ -79,8 +79,10 @@ Deno.serve(async req => {
           ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","id","code"]
           : spec.key==="network"||spec.key==="airtime"
             ? ["network_id","networkId","network","id","code","provider_id","providerId"]
-            : spec.key==="data"
-            ? ["planid","plan_id","planId","data_plan","dataplan","id","code"]
+            : spec.key==="cabletv"
+              ? ["item_code","itemCode","plan_code","planCode","plan_id","planid","planId","id","code"]
+              : spec.key==="data"
+                ? ["planid","plan_id","planId","data_plan","dataplan","id","code"]
             : spec.key==="rechargepin"
               ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
               : spec.key==="datapin"
