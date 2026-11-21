@@ -111,10 +111,9 @@ Deno.serve(async request=>{
    const {data:profile}=await admin.from("cardholder_profiles").select("*").eq("user_id",user.id).maybeSingle();
    if(!profile)throw new UserError("Complete your cardholder address and date-of-birth details first.");
    const identity=await decryptIdentity(kyc.identity_ciphertext);
-   const rate=await fxRate(amount+Number(Deno.env.get("TOPUPMATE_CARD_CREATION_FEE_USD")||"0")+Number(Deno.env.get("TOPUPMATE_CARD_MARKUP_USD")||"0"));
    const fee=Number(Deno.env.get("TOPUPMATE_CARD_CREATION_FEE_USD")),minimum=Number(Deno.env.get("TOPUPMATE_CARD_MIN_FUNDING_USD")),markup=Number(Deno.env.get("TOPUPMATE_CARD_MARKUP_USD")??"0");
-   if(!Number.isFinite(fee)||fee<0||!Number.isFinite(minimum)||minimum<=0||!Number.isFinite(markup)||amount<minimum)throw new UserError("Card issuance pricing is not configured or the funding amount is below minimum.");
-   const totalUsd=round2(amount+fee+markup),walletAmount=ceil10(totalUsd*rate);
+   if(!Number.isFinite(fee)||fee<0||!Number.isFinite(minimum)||minimum<=0||!Number.isFinite(markup)||markup<0||amount<minimum)throw new UserError("Card issuance pricing is not configured or the funding amount is below minimum.");
+   const totalUsd=round2(amount+fee+markup),rate=await fxRate(totalUsd),walletAmount=ceil10(totalUsd*rate);
    const reference=ref();
    const {data:op,error}=await admin.rpc("reserve_virtual_card_operation",{p_user_id:user.id,p_action:"create",p_virtual_card_id:null,p_reference:reference,p_idempotency_key:idempotency,p_amount_usd:amount,p_wallet_amount_ngn:walletAmount,p_fx_rate:rate,p_metadata:{fee_usd:fee,markup_usd:markup,total_usd:totalUsd}});
    if(error||!op)throw new UserError(error?.message??"Unable to reserve card creation.");
