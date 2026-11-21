@@ -51,7 +51,7 @@ begin
   v_category_id:=v_category.id;
 
   if p_service_code='data' then
-    select * into v_product from public.service_products p
+    select p.* into v_product from public.service_products p
     join public.service_providers sp on sp.id=p.provider_id
     where p.id=p_product_id and p.category_id=v_category_id
       and p.network_or_operator=p_network_code
@@ -62,7 +62,7 @@ begin
     v_face:=coalesce(v_product.face_value,v_product.cost_price);
     v_cost:=v_product.cost_price;
   else
-    select * into v_option from public.provider_service_options o
+    select o.* into v_option from public.provider_service_options o
     join public.service_providers sp on sp.id=o.provider_id
     where o.category_id=v_category_id and o.option_type='network'
       and o.option_code=p_network_code and o.active and o.publication_status='published'
