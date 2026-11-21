@@ -51,7 +51,7 @@ function AdminDashboard() {
   const [customerPage, setCustomerPage] = useState(1);
   const [customerTotal, setCustomerTotal] = useState(0);
   const [customersLoading, setCustomersLoading] = useState(false);
-  const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);
+  const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);\n  const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);
   const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);
   const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
@@ -114,7 +114,7 @@ function AdminDashboard() {
       setError(data?.error || invokeError?.message || "Unable to load supplier catalogue.");
     } else {
       setError("");
-      setCatalogueProducts(data?.products ?? []);
+      setCatalogueProducts(data?.products ?? []);\n      setCatalogueOptions(data?.options ?? []);
       setCatalogueRuns(data?.syncRuns ?? []);
       setCatalogueCanPrice(data?.canManagePricing === true);
     }
@@ -130,6 +130,16 @@ function AdminDashboard() {
       await loadCatalogue();
     }
     setCatalogueSyncing(false);
+  };
+
+  const publishCatalogueOption = async (optionId: string, status: "published" | "paused") => {
+    setCatalogueSaving(optionId);
+    const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
+      body: { action: "publish_option", optionId, publicationStatus: status },
+    });
+    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Unable to update supplier option.");
+    else { setError(""); await loadCatalogue(); }
+    setCatalogueSaving(null);
   };
 
   const publishCatalogueProduct = async (productId: string, status: "published" | "paused") => {
