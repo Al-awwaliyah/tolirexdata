@@ -50,7 +50,7 @@ function AdminDashboard() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerPage, setCustomerPage] = useState(1);
   const [customerTotal, setCustomerTotal] = useState(0);
-  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customersLoading, setCustomersLoading] = useState(false);\n  const [catalogueProducts, setCatalogueProducts] = useState<any[]>([]);\n  const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);\n  const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);\n  const [catalogueLoading, setCatalogueLoading] = useState(false);\n  const [catalogueSyncing, setCatalogueSyncing] = useState(false);\n  const [catalogueDrafts, setCatalogueDrafts] = useState<Record<string,{personal:string;agent:string;business:string}>>({});\n  const [catalogueSaving, setCatalogueSaving] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const current = modules.find((item) => item.id === active) ?? modules[0];
@@ -98,6 +98,45 @@ function AdminDashboard() {
       setCustomerTotal(data?.total ?? 0);
     }
     setCustomersLoading(false);
+  };
+
+  const loadCatalogue = async () => {
+    setCatalogueLoading(true);
+    const { data, error: invokeError } = await supabase.functions.invoke("admin-console", { body: { action: "catalogue" } });
+    if (invokeError || data?.error) {
+      setError(data?.error || invokeError?.message || "Unable to load supplier catalogue.");
+    } else {
+      setError("");
+      setCatalogueProducts(data?.products ?? []);
+      setCatalogueRuns(data?.syncRuns ?? []);
+      setCatalogueCanPrice(data?.canManagePricing === true);
+    }
+    setCatalogueLoading(false);
+  };
+
+  const syncCatalogue = async () => {
+    setCatalogueSyncing(true);
+    const { data, error: invokeError } = await supabase.functions.invoke("clubkonnect-sync-catalogue", { body: {} });
+    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Catalogue synchronization failed.");
+    else {
+      setError("");
+      await loadCatalogue();
+    }
+    setCatalogueSyncing(false);
+  };
+
+  const publishCatalogueProduct = async (productId: string, status: "published" | "paused") => {
+    const draft = catalogueDrafts[productId];
+    setCatalogueSaving(productId);
+    const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
+      body: {
+        action: "publish_product", productId, publicationStatus: status,
+        personalPrice: Number(draft?.personal), agentPrice: Number(draft?.agent), businessPrice: Number(draft?.business),
+      },
+    });
+    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Unable to update catalogue publication.");
+    else { setError(""); await loadCatalogue(); }
+    setCatalogueSaving(null);
   };
 
   useEffect(() => { if (authorized) void loadOverview(); }, [authorized]);
