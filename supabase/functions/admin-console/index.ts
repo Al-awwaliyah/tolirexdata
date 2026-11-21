@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body.action ?? "");
-  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "transactions.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : "";
+  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
