@@ -150,9 +150,11 @@ Deno.serve(async request=>{
      if(!["PhoneNumber","AccountNumber"].includes(actype))return json({error:"Select a valid Smile phone number or 10-digit account number type."},400);
      path="/smile-data/";payload={PhoneNumber:phone,BundleTypeCode:Number(supplierPlan),actype,ref};
     }else{
-     const amount=number(product?.cost_price);if(amount<=0)return json({error:"The selected ISP supplier price is unavailable."},409);
+     const amount=number(product?.cost_price),phone=cleanPhone(recipient);
+     if(amount<=0)return json({error:"The selected ISP supplier price is unavailable."},409);
+     if(!phone)return json({error:"Enter a valid 11-digit Nigerian ISP phone number."},400);
      path=isp==="alpha"?"/alphatopup/":isp==="kirani"?"/kirani/":"/ratel/";
-     payload={phone:recipient,amount,ref};
+     payload={phone,amount,ref};
     }
    }
    const {error:startedError}=await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:null,p_provider_status:"submission_started",p_message:"Submitting to Topupmate"});
