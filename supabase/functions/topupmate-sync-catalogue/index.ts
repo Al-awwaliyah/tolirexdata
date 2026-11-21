@@ -5,12 +5,16 @@ type Obj = Record<string, unknown>;
 const json = (body: unknown, status=200) => new Response(JSON.stringify(body), { status, headers:{...corsHeaders,"Content-Type":"application/json"} });
 const text = (v: unknown) => String(v ?? "").trim();
 const first = (o:Obj, keys:string[]) => { for (const k of keys) { const v=text(o[k]); if(v) return v; } return ""; };
-const num = (v:unknown) => { const n=Number(String(v??"").replace(/[₦,$,\s]/g,"")); return Number.isFinite(n) && n>0 ? n : null; };
-const networkCode = (value:unknown) => {
-  const raw=text(value), key=raw.toLowerCase().replace(/[^a-z0-9]/g,"");
-  const aliases:Record<string,string>={mtn:"1","01":"1",airtel:"2","02":"2",glo:"3",globacom:"3","03":"3","9mobile":"4",ninemobile:"4",etisalat:"4","04":"4"};
-  return aliases[key]??raw;
+const pick = (o:Obj, keys:string[]):unknown => {
+  for(const key of keys){
+    if(o[key]!==undefined&&o[key]!==null)return o[key];
+    const match=Object.entries(o).find(([name])=>name.toLowerCase()===key.toLowerCase());
+    if(match&&match[1]!==undefined&&match[1]!==null)return match[1];
+  }
+  return undefined;
 };
+const num = (v:unknown) => { const n=Number(String(v??"").replace(/[₦,$,\s]/g,"")); return Number.isFinite(n) && n>0 ? n : null; };
+const networkCode = (value:unknown) => text(value);
 function rows(value:unknown): Obj[] {
   if (Array.isArray(value)) return value.filter(x=>x && typeof x==="object" && !Array.isArray(x)) as Obj[];
   if (!value || typeof value!=="object") return [];
@@ -131,22 +135,28 @@ Deno.serve(async req => {
       const id=first(item,["productid","product_id","productId","id"]);
       const name=first(item,["productname","product_name","productName","name"]);
       if(!id||!name)continue;
-      const fixedRecipient=Array.isArray(item.fixedrecipientdenominations)?item.fixedrecipientdenominations.map(Number).filter((x:number)=>x>0):[];
-      const fixedSender=Array.isArray(item.fixedsenderdenominations)?item.fixedsenderdenominations.map(Number).filter((x:number)=>x>0):[];
-      const mapped=Array.isArray(item.fixedrecipienttosenderdenominationsmap)?item.fixedrecipienttosenderdenominationsmap:[];
+      const fixedRecipientRaw=pick(item,["fixedrecipientdenominations"]);
+      const fixedSenderRaw=pick(item,["fixedsenderdenominations"]);
+      const mappedRaw=pick(item,["fixedrecipienttosenderdenominationsmap"]);
+      const fixedRecipient=Array.isArray(fixedRecipientRaw)?fixedRecipientRaw.map(Number).filter((x:number)=>x>0):[];
+      const fixedSender=Array.isArray(fixedSenderRaw)?fixedSenderRaw.map(Number).filter((x:number)=>x>0):[];
+      const mapped=Array.isArray(mappedRaw)?mappedRaw:[];
       const pairs:{recipient:number;sender:number}[]=[];
       for(const entry of mapped)if(entry&&typeof entry==="object")for(const [key,value] of Object.entries(entry)){
         const recipient=Number(key),sender=Number(value);if(recipient>0&&sender>0)pairs.push({recipient,sender});
       }
       const recipients=fixedRecipient.length?fixedRecipient:pairs.map(x=>x.recipient);
-      const country=typeof item.country==="object"&&item.country?first(item.country as Obj,["isoname","code"]):text(item.countrycode??item.country_code??item.country);
-      const currency=text(item.recipientcurrencycode??item.recipient_currency_code)||"USD";
-      const senderCurrency=text(item.sendercurrencycode??item.sender_currency_code)||"NGN";
-      const logo=Array.isArray(item.logourls)?text(item.logourls[0]):text(item.logo_url??item.logourl??item.logo);
-      const redeem=item.redeeminstruction??item.redeem_instruction??null;
+      const countryValue=pick(item,["country"]);
+      const country=typeof countryValue==="object"&&countryValue?first(countryValue as Obj,["isoname","code"]):text(pick(item,["countrycode","country_code"])??countryValue);
+      const currency=text(pick(item,["recipientcurrencycode","recipient_currency_code"]))||"USD";
+      const senderCurrency=text(pick(item,["sendercurrencycode","sender_currency_code"]))||"NGN";
+      const logoValue=pick(item,["logourls","logo_urls","logourl","logo_url","logo","image"]);
+      const logo=Array.isArray(logoValue)?text(logoValue[0]):text(logoValue);
+      const redeem=pick(item,["redeeminstruction","redeem_instruction"])??null;
+      const exchangeRate=numberOrZero(pick(item,["recipientcurrencytosendercurrencyexchangerate","recipient_currency_to_sender_currency_exchange_rate"]));
       for(let i=0;i<recipients.length;i++){
         const denomination=recipients[i];
-        const sender=pairs.find(x=>x.recipient===denomination)?.sender??fixedSender[i]??0;
+        const sender=pairs.find(x=>x.recipient===denomination)?.sender??fixedSender[i]??(exchangeRate>0?denomination*exchangeRate:0);
         if(!(sender>0))continue;
         const productCode="giftcard:"+id+":"+String(denomination);
         const {error}=await admin.rpc("sync_provider_catalogue_product",{
@@ -160,10 +170,10 @@ Deno.serve(async req => {
         if(!error)giftProducts++;
       }
       if(!recipients.length){
-        const minRecipient=Number(item.minrecipientdenomination??item.min_recipient_denomination);
-        const maxRecipient=Number(item.maxrecipientdenomination??item.max_recipient_denomination);
-        const minSender=Number(item.minsenderdenomination??item.min_sender_denomination);
-        const maxSender=Number(item.maxsenderdenomination??item.max_sender_denomination);
+        const minRecipient=Number(pick(item,["minrecipientdenomination","min_recipient_denomination"]));
+        const maxRecipient=Number(pick(item,["maxrecipientdenomination","max_recipient_denomination"]));
+        const minSender=Number(pick(item,["minsenderdenomination","min_sender_denomination"]));
+        const maxSender=Number(pick(item,["maxsenderdenomination","max_sender_denomination"]));
         for(const [denomination,sender] of [[minRecipient,minSender],[maxRecipient,maxSender]]){
           if(!(denomination>0&&sender>0))continue;
           const productCode="giftcard:"+id+":"+String(denomination);
