@@ -52,6 +52,7 @@ import type { Database as SupabaseDatabase } from "@/integrations/supabase/types
 import { useDexAuth } from "@/lib/dex-auth";
 import {
   getDexDashboard,
+  manageTopupmateVirtualCard,
   purchaseAirtimeOrData,
   reviewFunding,
 } from "@/lib/dex.functions";
@@ -408,7 +409,7 @@ const featureDetails: Record<FeatureView, {title:string;eyebrow:string;descripti
   education:{title:"Education PINs",eyebrow:"DIGITAL SERVICES",description:"Purchase supported WAEC, NECO and other examination PINs.",icon:<ShieldCheck/>,group:"service",emptyTitle:"Education PINs unavailable",emptyCopy:"Exam providers and current prices will load from Topupmate when published."},
   internet:{title:"Internet services",eyebrow:"DIGITAL SERVICES",description:"Explore supported broadband and specialist data services from Topupmate.",icon:<RadioTower/>,group:"service",emptyTitle:"Internet services unavailable",emptyCopy:"Only supplier-returned plans will appear here."},
   "gift-cards":{title:"Gift Cards",eyebrow:"DIGITAL SERVICES",description:"Browse digital gift-card products and purchase eligible denominations.",icon:<Gift/>,group:"service",emptyTitle:"Gift-card catalogue is being connected",emptyCopy:"Topupmate gift cards require a dedicated catalogue normalizer and verified purchase/redeem flow before publication."},
-  cards:{title:"Virtual Cards",eyebrow:"CARDS & PAYMENTS",description:"Create and manage virtual payment cards, fund cards, review transactions and control card security.",icon:<CreditCard/>,group:"service",emptyTitle:"Virtual card issuance is being prepared",emptyCopy:"Card creation will be enabled after Topupmate card pricing, KYC requirements, wallet settlement and card lifecycle tests are verified."},
+  cards:{title:"Virtual Cards",eyebrow:"CARDS & PAYMENTS",description:"Create and manage virtual payment cards, fund cards, review transactions and control card security.",icon:<CreditCard/>,group:"service",emptyTitle:"No virtual cards yet",emptyCopy:"Complete your cardholder details and approved KYC to request your first virtual card."},
   fx:{title:"FX Exchange",eyebrow:"CURRENCY",description:"Get a live provider quote and convert currencies using a time-limited rate.",icon:<Globe2/>,group:"service",emptyTitle:"FX conversion is not enabled yet",emptyCopy:"Live quotes and execution will be connected after quote expiry, wallet currency and settlement controls are implemented."},
   referrals:{title:"Refer and earn",eyebrow:"REWARDS & GROWTH",description:"Invite people to TolirexData and follow referral qualification and reward settlement.",icon:<Users/>,group:"growth",emptyTitle:"Your referral programme is not active yet",emptyCopy:"Your referral code and reward history will appear here when the programme is enabled by the platform."},
   coupons:{title:"Coupons",eyebrow:"REWARDS & GROWTH",description:"Use eligible coupon codes for discounts on supported services. Eligibility and limits are checked securely at redemption.",icon:<TicketPercent/>,group:"growth",emptyTitle:"No eligible coupons to show",emptyCopy:"Active coupons published for your account type will appear here. Expired or ineligible codes will not be presented as available."},
@@ -430,7 +431,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       <div><span className="tr-kicker">{feature.eyebrow}</span><h2>{feature.title}</h2><p>{feature.description}</p></div>
       <span className="tr-feature-account">{accountType.replace(/[_-]/g," ")}</span>
     </section>
-    {view==="airtime" ? <section className="tr-feature-panel">
+    {view==="cards" ? <VirtualCardsWorkspace busy={busy}/> : view==="airtime" ? <section className="tr-feature-panel">
       <div className="tr-feature-panel-heading"><div><h3>Buy airtime</h3><p>Networks come from the supplier catalogue; rates must be configured by an administrator.</p></div><span className="tr-catalogue-state"><i/>{options.length?"Networks synced":"No networks published"}</span></div>
       {options.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount)});}}>
         <label className="grid gap-2 text-sm font-medium">Mobile network<select className="h-11 border bg-background px-3" value={airtimeNetwork} onChange={(event)=>setAirtimeNetwork(event.target.value)} required><option value="">Choose network</option>{options.map(option=><option key={option.id} value={option.option_code}>{option.name}</option>)}</select></label>
@@ -441,6 +442,57 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===categoryCode)?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===categoryCode).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===categoryCode).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
     <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
   </div>;
+}
+
+
+function VirtualCardsWorkspace({busy}:{busy:boolean}) {
+  const [cards,setCards]=useState<any[]>([]);
+  const [operations,setOperations]=useState<any[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [notice,setNotice]=useState("");
+  const [profile,setProfile]=useState({firstName:"",lastName:"",phone:"",email:"",dateOfBirth:"",address:"",state:"",city:""});
+  const [amount,setAmount]=useState("10");
+  const [selected,setSelected]=useState<any|null>(null);
+  const [details,setDetails]=useState<any|null>(null);
+  const [transactions,setTransactions]=useState<any|null>(null);
+  const [showProfile,setShowProfile]=useState(false);
+  const [reveal,setReveal]=useState(false);
+  const run=async(payload:any)=>{
+    const result=await manageTopupmateVirtualCard({data:payload});
+    if(result?.error)throw new Error(String(result.error));
+    return result;
+  };
+  const load=async()=>{setLoading(true);try{const r=await run({action:"list"});const next=r.cards??[];setCards(next);setOperations(r.operations??[]);setSelected(current=>current?next.find((item:any)=>item.id===current.id)??current:current);}catch(e){setNotice(messageOf(e,"Unable to load virtual cards."));}finally{setLoading(false);}};
+  useEffect(()=>{void load();},[]);
+  const perform=async(payload:any)=>{
+    setSaving(true);setNotice("");try{const r=await run(payload);setNotice(r.message??(r.status==="processing"?"Your request is processing.":"Request completed."));if(r.details){setDetails(r.details);setReveal(true);}if(r.transactions)setTransactions(r.transactions);await load();return r;}catch(e){setNotice(messageOf(e,"The card request could not be completed."));}finally{setSaving(false);}
+  };
+  const saveProfile=async()=>{const r=await perform({action:"save_profile",...profile});if(r?.success)setShowProfile(false);};
+  const create=async()=>{const amountUsd=Number(amount);if(!Number.isFinite(amountUsd)||amountUsd<=0){setNotice("Enter a valid initial funding amount in USD.");return;}const r=await perform({action:"create",amountUsd,brand:"VISA",idempotencyKey:crypto.randomUUID().replace(/-/g,"")});if(r?.success&&r.card){const latest=await run({action:"list"});const issued=(latest.cards??[])[0];setCards(latest.cards??[]);if(issued)setSelected(issued);setDetails(r.card);setReveal(true);}};
+  const cardAction=(action:"topup"|"withdraw"|"freeze"|"unfreeze"|"terminate")=>{
+    if(!selected?.id){setNotice("Select a card first.");return;}
+    if(action==="freeze"||action==="unfreeze"||action==="terminate"){
+      if(!window.confirm(action==="terminate"?"Terminate this card permanently? This cannot be undone.":action==="freeze"?"Freeze this card?":"Unfreeze this card?"))return;
+      void perform({action,cardId:selected.id,idempotencyKey:crypto.randomUUID().replace(/-/g,"")});
+    }else{
+      const value=window.prompt(action==="topup"?"How much USD would you like to add?":"How much USD would you like to withdraw?");
+      if(!value)return;const amountUsd=Number(value);if(!Number.isFinite(amountUsd)||amountUsd<=0){setNotice("Enter a valid USD amount.");return;}
+      void perform({action,cardId:selected.id,amountUsd,idempotencyKey:crypto.randomUUID().replace(/-/g,"")});
+    }
+  };
+  return <section className="tr-feature-panel">
+    <div className="tr-feature-panel-heading"><div><h3>Your virtual cards</h3><p>Issued by Topupmate · wallet operations are settled through TolirexData</p></div><Button variant="outline" size="sm" onClick={()=>void load()} disabled={loading}>Refresh</Button></div>
+    {notice&&<div role="status" className="my-4 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">{notice}</div>}
+    {loading?<LoadingScreen compact/>:cards.length===0?<div className="my-5 grid gap-4 rounded-xl border border-dashed p-5 sm:grid-cols-[1fr_auto] sm:items-center"><div><strong className="text-sm">Create your first virtual card</strong><p className="mt-1 text-sm text-muted-foreground">You need approved KYC and verified cardholder details before card issuance.</p></div><Button onClick={()=>setShowProfile(x=>!x)} variant="outline">Cardholder details</Button></div>:<div className="my-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map(card=><button key={card.id} onClick={()=>{setSelected(card);setDetails(null);setTransactions(null);setReveal(false);}} className={`rounded-xl border p-4 text-left transition-colors ${selected?.id===card.id?"border-primary bg-primary/5":"hover:bg-secondary"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-wider">{card.card_type} · {card.currency}</span><StatusBadge status={card.status}/></div><p className="mt-6 text-lg font-semibold tracking-widest">{card.masked_pan??"Virtual card"}</p><div className="mt-3 flex justify-between text-xs text-muted-foreground"><span>•••• {card.last4??"----"}</span><span>{card.expiry_month??"--"}/{card.expiry_year??"----"}</span></div></button>)}</div>}
+    {showProfile&&<div className="my-4 rounded-xl border p-4"><h4 className="font-semibold">Cardholder details</h4><p className="mb-4 mt-1 text-xs text-muted-foreground">Saved securely for card issuance. Your approved BVN/NIN is taken from your KYC record, not this form.</p><div className="grid gap-3 sm:grid-cols-2">{([["firstName","First name"],["lastName","Last name"],["phone","Phone"],["email","Email"],["dateOfBirth","Date of birth"],["address","Street address"],["state","State"],["city","City"]] as const).map(([key,label])=><label key={key} className="grid gap-1 text-xs font-medium text-muted-foreground">{label}<Input type={key==="dateOfBirth"?"date":"text"} value={profile[key]} onChange={e=>setProfile(p=>({...p,[key]:e.target.value}))}/></label>)}</div><div className="mt-4 flex gap-2"><Button disabled={saving||busy} onClick={()=>void saveProfile()}>Save details</Button><Button variant="ghost" onClick={()=>setShowProfile(false)}>Cancel</Button></div></div>}
+    <div className="my-4 flex flex-wrap gap-2"><Button variant="outline" onClick={()=>setShowProfile(x=>!x)}> {showProfile?"Hide details":"Add / edit cardholder details"}</Button><Button variant="outline" onClick={()=>void create()} disabled={saving||busy||loading}>Create virtual card</Button><label className="flex items-center gap-2 text-xs text-muted-foreground">Initial funding (USD)<Input className="w-28" type="number" min="1" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>
+    {operations.length>0&&<div className="mt-5 rounded-xl border p-4"><h4 className="font-semibold">Recent card activity</h4><div className="mt-3 divide-y">{operations.slice(0,8).map(op=><div key={op.id} className="flex items-center justify-between gap-3 py-3 text-xs"><div><strong className="capitalize">{op.action.replace("_"," ")}</strong><p className="mt-1 text-muted-foreground">{new Date(op.created_at).toLocaleString("en-NG")} · {op.reference}</p>{op.message&&<p className="mt-1 text-muted-foreground">{op.message}</p>}</div><div className="text-right"><StatusBadge status={op.status}/>{op.wallet_amount_ngn>0&&<p className="mt-1 text-muted-foreground">{formatNaira(op.wallet_amount_ngn)}</p>}</div></div>)}</div></div>}
+    {selected&&<div className="mt-5 rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold">Card controls</h4><p className="text-xs text-muted-foreground">{selected.masked_pan??"Selected card"} · {selected.status}</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={saving} onClick={()=>void perform({action:"details",cardId:selected.id})}>Card details</Button><Button size="sm" variant="outline" disabled={saving} onClick={()=>cardAction("topup")}>Fund card</Button><Button size="sm" variant="outline" disabled={saving} onClick={()=>cardAction("withdraw")}>Withdraw</Button><Button size="sm" variant="outline" disabled={saving} onClick={()=>cardAction(selected.status==="frozen"?"unfreeze":"freeze")}>{selected.status==="frozen"?"Unfreeze":"Freeze"}</Button><Button size="sm" variant="destructive" disabled={saving} onClick={()=>cardAction("terminate")}>Terminate</Button><Button size="sm" variant="ghost" onClick={()=>void perform({action:"transactions",cardId:selected.id,startDate:new Date(Date.now()-30*86400000).toISOString().slice(0,10),endDate:new Date().toISOString().slice(0,10),page:1})}>Transactions</Button></div></div>
+    {reveal&&details&&<div className="mt-4 rounded-lg bg-secondary p-3"><div className="flex items-center justify-between"><strong className="text-sm">Card details</strong><Button size="sm" variant="ghost" onClick={()=>{setReveal(false);setDetails(null);}}>Hide</Button></div><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(details,null,2)}</pre><p className="mt-2 text-[10px] text-muted-foreground">Sensitive details are shown only on request. Do not share your card number, expiry or CVV.</p></div>}
+    {transactions&&<div className="mt-4 rounded-lg border p-3"><strong className="text-sm">Card transactions</strong><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(transactions,null,2)}</pre></div>}
+    </div>}
+  </section>;
 }
 
 function BuyDataView(props: {
