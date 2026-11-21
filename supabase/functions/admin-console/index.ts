@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body.action ?? "");
-  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : "";
+  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
@@ -49,13 +49,44 @@ Deno.serve(async (request) => {
         count("funding_events", q => q.in("status", ["received", "verified"])),
         count("service_orders", q => q.in("status", ["pending", "processing", "unknown", "reversal_pending"])),
         count("service_providers", q => q.eq("status", "active")),
-        count("service_products", q => q.eq("active", true)),
+        count("service_products", q => q.eq("active", true).eq("publication_status", "published")),
         count("service_orders", q => q.eq("status", "failed")),
       ]);
       return json({ metrics: { pendingKyc, unsettledFunding, unresolvedOrders, activeProviders, activeProducts, failedOrders }, generatedAt: new Date().toISOString() });
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Unable to load overview metrics" }, 500);
     }
+  }
+
+  if (action === "catalogue") {
+    const { data: products, error: productError } = await admin.from("service_products")
+      .select("id,name,provider_product_code,network_or_operator,description,face_value,cost_price,selling_price,currency,active,publication_status,supplier_last_seen_at,updated_at,service_categories(code,name),service_providers(code,name)")
+      .order("updated_at", { ascending: false }).limit(500);
+    const { data: runs, error: runError } = await admin.from("provider_catalogue_sync_runs")
+      .select("id,status,discovered_products,discovered_options,failed_endpoints,summary,started_at,completed_at")
+      .order("started_at", { ascending: false }).limit(10);
+    if (productError || runError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
+    return json({ products: products ?? [], syncRuns: runs ?? [] });
+  }
+
+  if (action === "publish_product") {
+    const productId = String(body.productId ?? "");
+    const status = String(body.publicationStatus ?? "");
+    const personalPrice = Number(body.personalPrice);
+    const agentPrice = Number(body.agentPrice);
+    const businessPrice = Number(body.businessPrice);
+    if (!productId || !["published","paused","rejected"].includes(status)) {
+      return json({ error: "Invalid product publication request" }, 400);
+    }
+    const { data, error } = await caller.rpc("admin_set_service_product_publication", {
+      p_product_id: productId,
+      p_publication_status: status,
+      p_personal_price: status === "published" ? personalPrice : null,
+      p_agent_price: status === "published" ? agentPrice : null,
+      p_business_price: status === "published" ? businessPrice : null,
+    });
+    if (error) return json({ error: error.message }, 400);
+    return json({ product: data });
   }
 
   const search = String(body.search ?? "").trim().slice(0, 100);
