@@ -74,16 +74,16 @@ function networkFrom(value: string): string {
   const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
   const aliases: Record<string, string> = {
     mtn: "MTN", airtel: "AIRTEL", glo: "GLO", globacom: "GLO",
-    nineMobile: "9MOBILE", "9mobile": "9MOBILE", etisalat: "9MOBILE",
+    ninemobile: "9MOBILE", "9mobile": "9MOBILE", etisalat: "9MOBILE",
     "01": "01", "02": "02", "03": "03", "04": "04",
   };
   return aliases[normalized] ?? value.trim();
 }
 function getCode(obj: JsonRecord): string {
-  return first(obj, ["ProductCode","product_code","productCode","PackageCode","package_code","packageCode","PRODUCT_ID","product_id","ID","id","code","Code","NetworkCode","network_code","biller_code","billerCode","CableTV","cable_tv","ElectricCompany","electric_company"]);
+  return first(obj, ["ProductCode","product_code","productCode","PackageCode","package_code","packageCode","PRODUCT_ID","product_id","ID","id","code","Code","NetworkCode","network_code","NetworkID","network_id","Network","network","biller_code","billerCode","CableTV","cable_tv","ElectricCompany","electric_company"]);
 }
 function getName(obj: JsonRecord): string {
-  return first(obj, ["ProductName","product_name","productName","PackageName","package_name","packageName","PRODUCT_NAME","Name","name","description","Description","NetworkName","network_name","CableTVName","cable_tv_name","BillerName","biller_name","CompanyName","company_name","label","Label"]);
+  return first(obj, ["ProductName","product_name","productName","PackageName","package_name","packageName","PRODUCT_NAME","Name","name","description","Description","NetworkName","network_name","CableTVName","cable_tv_name","BillerName","biller_name","CompanyName","company_name","ElectricCompanyName","electric_company_name","DiscoName","disco_name","BillerName","biller_name","label","Label"]);
 }
 function getCost(obj: JsonRecord): number | undefined {
   for (const key of ["PRODUCT_AMOUNT","product_amount","productAmount","PackageAmount","package_amount","packageAmount","provider_amount","providerAmount","Amount","amount","price","Price","cost","Cost"]) {
