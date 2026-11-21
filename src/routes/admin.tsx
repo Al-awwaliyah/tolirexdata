@@ -67,6 +67,11 @@ function AdminDashboard() {
   const [cardPricing, setCardPricing] = useState({cardCreationEnabled:false,creationFeeUsd:"",minimumInitialFundingUsd:"",creationMarkupUsd:"",topupMinimumUsd:"",topupMarkupPercent:""});
   const [cardPricingLoading, setCardPricingLoading] = useState(false);
   const [cardPricingSaving, setCardPricingSaving] = useState(false);
+  const [electricityPricing,setElectricityPricing]=useState<Record<"personal"|"agent"|"business",{markupType:"fixed"|"percentage";markupValue:string}>>({
+    personal:{markupType:"fixed",markupValue:"0"},agent:{markupType:"fixed",markupValue:"0"},business:{markupType:"fixed",markupValue:"0"}
+  });
+  const [electricityPricingLoading,setElectricityPricingLoading]=useState(false);
+  const [electricityPricingSaving,setElectricityPricingSaving]=useState<string|null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const current = modules.find((item) => item.id === active) ?? modules[0];
@@ -83,6 +88,25 @@ function AdminDashboard() {
     });
     return () => { alive = false; };
   }, [user?.id, loading]);
+
+  const loadElectricityPricing = async () => {
+    setElectricityPricingLoading(true);
+    const {data,error:invokeError}=await supabase.functions.invoke("admin-console",{body:{action:"electricity_pricing"}});
+    if(invokeError||data?.error){setError(data?.error||invokeError?.message||"Unable to load electricity pricing.");}
+    else{
+      const next:any={personal:{markupType:"fixed",markupValue:"0"},agent:{markupType:"fixed",markupValue:"0"},business:{markupType:"fixed",markupValue:"0"}};
+      for(const row of data?.pricing??[])if(["personal","agent","business"].includes(row.account_type))next[row.account_type]={markupType:row.markup_type,markupValue:String(row.markup_value??0)};
+      setElectricityPricing(next);
+    }
+    setElectricityPricingLoading(false);
+  };
+  const saveElectricityPricing = async (accountType:"personal"|"agent"|"business") => {
+    const draft=electricityPricing[accountType];setElectricityPricingSaving(accountType);setError("");
+    const {data,error:invokeError}=await supabase.functions.invoke("admin-console",{body:{action:"electricity_pricing",save:true,accountType,markupType:draft.markupType,markupValue:Number(draft.markupValue)}});
+    if(invokeError||data?.error)setError(data?.error||invokeError?.message||"Unable to save electricity pricing.");
+    else await loadElectricityPricing();
+    setElectricityPricingSaving(null);
+  };
 
   const loadCardPricing = async () => {
     setCardPricingLoading(true);
@@ -235,6 +259,7 @@ function AdminDashboard() {
 
   useEffect(() => { if (authorized) void loadOverview(); }, [authorized]);
   useEffect(() => { if (authorized && active === "virtual-cards") void loadCardPricing(); }, [authorized, active]);
+  useEffect(() => { if (authorized && active === "pricing") void loadElectricityPricing(); }, [authorized, active]);
   useEffect(() => {
     if (authorized && active === "customers") void loadCustomers(customerPage, customerSearch);
   }, [authorized, active, customerPage]);
@@ -335,6 +360,14 @@ function AdminDashboard() {
             })}</div>}
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm font-semibold">Recent catalogue synchronization</h3>{catalogueRuns.length===0?<p className="mt-2 text-xs text-slate-500">No synchronization history yet.</p>:<div className="mt-3 space-y-2">{catalogueRuns.map(run=><div key={run.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs"><span className="font-medium text-slate-700">{new Date(run.started_at).toLocaleString()}</span><span className="text-slate-500">{run.discovered_products} products · {run.discovered_options} options</span><span className={run.status==="success"?"font-semibold text-emerald-700":run.status==="partial"?"font-semibold text-amber-700":"font-semibold text-rose-700"}>{run.status}</span></div>)}</div>}</div>
+        </section> : active==="pricing" ? <section className="space-y-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+            <div><h2 className="text-base font-semibold">Electricity fees and markups</h2><p className="mt-1 text-xs leading-5 text-slate-500">Set a fixed convenience fee or percentage markup on the meter amount, separately for Personal, Agent and Business accounts. Supplier meter amounts remain dynamic and are verified before payment.</p></div>
+            {electricityPricingLoading?<p className="mt-6 text-sm text-slate-500">Loading electricity pricing…</p>:<div className="mt-5 grid gap-4 lg:grid-cols-3">
+              {(["personal","agent","business"] as const).map(account=><div key={account} className="rounded-xl border border-slate-200 p-4"><h3 className="text-sm font-semibold capitalize">{account} account</h3><label className="mt-4 block text-xs font-medium text-slate-600">Fee type<select value={electricityPricing[account].markupType} onChange={e=>setElectricityPricing(p=>({...p,[account]:{...p[account],markupType:e.target.value as "fixed"|"percentage"}}))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3"><option value="fixed">Fixed fee (₦)</option><option value="percentage">Percentage (%)</option></select></label><label className="mt-3 block text-xs font-medium text-slate-600">{electricityPricing[account].markupType==="fixed"?"Convenience fee (₦)":"Markup (%)"}<input type="number" min="0" max={electricityPricing[account].markupType==="percentage"?100:undefined} step="0.01" value={electricityPricing[account].markupValue} onChange={e=>setElectricityPricing(p=>({...p,[account]:{...p[account],markupValue:e.target.value}}))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 px-3"/></label><button onClick={()=>void saveElectricityPricing(account)} disabled={electricityPricingSaving===account||!electricityPricing[account].markupValue.trim()||!Number.isFinite(Number(electricityPricing[account].markupValue))||Number(electricityPricing[account].markupValue)<0||(electricityPricing[account].markupType==="percentage"&&Number(electricityPricing[account].markupValue)>100)} className="mt-4 w-full rounded-lg bg-[#14366f] px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{electricityPricingSaving===account?"Saving…":"Save "+account+" pricing"}</button></div>)}
+            </div>}
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm font-semibold">Catalogue product pricing</h3><p className="mt-1 text-xs leading-5 text-slate-500">Airtime discounts and published supplier-product selling prices are managed from Service Catalogue. Product prices are reviewed against supplier cost before publication. No fixed plans or retail prices are embedded in the customer application.</p></div>
         </section> : active==="virtual-cards" ? <section className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Topupmate card pricing controls</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Manage card creation fees, minimum funding and platform markups here. Changes are audited and apply to new card operations. API credentials remain protected as server secrets.</p></div><button onClick={()=>void loadCardPricing()} disabled={cardPricingLoading} className="rounded-xl border px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"><RefreshCw size={13} className="mr-1 inline"/> Refresh</button></div>
