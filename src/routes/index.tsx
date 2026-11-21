@@ -53,6 +53,7 @@ import { useDexAuth } from "@/lib/dex-auth";
 import {
   getDexDashboard,
   manageTopupmateVirtualCard,
+  manageTopupmateExpandedService,
   purchaseAirtimeOrData,
   reviewFunding,
 } from "@/lib/dex.functions";
@@ -422,9 +423,64 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [airtimeNetwork,setAirtimeNetwork]=useState("");
   const [airtimePhone,setAirtimePhone]=useState("");
   const [airtimeAmount,setAirtimeAmount]=useState("100");
+  const [selectedProductId,setSelectedProductId]=useState("");
+  const [selectedOptionCode,setSelectedOptionCode]=useState("");
+  const [recipient,setRecipient]=useState("");
+  const [contactPhone,setContactPhone]=useState("");
+  const [meterType,setMeterType]=useState<"prepaid"|"postpaid">("prepaid");
+  const [serviceAmount,setServiceAmount]=useState("1000");
+  const [quantity,setQuantity]=useState("1");
+  const [accountType,setAccountType]=useState<"PhoneNumber"|"AccountNumber">("PhoneNumber");
+  const [verifiedName,setVerifiedName]=useState("");
+  const [serviceNotice,setServiceNotice]=useState("");
+  const [fulfilment,setFulfilment]=useState<any>(null);
+  const [serviceBusy,setServiceBusy]=useState(false);
   const feature=featureDetails[view];
   const categoryCode=({airtime:"airtime",cable:"cable_tv",electricity:"electricity",epin:"recharge_pin","data-pin":"data_pin",education:"education",internet:"internet","gift-cards":"gift_card",cards:"virtual_card",fx:"fx_conversion"} as Record<string,string>)[view];
   const options=catalogueOptions.filter((option)=>option.category_code===categoryCode);
+  const products=catalogue.filter((item)=>item.category_code===categoryCode);
+  const selectedProduct=products.find((item)=>item.id===selectedProductId);
+  const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":"network";
+  const serviceOptions=options.filter((option)=>option.option_type===optionType);
+  const runExpanded=async(payload:any)=>{
+    const result=await manageTopupmateExpandedService({data:payload});
+    if(result?.error)throw new Error(String(result.error));
+    return result;
+  };
+  const verifyService=async()=>{
+    setServiceBusy(true);setServiceNotice("");setFulfilment(null);setVerifiedName("");
+    try{
+      const payload=view==="cable"
+        ? {action:"verify" as const,service:"cable_tv",providerCode:selectedOptionCode,iuc:recipient}
+        : {action:"verify" as const,service:"electricity",providerCode:selectedOptionCode,meterNumber:recipient,meterType};
+      const result=await runExpanded(payload);
+      setVerifiedName(result.customerName||"Verified customer");
+      setServiceNotice(result.message||"Customer verified successfully.");
+    }catch(error){setServiceNotice(messageOf(error,"Unable to verify this customer."));}
+    finally{setServiceBusy(false);}
+  };
+  const buyExpanded=async()=>{
+    if(!selectedProduct&&view!=="electricity"){setServiceNotice("Choose a published supplier product first.");return;}
+    setServiceBusy(true);setServiceNotice("");setFulfilment(null);
+    try{
+      const category=categoryCode;
+      const productPayload=selectedProduct?{productId:selectedProduct.id}:{};
+      const optionPayload=selectedOptionCode?{optionCode:selectedOptionCode}:{};
+      const base={action:"purchase" as const,categoryCode:category,...productPayload,...optionPayload,
+        recipient,quantity:Number(quantity)||1,contactPhone:contactPhone||undefined,idempotencyKey:crypto.randomUUID().replace(/-/g,"")};
+      const payload=view==="electricity"?{...base,amount:Number(serviceAmount),meterType}
+        :view==="cable"?{...base,subtype:"renew"}
+        :view==="internet"?{...base,accountType}
+        :view==="gift-cards"?{...base}
+        :base;
+      const result=await runExpanded(payload);
+      setServiceNotice(result.status==="successful"?(result.fulfilmentPending?"Purchase completed. Gift-card code retrieval is pending; contact support if it does not appear.":"Purchase completed successfully."):"Your request is awaiting Topupmate confirmation. Do not submit it again.");
+      setFulfilment(result.fulfilment??null);
+      setVerifiedName("");
+    }catch(error){setServiceNotice(messageOf(error,"The purchase could not be completed."));}
+    finally{setServiceBusy(false);}
+  };
+  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode);
   return <div className="tr-feature-workspace">
     <section className="tr-feature-hero">
       <div className="tr-feature-icon">{feature.icon}</div>
@@ -439,7 +495,55 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={(event)=>setAirtimeAmount(event.target.value)} required/></label>
         <Button type="submit" disabled={busy||!airtimeNetwork||!/^\d{11}$/.test(airtimePhone)||Number(airtimeAmount)<50||Number(airtimeAmount)>200000}>{busy?"Processing…":"Continue to purchase"} <ArrowRight/></Button>
       </form> : <EmptyState icon={<Smartphone/>} title="Airtime networks are not published" copy="Networks become selectable after the supplier catalogue is synchronized and published."/>}
-    </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{catalogue.some((item)=>item.category_code===categoryCode)?"Published catalogue":"Not yet published"}</span></div>{catalogue.filter((item)=>item.category_code===categoryCode).length ? <div className="tr-catalogue-products">{catalogue.filter((item)=>item.category_code===categoryCode).map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
+    </section> : ["cable","electricity","epin","data-pin","education","internet","gift-cards"].includes(view) ? <section className="tr-feature-panel">
+      <div className="tr-feature-panel-heading"><div><h3>{view==="cable"?"Cable TV subscription":view==="electricity"?"Electricity payment":view==="epin"?"Recharge PINs":view==="data-pin"?"Data PINs":view==="education"?"Education PINs":view==="internet"?"Internet bundle":"Gift card purchase"}</h3><p>Live Topupmate catalogue · published products and admin-approved prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Products available":"No published products"}</span></div>
+      {serviceNotice&&<div role="status" className="my-4 rounded-xl border bg-secondary/50 p-3 text-sm">{serviceNotice}</div>}
+      {view==="cable"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">TV provider<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setSelectedProductId("");setVerifiedName("");}}><option value="">Choose provider</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">SmartCard / IUC number<Input value={recipient} onChange={e=>{setRecipient(e.target.value.replace(/\D/g,""));setVerifiedName("");}} maxLength={20} placeholder="Enter decoder number"/></label>
+        <Button type="button" variant="outline" disabled={serviceBusy||!selectedOptionCode||recipient.length<8} onClick={()=>void verifyService()}>{serviceBusy?"Verifying…":"Verify decoder"}</Button>
+        {verifiedName&&<p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Verified customer: {verifiedName}</p>}
+        <label className="grid gap-2 text-sm font-medium">Subscription package<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose package</option>{selectedProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Contact phone (optional)<Input value={contactPhone} onChange={e=>setContactPhone(e.target.value.replace(/\D/g,""))} maxLength={11} placeholder="08012345678"/></label>
+        <Button disabled={serviceBusy||!verifiedName||!selectedProductId||!selectedOptionCode} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Pay for subscription"} <ArrowRight/></Button>
+      </div>}
+      {view==="electricity"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Electricity distribution company<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setVerifiedName("");}}><option value="">Choose disco</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Meter type<select className="h-11 border bg-background px-3" value={meterType} onChange={e=>{setMeterType(e.target.value as "prepaid"|"postpaid");setVerifiedName("");}}><option value="prepaid">Prepaid</option><option value="postpaid">Postpaid</option></select></label>
+        <label className="grid gap-2 text-sm font-medium">Meter number<Input value={recipient} onChange={e=>{setRecipient(e.target.value.replace(/\D/g,""));setVerifiedName("");}} placeholder="Enter meter number"/></label>
+        <Button type="button" variant="outline" disabled={serviceBusy||!selectedOptionCode||!recipient} onClick={()=>void verifyService()}>{serviceBusy?"Verifying…":"Verify meter"}</Button>
+        {verifiedName&&<p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Verified customer: {verifiedName}</p>}
+        <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={1} max={1000000} value={serviceAmount} onChange={e=>setServiceAmount(e.target.value)}/></label>
+        <label className="grid gap-2 text-sm font-medium">Contact phone (optional)<Input value={contactPhone} onChange={e=>setContactPhone(e.target.value.replace(/\D/g,""))} maxLength={11}/></label>
+        <Button disabled={serviceBusy||!verifiedName||Number(serviceAmount)<=0||!selectedOptionCode} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Pay electricity bill"} <ArrowRight/></Button>
+      </div>}
+      {["epin","data-pin"].includes(view)&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Mobile network<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setSelectedProductId("");}}><option value="">Choose network</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">PIN denomination / plan<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose product</option>{selectedProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={100} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
+        <Button disabled={serviceBusy||!selectedProductId||!selectedOptionCode||Number(quantity)<1||Number(quantity)>100} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase PINs"} <ArrowRight/></Button>
+      </div>}
+      {view==="education"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Examination PIN product<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose exam PIN</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
+        <Button disabled={serviceBusy||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
+      </div>}
+      {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Internet plan<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose bundle</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Smile account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Enter account number or phone"/></label>
+        <label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={accountType} onChange={e=>setAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>
+        <Button disabled={serviceBusy||!selectedProductId||!recipient} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Buy internet plan"} <ArrowRight/></Button>
+      </div>}
+      {view==="gift-cards"&&<div className="mt-5 grid max-w-xl gap-4">
+        <label className="grid gap-2 text-sm font-medium">Gift card product / denomination<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose gift card</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <label className="grid gap-2 text-sm font-medium">Recipient email<Input type="email" value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="recipient@example.com"/></label>
+        <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
+        <Button disabled={serviceBusy||!selectedProductId||!/^\S+@\S+\.\S+$/.test(recipient)||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase gift card"} <ArrowRight/></Button>
+      </div>}
+      {products.length===0&&view!=="electricity"&&<EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}
+      {serviceNotice&&<div className="mt-4 text-sm text-muted-foreground">{serviceNotice}</div>}
+      {fulfilment&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h4 className="text-sm font-semibold text-emerald-900">Supplier fulfilment details</h4><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs text-emerald-950">{JSON.stringify(fulfilment,null,2)}</pre></div>}
+    </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Published catalogue":"Not yet published"}</span></div>{products.length ? <div className="tr-catalogue-products">{products.map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/ >}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
     <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
   </div>;
 }
