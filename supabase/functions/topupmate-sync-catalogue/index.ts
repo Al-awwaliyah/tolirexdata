@@ -148,8 +148,9 @@ Deno.serve(async req => {
       const recipients=fixedRecipient.length?fixedRecipient:pairs.map(x=>x.recipient);
       const countryValue=pick(item,["country"]);
       const country=typeof countryValue==="object"&&countryValue?first(countryValue as Obj,["isoname","code"]):text(pick(item,["countrycode","country_code"])??countryValue);
-      const currency=text(pick(item,["recipientcurrencycode","recipient_currency_code"]))||"USD";
-      const senderCurrency=text(pick(item,["sendercurrencycode","sender_currency_code"]))||"NGN";
+      const currency=text(pick(item,["recipientcurrencycode","recipient_currency_code"]));
+      const senderCurrency=text(pick(item,["sendercurrencycode","sender_currency_code"]));
+      if(!currency||senderCurrency!=="NGN")continue;
       const logoValue=pick(item,["logourls","logo_urls","logourl","logo_url","logo","image"]);
       const logo=Array.isArray(logoValue)?text(logoValue[0]):text(logoValue);
       const redeem=pick(item,["redeeminstruction","redeem_instruction"])??null;
