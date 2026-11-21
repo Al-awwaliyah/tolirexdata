@@ -457,14 +457,14 @@ function VirtualCardsWorkspace({busy}:{busy:boolean}) {
   const [transactions,setTransactions]=useState<any|null>(null);
   const [showProfile,setShowProfile]=useState(false);
   const [reveal,setReveal]=useState(false);
-  const run=async(payload:Parameters<typeof manageTopupmateVirtualCard>[0]["data"])=>{
+  const run=async(payload:any)=>{
     const result=await manageTopupmateVirtualCard({data:payload});
     if(result?.error)throw new Error(String(result.error));
     return result;
   };
   const load=async()=>{setLoading(true);try{const r=await run({action:"list"});setCards(r.cards??[]);}catch(e){setNotice(messageOf(e,"Unable to load virtual cards."));}finally{setLoading(false);}};
   useEffect(()=>{void load();},[]);
-  const perform=async(payload:Parameters<typeof manageTopupmateVirtualCard>[0]["data"])=>{
+  const perform=async(payload:any)=>{
     setSaving(true);setNotice("");try{const r=await run(payload);setNotice(r.message??(r.status==="processing"?"Your request is processing.":"Request completed."));if(r.details){setDetails(r.details);setReveal(true);}if(r.transactions)setTransactions(r.transactions);await load();return r;}catch(e){setNotice(messageOf(e,"The card request could not be completed."));}finally{setSaving(false);}
   };
   const saveProfile=async()=>{const r=await perform({action:"save_profile",...profile});if(r?.success)setShowProfile(false);};
