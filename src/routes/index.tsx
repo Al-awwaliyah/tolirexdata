@@ -55,7 +55,6 @@ import {
   manageTopupmateVirtualCard,
   manageTopupmateExpandedService,
   purchaseAirtimeOrData,
-  reviewFunding,
   submitCustomerKyc,
   ensureFlutterwaveVirtualAccount,
 } from "@/lib/dex.functions";
@@ -67,7 +66,6 @@ type DataPlan = { id: string; network: string; networkCode: string; data_amount:
 type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
 type CatalogueOption = { id: string; category_code: string; option_type: string; option_code: string; parent_option_code: string | null; name: string };
 type DataOrder = TableRows<"data_orders">;
-type Funding = TableRows<"fundings">;
 type WalletTransaction = TableRows<"wallet_transactions">;
 type ServiceOrder = { id:string; user_id:string; category_id:string; product_id:string|null; request_id:string; recipient:string; amount:number; currency:string; status:string; provider_status:string|null; created_at:string; updated_at:string };
 type Profile = TableRows<"profiles">;
@@ -79,7 +77,6 @@ type DashboardData = {
   catalogueOptions: CatalogueOption[];
   orders: DataOrder[];
   serviceOrders: ServiceOrder[];
-  fundings: Funding[];
   transactions: WalletTransaction[];
   users: Profile[];
   isAdmin: boolean;
@@ -146,7 +143,6 @@ function Index() {
   const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [phone, setPhone] = useState("");
-  const [fundingAmount, setFundingAmount] = useState("");
 
 
   const refreshDashboard = useCallback(async () => {
@@ -210,19 +206,6 @@ function Index() {
     });
   };
 
-  const handleFunding = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setNotice("Permanent virtual-account funding is not enabled yet. Do not transfer money to unverified account details.");
-  };
-
-  const handleReviewFunding = (funding: Funding, decision: "approved" | "rejected") => action(async () => {
-    await reviewFunding({ data: { fundingId: funding.id, decision } });
-    await refreshDashboard();
-    setNotice(`Funding request ${decision}.`);
-  });
-
-
-
   const signOut = async () => {
     setBusy(true);
     clearNotice();
@@ -262,10 +245,6 @@ function Index() {
           setPhone={setPhone}
           onBuy={handleBuy}
           onAirtimePurchase={handleAirtimePurchase}
-          fundingAmount={fundingAmount}
-          setFundingAmount={setFundingAmount}
-          onFunding={handleFunding}
-          onReviewFunding={handleReviewFunding}
         />
       ) : (
         <Storefront
@@ -327,9 +306,6 @@ function DashboardShell(props: {
   selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   onAirtimePurchase: (payload: { networkCode: string; recipient: string; amount: number }) => Promise<void>;
-  fundingAmount: string; setFundingAmount: (amount: string) => void;
-  onFunding: (event: FormEvent<HTMLFormElement>) => void;
-  onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
 }) {
   const accountLabel = props.accountType.replace(/[_-]/g, " ");
   const navItems: { key: ViewKey; label: string; icon: ReactNode; group: string }[] = [
@@ -872,10 +848,6 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
 
 function OrderRow({ order }: { order: DataOrder }) {
   return <div className="flex items-center justify-between gap-3 border-b px-5 py-4 last:border-0"><div><p className="text-sm font-medium text-foreground">{order.network} · {order.data_amount}</p><p className="mt-1 text-xs text-muted-foreground">{order.phone} · {formatDate(order.created_at)}</p></div><div className="text-right"><strong className="text-sm text-foreground">{formatNaira(order.amount)}</strong><StatusBadge status={order.status} /></div></div>;
-}
-
-function FundingRow({ funding }: { funding: Funding }) {
-  return <div className="flex items-center justify-between gap-3 border-b px-5 py-4 last:border-0"><div><p className="text-sm font-medium text-foreground">Bank transfer</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(funding.created_at)}</p></div><div className="text-right"><strong className="text-sm text-foreground">{formatNaira(funding.amount)}</strong><StatusBadge status={funding.status} /></div></div>;
 }
 
 function StatusBadge({ status }: { status: string }) {
