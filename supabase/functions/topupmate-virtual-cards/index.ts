@@ -1,12 +1,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "../_shared/cors.ts";
 import { decryptIdentity } from "../_shared/identity-crypto.ts";
-import { topupmateGet, topupmatePost, topupmateStatus, topupmateReference, topupmateMessage } from "../_shared/topupmate.ts";
+import { topupmateGet, topupmatePost, topupmateReference, topupmateMessage } from "../_shared/topupmate.ts";
 
 type Obj=Record<string,any>;
 const str=(v:unknown)=>String(v??"").trim();
 const num=(v:unknown)=>Number.isFinite(Number(v))?Number(v):0;
 const round2=(v:number)=>Math.round(v*100)/100;
+const cardState=(body:Obj):"success"|"fail"|"processing"|"unknown"=>{
+ const value=str(body?.status??body?.response?.status??body?.data?.status).toLowerCase();
+ if(["success","successful","completed","complete","succeeded"].includes(value))return "success";
+ if(["fail","failed","error","rejected","declined"].includes(value))return "fail";
+ if(["processing","pending","queued","initiated","in_progress","in-progress"].includes(value))return "processing";
+ return "unknown";
+};
 const ceil10=(v:number)=>Math.ceil(v/10)*10;
 const ref=()=> "TOLICARD_"+crypto.randomUUID().replace(/-/g,"").toUpperCase();
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"}});
@@ -28,7 +35,7 @@ function safeCardPayload(data:Obj,profile:Obj){
 }
 async function fxRate(usd:number){
  const q=await topupmatePost("/fx-conversions/rates/",{from:"USD",to:"NGN",amount:usd});
- if(!q.ok||topupmateStatus(q.body)==="fail")throw new UserError("Unable to obtain the current USD/NGN exchange rate.");
+ if(!q.ok||cardState(q.body)==="fail")throw new UserError("Unable to obtain the current USD/NGN exchange rate.");
  const b=q.body?.response??q.body?.data??q.body;
  let rate=num(b?.rate??b?.exchange_rate??b?.exchangeRate??b?.conversion_rate);
  const converted=num(b?.converted_amount??b?.convertedAmount);
@@ -93,7 +100,7 @@ Deno.serve(async request=>{
   }
   if(action==="details"){
    const q=await topupmatePost("/cards/card-details/",{card_id:card!.provider_card_id});
-   if(!q.ok||topupmateStatus(q.body)==="fail")throw new UserError(generic);
+   if(!q.ok||cardState(q.body)==="fail")throw new UserError(generic);
    const d=q.body?.response??q.body?.data??q.body;
    // Credentials are returned only to this authenticated owner on demand; never stored or logged.
    return json({success:true,details:d});
@@ -127,12 +134,12 @@ Deno.serve(async request=>{
    const parts=str(profile.first_name).split(/\s+/);
    const payload={first_name:profile.first_name,last_name:profile.last_name,phone:profile.phone,email:profile.email,dob:profile.date_of_birth,kycType:str(kyc.identity_kind).toUpperCase(),kycNo:identity,address:profile.address,state:profile.state,city:profile.city,amount,brand:str(body.brand||"VISA").toUpperCase(),ref:reference};
    let q;try{q=await topupmatePost("/cards/create/",payload);}catch(error){await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:"transport_error",p_message:"Topupmate card creation response was not received"});return json({success:true,status:"unknown",reference,message:"We are checking your card creation request. Do not submit it again."},202);}
-   const state=topupmateStatus(q.body);
+   const state=cardState(q.body);
    if(q.ok&&state==="fail"){
     const {error:refundError}=await admin.rpc("refund_virtual_card_operation",{p_operation_id:op.id,p_provider_status:"fail",p_reason:"Topupmate confirmed card creation failure"});
     return json({success:false,status:refundError?"unknown":"refunded",error:refundError?"The card provider rejected the request. Contact support to reconcile your wallet.":"The card provider rejected the request; your wallet has been refunded."},refundError?202:400);
    }
-   if(!q.ok||state==="processing"){
+   if(!q.ok||state!=="success"){
     await admin.rpc("mark_virtual_card_operation",{p_operation_id:op.id,p_status:"unknown",p_provider_status:!q.ok?"http_"+q.httpStatus:"processing",p_provider_reference:topupmateReference(q.body),p_message:"Topupmate is processing or card creation requires reconciliation"});
     return json({success:true,status:"processing",reference,message:"Your card is being created. Do not submit another request."},202);
    }
