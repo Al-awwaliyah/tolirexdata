@@ -235,6 +235,36 @@ export const getTolirexAdminOverview = createServerFn({ method: "GET" })
     };
   });
 
+
+/** Submit encrypted identity information through the private KYC Edge Function. */
+export const submitCustomerKyc = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    firstName: z.string().min(2).max(80), lastName: z.string().min(2).max(80),
+    phone: z.string().min(10).max(16), identityType: z.enum(["bvn","nin"]),
+    identityNumber: z.string().regex(/^\\d{11}$/), consent: z.literal(true),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    const authContext = context as AuthContext;
+    const { data: result, error } = await authContext.supabase.functions.invoke("submit-kyc", {
+      body: { first_name: data.firstName, last_name: data.lastName, phone_number: data.phone,
+        bvn: data.identityType === "bvn" ? data.identityNumber : undefined,
+        nin: data.identityType === "nin" ? data.identityNumber : undefined, consent: true },
+    });
+    if (error || result?.error) throw new Error(result?.error ?? "Unable to submit KYC application");
+    return result.application;
+  });
+
+/** Issue or retrieve the customer's permanent Flutterwave account after KYC approval. */
+export const ensureFlutterwaveVirtualAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const authContext = context as AuthContext;
+    const { data: result, error } = await authContext.supabase.functions.invoke("flutterwave-virtual-accounts", { body: {} });
+    if (error || result?.error) throw new Error(result?.error ?? "Unable to retrieve your virtual account");
+    return result.account;
+  });
+
 /** Authenticated Topupmate virtual-card actions. Provider credentials remain in Supabase Edge Functions. */
 export const manageTopupmateVirtualCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
