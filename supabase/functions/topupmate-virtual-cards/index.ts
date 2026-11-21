@@ -64,7 +64,8 @@ Deno.serve(async request=>{
   if(action==="list"){
    const {data,error}=await admin.from("virtual_cards").select("id,masked_pan,last4,card_type,currency,name_on_card,expiry_month,expiry_year,status,amount_funded,total_funded_usd,last_balance_usd,last_provider_sync_at,created_at").eq("user_id",user.id).eq("provider","topupmate").neq("status","terminated").order("created_at",{ascending:false});
    if(error)throw new UserError("Unable to load your cards.");
-   return json({success:true,cards:data??[]});
+   const {data:operations}=await admin.from("virtual_card_operations").select("id,virtual_card_id,action,reference,amount_usd,wallet_amount_ngn,status,provider_status,message,created_at,updated_at").eq("user_id",user.id).order("created_at",{ascending:false}).limit(15);
+   return json({success:true,cards:data??[],operations:operations??[]});
   }
   if(action==="quote"){
    const amount=num(body.amountUsd);
