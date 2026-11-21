@@ -109,11 +109,13 @@ Deno.serve(async req => {
           if(!cost) continue;
           let network=networkCode(first(item,["networkid","network_id","networkId","network_code","networkCode","network","network_name","networkName","provider_id","provider","provider_name"]));
           if(network&&!/^\\d+$/.test(network)){
+            const optionType=spec.key==="cabletv"?"cable_provider":"network";
             const {data:matchedNetwork}=await admin.from("provider_service_options")
-              .select("option_code").eq("provider_id",provider.id).eq("option_type","network")
+              .select("option_code").eq("provider_id",provider.id).eq("option_type",optionType)
               .ilike("name",network).limit(1).maybeSingle();
             if(matchedNetwork?.option_code)network=matchedNetwork.option_code;
           }
+          if(spec.key==="cabletv"&&!network)continue;
           const validity=first(item,["validity","duration","period","validity_period"]);
           const {error}=await admin.rpc("sync_provider_catalogue_product",{p_provider_code:"topupmate",p_category_code:spec.category,p_product_code:spec.key+":"+code,p_name:label,p_network_or_operator:network||null,p_description:validity||null,p_face_value:num(item.face_value??item.denomination),p_cost_price:cost,p_metadata:{source_service:spec.key,supplier_plan_id:code}});
           if(!error) products++;
