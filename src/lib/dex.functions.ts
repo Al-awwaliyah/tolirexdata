@@ -87,6 +87,33 @@ export const getDexDashboard = createServerFn({ method: "GET" })
     };
   });
 
+export const purchaseAirtimeOrData = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    service: z.enum(["airtime", "data"]),
+    networkCode: z.string().min(1).max(30),
+    recipient: z.string().regex(/^\d{10,14}$/),
+    productId: z.string().uuid().optional(),
+    amount: z.number().int().min(50).max(200000).optional(),
+    idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{12,100}$/),
+  }).superRefine((value, ctx) => {
+    if (value.service === "data" && !value.productId) {
+      ctx.addIssue({ code: "custom", path: ["productId"], message: "Choose a data plan." });
+    }
+    if (value.service === "airtime" && value.amount === undefined) {
+      ctx.addIssue({ code: "custom", path: ["amount"], message: "Enter an airtime amount." });
+    }
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    const authContext = context as AuthContext;
+    const { data: result, error } = await authContext.supabase.functions.invoke("purchase-airtime-data", {
+      body: data,
+    });
+    if (error) throw new Error("Unable to submit purchase. Check your transaction history before trying again.");
+    if (!result) throw new Error("The purchase service returned no result.");
+    return result;
+  });
+
 export const createDataOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ planId: z.string().uuid(), phone: z.string().min(1).max(20) }).parse(input))
