@@ -6,7 +6,7 @@ Topupmate is the launch VTU provider. All provider calls run from Supabase Edge 
 
 Set Supabase Edge Function secrets:
 - `TOPUPMATE_API_KEY`: secret from the Topupmate account.
-- `TOPUPMATE_BASE_URL`: optional; defaults to `https://connect.topupmate.com/api`. Use `https://connect.topupmate.com/sandbox` for sandbox testing.
+- The API base URL is fixed in server code to `https://connect.topupmate.com/api`; only `TOPUPMATE_API_KEY` is configured as a secret.nal; defaults to `https://connect.topupmate.com/api`. Use `(sandbox endpoint intentionally unsupported)` for sandbox testing.
 
 Authentication is `Authorization: Token <API key>`.
 
