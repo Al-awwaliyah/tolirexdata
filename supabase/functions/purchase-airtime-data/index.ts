@@ -70,7 +70,7 @@ Deno.serve(async (request) => {
     p_idempotency_key:body.idempotencyKey,
   });
   if (reserveError || !order) return json({error:reserveError?.message ?? "Could not reserve purchase"},409);
-  if (order.status==="successful" || order.status==="processing" || order.status==="unknown" || order.status==="refunded")
+  if (order.status==="successful" || order.status==="processing" || order.status==="unknown" || order.status==="refunded" || order.status==="failed" || order.status==="reversal_pending")
     return json({orderId:order.id,status:order.status,requestId:order.request_id,reused:true});
 
   const common={UserID:userId,APIKey:apiKey,MobileNetwork:body.networkCode,MobileNumber:body.recipient,RequestID:order.request_id};
@@ -88,12 +88,15 @@ Deno.serve(async (request) => {
     params.DataPlan=String(product.provider_product_code).split(":").pop()!;
   }
 
+  const {error:startedError}=await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:null,p_provider_status:"SUBMISSION_STARTED",p_message:"Supplier submission started"});
+  if (startedError) return json({orderId:order.id,status:"unknown",requestId:order.request_id,message:"Purchase is reserved and requires reconciliation."},202);
+
   try {
     const response=await supplierRequest(purchasePath,params);
     const state=statusOf(response);
     const orderId=clean(response.orderid);
     const message=clean(response.orderremark || response.remark || response.status);
-    if (state==="ORDER_COMPLETED" || response.statuscode==="200") {
+    if (state==="ORDER_COMPLETED") {
       const {error}=await admin.rpc("complete_catalogue_service_order",{
         p_order_id:order.id,p_provider_order_id:orderId || null,p_provider_status:state || "ORDER_COMPLETED",p_message:message,
       });
@@ -104,15 +107,6 @@ Deno.serve(async (request) => {
       await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:orderId || null,p_provider_status:state,p_message:message});
       return json({orderId:order.id,status:"processing",requestId:order.request_id});
     }
-    if (state && state!=="ORDER_RECEIVED") {
-      // A supplier-declared failure is only refundable when it is a known terminal rejection.
-      const terminal = ["INVALID_RECIPIENT","INVALID_AMOUNT","MINIMUM_50","MINIMUM_200000","INVALID_DATAPLAN","MISSING_DATAPLAN","MISSING_MOBILENETWORK","MISSING_AMOUNT"];
-      if (terminal.includes(state)) {
-        const {error}=await admin.rpc("fail_and_refund_catalogue_service_order",{p_order_id:order.id,p_provider_status:state,p_reason:message || state});
-        if (error) throw error;
-        return json({orderId:order.id,status:"refunded",requestId:order.request_id});
-      }
-    }
     await admin.rpc("mark_service_order_unknown",{p_order_id:order.id,p_provider_status:state || "UNRECOGNIZED",p_message:message});
     return json({orderId:order.id,status:"unknown",requestId:order.request_id},202);
   } catch (error) {
@@ -122,7 +116,7 @@ Deno.serve(async (request) => {
       const query=await supplierRequest("/APIQueryV1.asp",{UserID:userId,APIKey:apiKey,RequestID:order.request_id});
       const state=statusOf(query);
       const message=clean(query.orderremark || query.remark || query.status);
-      if (state==="ORDER_COMPLETED" || query.statuscode==="200") {
+      if (state==="ORDER_COMPLETED") {
         const {error:settleError}=await admin.rpc("complete_catalogue_service_order",{
           p_order_id:order.id,p_provider_order_id:clean(query.orderid) || null,p_provider_status:state || "ORDER_COMPLETED",p_message:message,
         });
