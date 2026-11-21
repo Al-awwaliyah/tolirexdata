@@ -152,8 +152,8 @@ function normalizeCableProducts(payload: unknown): NormalizedProduct[] {
 function normalizeElectricityOptions(payload: unknown): NormalizedOption[] {
   const output = new Map<string, NormalizedOption>();
   walk(payload, (obj) => {
-    const code = first(obj, ["ElectricCompany","electricCompany","electric_company","biller_code","billerCode","code","id","ID"]);
-    const name = first(obj, ["ElectricCompanyName","electric_company_name","CompanyName","companyName","company_name","BillerName","biller_name","name","Name","label"]);
+    const code = first(obj, ["ElectricCompany","electricCompany","electric_company","biller_code","billerCode","DiscoCode","disco_code"]);
+    const name = first(obj, ["ElectricCompanyName","electric_company_name","DiscoName","disco_name","CompanyName","companyName","company_name","BillerName","biller_name"]);
     if (code && name) output.set("operator:"+code,{category:"electricity",type:"operator",code,name});
     const meters = obj.meterTypes ?? obj.meter_types ?? obj.MeterTypes;
     if (code && Array.isArray(meters)) {
@@ -309,12 +309,6 @@ Deno.serve(async (request) => {
   const results: Array<{key:string;status:"success"|"failed"|"skipped";products?:number;options?:number;error?:string}> = await Promise.all(ENDPOINTS.map(async (endpoint) => {
     try {
       const payload = await fetchCatalogue(endpoint, supplierUserId, supplierApiKey);
-      const { error: snapshotError } = await admin.from("provider_catalogue_snapshots").upsert({
-        provider_code: "clubkonnect", catalogue_key: endpoint.key, payload,
-        fetched_at: new Date().toISOString(), fetch_status: "success", error_summary: null,
-      }, { onConflict: "provider_code,catalogue_key" });
-      if (snapshotError) throw new Error("Could not persist supplier snapshot");
-
       const normalized = normalize(endpoint.key, payload);
       let insertedProducts = 0;
       let insertedOptions = 0;
@@ -326,6 +320,11 @@ Deno.serve(async (request) => {
         await rpcOption(admin, option);
         insertedOptions++;
       }
+      const { error: snapshotError } = await admin.from("provider_catalogue_snapshots").upsert({
+        provider_code: "clubkonnect", catalogue_key: endpoint.key, payload,
+        fetched_at: new Date().toISOString(), fetch_status: "success", error_summary: null,
+      }, { onConflict: "provider_code,catalogue_key" });
+      if (snapshotError) throw new Error("Could not persist supplier snapshot");
       return { key: endpoint.key, status: "success" as const, products: insertedProducts, options: insertedOptions };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown supplier error";
@@ -366,8 +365,8 @@ Deno.serve(async (request) => {
   const succeeded = results.filter((item) => item.status === "success").length;
   const failed = results.filter((item) => item.status === "failed").length;
   const skipped = results.filter((item) => item.status === "skipped").length;
-  const products = results.reduce((sum,item) => sum + (item.status === "success" ? item.products : 0),0);
-  const options = results.reduce((sum,item) => sum + (item.status === "success" ? item.options : 0),0);
+  const products = results.reduce((sum,item) => sum + (item.status === "success" ? (item.products ?? 0) : 0),0);
+  const options = results.reduce((sum,item) => sum + (item.status === "success" ? (item.options ?? 0) : 0),0);
   const finalStatus = failed === 0 && skipped === 0 ? "success" : succeeded === 0 ? "failed" : "partial";
   const { error: runUpdateError } = await admin.from("provider_catalogue_sync_runs").update({
     status: finalStatus, discovered_products: products, discovered_options: options,
