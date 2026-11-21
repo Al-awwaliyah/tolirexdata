@@ -86,12 +86,16 @@ Deno.serve(async request=>{
     const meterType=text(body.meterType||"prepaid").toLowerCase();
     if(!["prepaid","postpaid"].includes(meterType))return json({error:"Choose prepaid or postpaid."},400);
     const verify=await topupmatePost("/electricity/verify/",{provider:optionCode,meternumber:recipient,metertype:meterType});
-    if(!verify.ok||classify(verify.body)!=="success")return json({error:"Meter verification must succeed before payment."},409);
+    const meterData=resultPayload(verify.body);
+    const meterOwner=text(meterData?.Customer_Name??meterData?.customer_name??meterData?.customername??meterData?.name);
+    if(!verify.ok||classify(verify.body)==="fail"||!meterOwner)return json({error:"Meter verification must return a verified customer before payment."},409);
    } else if(category==="cable_tv"){
     if(!product||!optionCode||!/^\d{8,20}$/.test(recipient))return json({error:"Select a published cable package and enter a valid SmartCard/IUC."},400);
     await providerOption("cable_tv","cable_provider",optionCode);
     const verify=await topupmatePost("/cabletv/verify/",{provider:optionCode,iucnumber:recipient});
-    if(!verify.ok||classify(verify.body)!=="success")return json({error:"SmartCard/IUC verification must succeed before payment."},409);
+    const cableData=resultPayload(verify.body);
+    const cableOwner=text(cableData?.Customer_Name??cableData?.customer_name??cableData?.customername??cableData?.name);
+    if(!verify.ok||classify(verify.body)==="fail"||!cableOwner)return json({error:"SmartCard/IUC verification must return a verified customer before payment."},409);
    } else if(!product){
     return json({error:"Select a currently published supplier product."},400);
    }
