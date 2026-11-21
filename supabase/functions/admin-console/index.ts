@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body.action ?? "");
-  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : "";
+  const permission = action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read" : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage" : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage" : action === "provider_status" ? "providers.manage" : action === "airtime_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
@@ -86,7 +86,7 @@ Deno.serve(async (request) => {
       .select("id,code,name,status,priority,supports_airtime,supports_data,supports_cable,supports_electricity,supports_epin")
       .order("priority");
     const { data: options, error: optionsError } = await admin.from("provider_service_options")
-      .select("id,category_id,option_type,option_code,parent_option_code,name,active,publication_status,supplier_last_seen_at,service_categories(code,name)")
+      .select("id,category_id,option_type,option_code,parent_option_code,name,metadata,active,publication_status,supplier_last_seen_at,service_categories(code,name)")
       .order("name").limit(500);
     const { data: runs, error: runError } = await admin.from("provider_catalogue_sync_runs")
       .select("id,status,discovered_products,discovered_options,failed_endpoints,summary,started_at,completed_at")
@@ -105,6 +105,24 @@ Deno.serve(async (request) => {
     });
     if (error) return json({ error: error.message }, 400);
     return json({ provider: data });
+  }
+
+  if (action === "airtime_pricing") {
+    const { data: canManageServices } = await caller.rpc("has_admin_permission", { p_permission: "services.manage" });
+    if (canManageServices !== true) return json({ error: "Service management permission is required" }, 403);
+    const optionId = String(body.optionId ?? "");
+    const discountFactor = Number(body.discountFactor);
+    const minimumAmount = Number(body.minimumAmount);
+    const maximumAmount = Number(body.maximumAmount);
+    if (!optionId || !Number.isFinite(discountFactor) || !Number.isFinite(minimumAmount) || !Number.isFinite(maximumAmount)) {
+      return json({ error: "Enter valid Airtime supplier pricing values" }, 400);
+    }
+    const { data, error } = await caller.rpc("admin_configure_airtime_network_pricing", {
+      p_option_id: optionId, p_discount_factor: discountFactor,
+      p_minimum_amount: minimumAmount, p_maximum_amount: maximumAmount,
+    });
+    if (error) return json({ error: error.message }, 400);
+    return json({ option: data });
   }
 
   if (action === "publish_option") {
