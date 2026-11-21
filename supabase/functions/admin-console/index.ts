@@ -41,7 +41,7 @@ Deno.serve(async (request) => {
     : action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read"
     : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
     : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage"
-    : action === "provider_status" ? "providers.manage" : action === "airtime_pricing" ? "pricing.manage"
+    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "airtime_pricing" ? "pricing.manage"
     : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
@@ -210,6 +210,33 @@ Deno.serve(async (request) => {
     });
     if (error) return json({ error: error.message }, 400);
     return json({ product: data });
+  }
+
+  if (action === "account_application") {
+    const module = String(body.module ?? "");
+    const id = String(body.id ?? "");
+    const status = String(body.status ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(id) || !["active","rejected","suspended"].includes(status) || !["agents","businesses"].includes(module)) return json({ error: "Invalid account application decision" }, 400);
+    const table = module === "agents" ? "agent_accounts" : "businesses";
+    const before = await admin.from(table).select("*").eq("id", id).maybeSingle();
+    if (before.error || !before.data) return json({ error: "Account application not found" }, 404);
+    if (before.data.status !== "pending" && status !== "suspended") return json({ error: "Only pending applications can be approved or rejected" }, 409);
+    const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+    if (module === "agents" && status === "active") { patch.approved_by = auth.user.id; patch.approved_at = new Date().toISOString(); }
+    const updated = await admin.from(table).update(patch).eq("id", id).select("*").single();
+    if (updated.error) return json({ error: "Unable to update account application" }, 500);
+    await admin.from("audit_logs").insert({ actor_user_id: auth.user.id, action: module + ".application_" + status, target_type: module === "agents" ? "agent_account" : "business", target_id: id, before_data: { status: before.data.status }, after_data: { status } });
+    return json({ application: updated.data });
+  }
+
+  if (action === "platform_setting") {
+    const key = String(body.key ?? "").trim().slice(0,100);
+    if (!/^[a-z][a-z0-9_.-]{1,99}$/.test(key) || !("value" in body)) return json({ error: "A valid setting key and value are required" }, 400);
+    const previous = await admin.from("platform_settings").select("setting_value,is_public").eq("setting_key",key).maybeSingle();
+    const saved = await admin.from("platform_settings").upsert({ setting_key:key, setting_value:body.value, is_public:body.isPublic===true, updated_by:auth.user.id, updated_at:new Date().toISOString() }, { onConflict:"setting_key" }).select("setting_key,is_public,updated_by,updated_at").single();
+    if (saved.error) return json({ error: "Unable to save platform setting" }, 500);
+    await admin.from("audit_logs").insert({ actor_user_id:auth.user.id, action:"platform_setting.updated", target_type:"platform_setting", target_id:null, before_data:previous.data??null, after_data:{setting_key:key,is_public:body.isPublic===true} });
+    return json({ setting:saved.data });
   }
 
   if (action === "workspace") {
