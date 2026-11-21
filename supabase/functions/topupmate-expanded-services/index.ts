@@ -14,7 +14,6 @@ const classify=(body:Obj):"success"|"fail"|"processing"|"unknown"=>{
  if(["processing","pending","queued","initiated","in_progress","in-progress"].includes(s))return "processing";
  return "unknown";
 };
-const servicePaths:Record<string,string>={cable_tv:"/cabletv/",electricity:"/electricity/",recharge_pin:"/rechargepin/",data_pin:"/datapin/",education:"/exam/"};
 const cleanPhone=(v:string)=>{let x=v.replace(/[\s()+-]/g,"");if(/^234\d{10}$/.test(x))x="0"+x.slice(3);if(/^\d{10}$/.test(x))x="0"+x;return /^0\d{10}$/.test(x)?x:"";};
 const productCode=(p:Obj)=>text(p?.metadata?.supplier_plan_id)||text(p?.provider_product_code).split(":").slice(1).join(":")||text(p?.provider_product_code);
 const resultPayload=(body:Obj)=>body?.response??body?.data??body;
@@ -116,7 +115,7 @@ Deno.serve(async request=>{
    }
    const {data:order,error:reserveError}=await admin.rpc("reserve_topupmate_service_order",{
     p_user_id:auth.user.id,p_category_code:category,p_product_id:product?.id??null,
-    p_option_type:optionType||(["electricity","cable_tv"].includes(category)?"operator":"network"),
+    p_option_type:category==="cable_tv"?"cable_provider":category==="electricity"?"operator":"network",
     p_option_code:optionCode||null,p_recipient:recipient||productCode(product??{}),
     p_face_value:category==="electricity"?faceValue:null,p_quantity:quantity,
     p_idempotency_key:idempotency,p_service_metadata:metadata
