@@ -314,3 +314,35 @@ export const manageTopupmateVirtualCard = createServerFn({ method: "POST" })
     return result;
   });
 
+
+/** Authenticated Topupmate operations for catalogue-driven bill and PIN services. */
+export const manageTopupmateExpandedService = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    action: z.enum(["verify","purchase","status"]),
+    service: z.string().optional(),
+    categoryCode: z.string().optional(),
+    productId: z.string().uuid().optional(),
+    optionType: z.string().optional(),
+    optionCode: z.string().optional(),
+    recipient: z.string().optional(),
+    iuc: z.string().optional(),
+    meterNumber: z.string().optional(),
+    meterType: z.enum(["prepaid","postpaid"]).optional(),
+    amount: z.number().positive().optional(),
+    quantity: z.number().int().positive().max(100).optional(),
+    contactPhone: z.string().optional(),
+    subtype: z.string().optional(),
+    accountType: z.enum(["PhoneNumber","AccountNumber"]).optional(),
+    idempotencyKey: z.string().min(12).max(100).optional(),
+    reference: z.string().optional(),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    const authContext = context as AuthContext;
+    const { data: result, error } = await authContext.supabase.functions.invoke("topupmate-expanded-services", { body: data });
+    if (error) throw new Error("Unable to contact Topupmate services. Check your transaction history before trying again.");
+    if (!result) throw new Error("The Topupmate service returned no result.");
+    if (result.error && !result.success) throw new Error(String(result.error));
+    return result;
+  });
+
