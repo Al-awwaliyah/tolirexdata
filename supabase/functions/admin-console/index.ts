@@ -59,7 +59,8 @@ Deno.serve(async (request) => {
   }
 
   if (action === "catalogue") {
-    const { data: canManagePricing } = await caller.rpc("has_admin_permission", { p_permission: "pricing.manage" });\n    const { data: canManageProviders } = await caller.rpc("has_admin_permission", { p_permission: "providers.manage" });
+    const { data: canManagePricing } = await caller.rpc("has_admin_permission", { p_permission: "pricing.manage" });
+    const { data: canManageProviders } = await caller.rpc("has_admin_permission", { p_permission: "providers.manage" });
     const productFields = canManagePricing === true
       ? "id,name,provider_product_code,network_or_operator,description,face_value,cost_price,selling_price,currency,active,publication_status,supplier_last_seen_at,updated_at,service_categories(code,name),service_providers(code,name)"
       : "id,name,provider_product_code,network_or_operator,description,face_value,selling_price,currency,active,publication_status,supplier_last_seen_at,updated_at,service_categories(code,name),service_providers(code,name)";
