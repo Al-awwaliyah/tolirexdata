@@ -20,6 +20,9 @@ create unique index if not exists virtual_accounts_one_active_permanent_user_uq
   on public.virtual_accounts(user_id)
   where is_permanent = true and status = 'active';
 
+create unique index if not exists virtual_accounts_provider_account_reference_uq
+  on public.virtual_accounts(provider, account_reference)
+  where account_reference is not null;
 create unique index if not exists funding_events_provider_event_uq
   on public.funding_events(provider, provider_event_id)
   where provider_event_id is not null;
