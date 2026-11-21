@@ -344,8 +344,27 @@ Deno.serve(async (request) => {
     }
   }));
 
+  const electricityCatalogue = Deno.env.get("CLUBKONNECT_ELECTRICITY_BILLERS_JSON");
+  if (electricityCatalogue) {
+    try {
+      const payload = JSON.parse(electricityCatalogue);
+      const { error: snapshotError } = await admin.from("provider_catalogue_snapshots").upsert({
+        provider_code:"clubkonnect",catalogue_key:"electricity_discos",payload,
+        fetched_at:new Date().toISOString(),fetch_status:"success",error_summary:null,
+      },{onConflict:"provider_code,catalogue_key"});
+      if (snapshotError) throw new Error("Could not persist electricity supplier configuration snapshot");
+      const options = normalizeElectricityOptions(payload);
+      for (const option of options) await rpcOption(admin,option);
+      results.push({key:"electricity_discos",status:"success",products:0,options:options.length});
+    } catch (error) {
+      results.push({key:"electricity_discos",status:"failed",error:error instanceof Error?error.message:"Invalid electricity supplier configuration"});
+    }
+  } else {
+    results.push({key:"electricity_discos",status:"skipped",products:0,options:0,error:"Supplier-account electricity disco and meter catalogue is not configured."});
+  }
+
   const succeeded = results.filter((item) => item.status === "success").length;
-  const failed = results.length - succeeded;
+  const failed = results.filter((item) => item.status === "failed" || item.status === "skipped").length;
   const products = results.reduce((sum,item) => sum + (item.status === "success" ? item.products : 0),0);
   const options = results.reduce((sum,item) => sum + (item.status === "success" ? item.options : 0),0);
   const finalStatus = failed === 0 ? "success" : succeeded === 0 ? "failed" : "partial";
