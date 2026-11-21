@@ -55,7 +55,8 @@ function AdminDashboard() {
   const [catalogueOptions, setCatalogueOptions] = useState<any[]>([]);
   const [catalogueProviders, setCatalogueProviders] = useState<any[]>([]);
   const [catalogueRuns, setCatalogueRuns] = useState<any[]>([]);
-  const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);\n  const [catalogueCanManageProviders, setCatalogueCanManageProviders] = useState(false);
+  const [catalogueCanPrice, setCatalogueCanPrice] = useState(false);
+  const [catalogueCanManageProviders, setCatalogueCanManageProviders] = useState(false);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueSyncing, setCatalogueSyncing] = useState(false);
   const [catalogueDrafts, setCatalogueDrafts] = useState<Record<string,{personal:string;agent:string;business:string}>>({});
@@ -120,7 +121,8 @@ function AdminDashboard() {
       setCatalogueOptions(data?.options ?? []);
       setCatalogueProviders(data?.providers ?? []);
       setCatalogueRuns(data?.syncRuns ?? []);
-      setCatalogueCanPrice(data?.canManagePricing === true);\n      setCatalogueCanManageProviders(data?.canManageProviders === true);
+      setCatalogueCanPrice(data?.canManagePricing === true);
+      setCatalogueCanManageProviders(data?.canManageProviders === true);
     }
     setCatalogueLoading(false);
   };
