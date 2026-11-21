@@ -61,9 +61,15 @@ Deno.serve(async req => {
   const {data:run,error:runError}=await admin.from("provider_catalogue_sync_runs").insert({provider_id:provider.id,triggered_by:user.id,trigger_source:"admin",status:"running"}).select("id").single();
   if(runError||!run) return json({error:"Unable to start catalogue sync"},500);
   const results:Obj[]=[]; let products=0,options=0;
+  let statusPayload:Obj={};
+  try { statusPayload=await fetchEndpoint("/status/") as Obj; } catch { statusPayload={}; }
   for(const spec of services) {
     try {
-      const payload=await fetchEndpoint("/services/?service="+encodeURIComponent(spec.key));
+      const payload=spec.key==="cable-provider"
+        ? {response:(statusPayload as Obj).cable??(statusPayload as any).response?.cable??[]}
+        : spec.key==="electricity"
+          ? {response:(statusPayload as Obj).electricity??(statusPayload as any).response?.electricity??[]}
+          : await fetchEndpoint("/services/?service="+encodeURIComponent(spec.key));
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
       const list=rows(payload);
       for(const item of list) {
@@ -74,8 +80,10 @@ Deno.serve(async req => {
           const {error}=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:spec.category,p_option_type:spec.optionType,p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:spec.key,supplier_discount:item.discount??item.discount_percent??item.discountPercentage??null}});
           if(!error) options++;
           if(spec.key==="network") {
-            const mirrored=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:"data",p_option_type:"network",p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:"network"}});
-            if(!mirrored.error) options++;
+            for(const category of ["data","recharge_pin","data_pin"]) {
+              const mirrored=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:category,p_option_type:"network",p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:"network"}});
+              if(!mirrored.error) options++;
+            }
           }
         } else {
           const cost=num(item.price??item.amount??item.cost??item.provider_price??item.providerPrice??item.selling_price);
@@ -96,7 +104,71 @@ Deno.serve(async req => {
   try {
     const gift=await fetchEndpoint("/giftcard/available/");
     await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"giftcard:available",payload:gift,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
-    results.push({service:"giftcard",status:"success",records:rows(gift).length,publication:"private snapshot pending verified gift-card normalizer"});
+    const unwrap=(value:unknown,depth=0):Obj[]=>{
+      if(depth>7||!value)return [];
+      if(Array.isArray(value))return value.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)) as Obj[];
+      if(typeof value!=="object")return [];
+      const o=value as Obj;
+      for(const key of ["response","data","results","content","products","items","plans","packages","result","msg"]){
+        const found=unwrap(o[key],depth+1);if(found.length)return found;
+      }
+      return [];
+    };
+    const gifts=unwrap(gift);let giftProducts=0;
+    for(const item of gifts){
+      const id=first(item,["productid","product_id","productId","id"]);
+      const name=first(item,["productname","product_name","productName","name"]);
+      if(!id||!name)continue;
+      const fixedRecipient=Array.isArray(item.fixedrecipientdenominations)?item.fixedrecipientdenominations.map(Number).filter((x:number)=>x>0):[];
+      const fixedSender=Array.isArray(item.fixedsenderdenominations)?item.fixedsenderdenominations.map(Number).filter((x:number)=>x>0):[];
+      const mapped=Array.isArray(item.fixedrecipienttosenderdenominationsmap)?item.fixedrecipienttosenderdenominationsmap:[];
+      const pairs:{recipient:number;sender:number}[]=[];
+      for(const entry of mapped)if(entry&&typeof entry==="object")for(const [key,value] of Object.entries(entry)){
+        const recipient=Number(key),sender=Number(value);if(recipient>0&&sender>0)pairs.push({recipient,sender});
+      }
+      const recipients=fixedRecipient.length?fixedRecipient:pairs.map(x=>x.recipient);
+      const country=typeof item.country==="object"&&item.country?first(item.country as Obj,["isoname","code"]):text(item.countrycode??item.country_code??item.country);
+      const currency=text(item.recipientcurrencycode??item.recipient_currency_code)||"USD";
+      const senderCurrency=text(item.sendercurrencycode??item.sender_currency_code)||"NGN";
+      const logo=Array.isArray(item.logourls)?text(item.logourls[0]):text(item.logo_url??item.logourl??item.logo);
+      const redeem=item.redeeminstruction??item.redeem_instruction??null;
+      for(let i=0;i<recipients.length;i++){
+        const denomination=recipients[i];
+        const sender=pairs.find(x=>x.recipient===denomination)?.sender??fixedSender[i]??0;
+        if(!(sender>0))continue;
+        const productCode="giftcard:"+id+":"+String(denomination);
+        const {error}=await admin.rpc("sync_provider_catalogue_product",{
+          p_provider_code:"topupmate",p_category_code:"gift_card",p_product_code:productCode,
+          p_name:name+" "+denomination+" "+currency,p_network_or_operator:country||null,
+          p_description:"Gift card · "+currency,p_face_value:denomination,p_cost_price:sender,
+          p_metadata:{source_service:"giftcard",supplier_product_id:id,recipient_denomination:denomination,
+            recipient_currency:currency,sender_currency:senderCurrency,country_code:country,logo_url:logo,
+            redeem_instruction:redeem}
+        });
+        if(!error)giftProducts++;
+      }
+      if(!recipients.length){
+        const minRecipient=Number(item.minrecipientdenomination??item.min_recipient_denomination);
+        const maxRecipient=Number(item.maxrecipientdenomination??item.max_recipient_denomination);
+        const minSender=Number(item.minsenderdenomination??item.min_sender_denomination);
+        const maxSender=Number(item.maxsenderdenomination??item.max_sender_denomination);
+        for(const [denomination,sender] of [[minRecipient,minSender],[maxRecipient,maxSender]]){
+          if(!(denomination>0&&sender>0))continue;
+          const productCode="giftcard:"+id+":"+String(denomination);
+          const {error}=await admin.rpc("sync_provider_catalogue_product",{
+            p_provider_code:"topupmate",p_category_code:"gift_card",p_product_code:productCode,
+            p_name:name+" "+denomination+" "+currency,p_network_or_operator:country||null,
+            p_description:"Gift card · "+currency,p_face_value:denomination,p_cost_price:sender,
+            p_metadata:{source_service:"giftcard",supplier_product_id:id,recipient_denomination:denomination,
+              recipient_currency:currency,sender_currency:senderCurrency,country_code:country,logo_url:logo,
+              redeem_instruction:redeem}
+          });
+          if(!error)giftProducts++;
+        }
+      }
+    }
+    products+=giftProducts;
+    results.push({service:"giftcard",status:"success",records:gifts.length,normalizedProducts:giftProducts});
   } catch(error) { results.push({service:"giftcard",status:"failed",error:error instanceof Error?error.message:"Gift card catalogue failed"}); }
   const failed=results.filter(x=>x.status==="failed");
   const status=failed.length===0?"success":failed.length===results.length?"failed":"partial";
