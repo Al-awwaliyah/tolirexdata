@@ -73,6 +73,10 @@ Deno.serve(async req => {
         if(spec.kind==="options") {
           const {error}=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:spec.category,p_option_type:spec.optionType,p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:spec.key,supplier_discount:item.discount??item.discount_percent??item.discountPercentage??null}});
           if(!error) options++;
+          if(spec.key==="network") {
+            const mirrored=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:"data",p_option_type:"network",p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:"network"}});
+            if(!mirrored.error) options++;
+          }
         } else {
           const cost=num(item.price??item.amount??item.cost??item.provider_price??item.providerPrice??item.selling_price);
           if(!cost) continue;
