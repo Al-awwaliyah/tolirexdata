@@ -141,10 +141,13 @@ function Index() {
     void refreshDashboard();
   }, [user?.id, refreshDashboard]);
 
-  const availablePlans = useMemo(
-    () => (dashboard?.plans ?? []).filter((plan) => (!network || plan.network === network) && (plan.active || dashboard?.isAdmin)),
-    [dashboard?.isAdmin, dashboard?.plans, network],
-  );
+  const availablePlans = useMemo(() => {
+    const allPlans = (dashboard?.plans ?? []).filter((plan) => plan.active || dashboard?.isAdmin);
+    // A remembered network selection can become stale after a supplier catalogue
+    // refresh (renamed/removed network). Never let that hide every newly published plan.
+    const selectedNetworkStillExists = !network || allPlans.some((plan) => plan.network === network);
+    return allPlans.filter((plan) => !selectedNetworkStillExists || !network || plan.network === network);
+  }, [dashboard?.isAdmin, dashboard?.plans, network]);
   const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0];
   const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
 
