@@ -375,6 +375,7 @@ Deno.serve(async (request) => {
     summary: { endpoints: results.length, succeeded, failed, skipped, normalized_products: products, normalized_options: options },
     completed_at: new Date().toISOString(),
   }).eq("id",run.id);
+  if (runUpdateError) return json({ error: "Catalogue sync completed but run history could not be updated", run_id: run.id }, 500);
 
   const { error: auditError } = await admin.from("audit_logs").insert({
     actor_user_id:userData.user.id,action:"provider.catalogue_sync",target_type:"service_provider",
