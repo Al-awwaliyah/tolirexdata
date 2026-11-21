@@ -51,7 +51,11 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       return {
         profile: profiles.data?.find((profile) => profile.id === userId) ?? null,
         wallet: wallets.data?.find((wallet) => wallet.user_id === userId) ?? null,
-        plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
+        plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => {
+          const networkCode = String(item.network_or_operator ?? "");
+          const networkOption = (catalogueOptions.data ?? []).find((option: any) => option.category_code === "data" && option.option_type === "network" && option.option_code === networkCode);
+          return { id: item.id, network: (networkOption?.name ?? networkCode) || item.category_name, networkCode, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
+        }),
         catalogue: catalogue.data ?? [],
         catalogueOptions: catalogueOptions.data ?? [],
         orders: orders.data ?? [],
@@ -79,7 +83,11 @@ export const getDexDashboard = createServerFn({ method: "GET" })
     return {
       profile: profile.data,
       wallet: wallet.data,
-      plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
+      plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => {
+          const networkCode = String(item.network_or_operator ?? "");
+          const networkOption = (catalogueOptions.data ?? []).find((option: any) => option.category_code === "data" && option.option_type === "network" && option.option_code === networkCode);
+          return { id: item.id, network: (networkOption?.name ?? networkCode) || item.category_name, networkCode, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
+        }),
       catalogue: catalogue.data ?? [],
       catalogueOptions: catalogueOptions.data ?? [],
       orders: orders.data ?? [],

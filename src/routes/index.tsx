@@ -61,7 +61,7 @@ import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
-type DataPlan = { id: string; network: string; data_amount: string; validity: string; price: number; active: boolean };
+type DataPlan = { id: string; network: string; networkCode: string; data_amount: string; validity: string; price: number; active: boolean };
 type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
 type CatalogueOption = { id: string; category_code: string; option_type: string; option_code: string; parent_option_code: string | null; name: string };
 type DataOrder = TableRows<"data_orders">;
@@ -141,10 +141,13 @@ function Index() {
     void refreshDashboard();
   }, [user?.id, refreshDashboard]);
 
-  const availablePlans = useMemo(
-    () => (dashboard?.plans ?? []).filter((plan) => (!network || plan.network === network) && (plan.active || dashboard?.isAdmin)),
-    [dashboard?.isAdmin, dashboard?.plans, network],
-  );
+  const availablePlans = useMemo(() => {
+    const allPlans = (dashboard?.plans ?? []).filter((plan) => plan.active || dashboard?.isAdmin);
+    // A remembered network selection can become stale after a supplier catalogue
+    // refresh (renamed/removed network). Never let that hide every newly published plan.
+    const selectedNetworkStillExists = !network || allPlans.some((plan) => plan.network === network);
+    return allPlans.filter((plan) => !selectedNetworkStillExists || !network || plan.network === network);
+  }, [dashboard?.isAdmin, dashboard?.plans, network]);
   const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0];
   const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
 
@@ -163,9 +166,9 @@ function Index() {
 
   const handleBuy = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedPlan || !isValidNigerianPhone(phone)) { setNotice("Choose a published data plan and enter a valid Nigerian phone number."); return; }
+    if (!selectedPlan || !selectedPlan.networkCode || !isValidNigerianPhone(phone)) { setNotice("Choose a published data plan with a valid supplier network and enter a valid Nigerian phone number."); return; }
     await action(async () => {
-      const result = await purchaseAirtimeOrData({ data: { service:"data", productId:selectedPlan.id, networkCode:selectedPlan.network, recipient:phone, idempotencyKey:crypto.randomUUID().replace(/-/g,"") } });
+      const result = await purchaseAirtimeOrData({ data: { service:"data", productId:selectedPlan.id, networkCode:selectedPlan.networkCode, recipient:phone, idempotencyKey:crypto.randomUUID().replace(/-/g,"") } });
       setNotice(result.status==="successful" ? "Data purchase completed successfully." : result.status==="refunded" ? "Supplier rejected the order; your wallet refund has been processed." : "Your order is processing or being checked. Check Transactions before submitting again.");
       await refreshDashboard();
     });
