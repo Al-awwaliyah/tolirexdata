@@ -35,22 +35,22 @@ export const getDexDashboard = createServerFn({ method: "GET" })
 
     if (adminAccess) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const [profiles, wallets, orders, fundings, transactions, catalogue] = await Promise.all([
+      const [profiles, wallets, orders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
         supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallets").select("*").limit(500),
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("fundings").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
-        (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+        (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),\n        (supabaseAdmin as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
       ]);
-      const results = [profiles, wallets, orders, fundings, transactions, catalogue];
+      const results = [profiles, wallets, orders, fundings, transactions, catalogue, catalogueOptions];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
 
       return {
         profile: profiles.data?.find((profile) => profile.id === userId) ?? null,
         wallet: wallets.data?.find((wallet) => wallet.user_id === userId) ?? null,
         plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => ({ id: item.id, network: item.network_or_operator ?? item.category_name, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true })),
-        catalogue: catalogue.data ?? [],
+        catalogue: catalogue.data ?? [],\n      catalogueOptions: catalogueOptions.data ?? [],\n        catalogueOptions: catalogueOptions.data ?? [],
         orders: orders.data ?? [],
         fundings: fundings.data ?? [],
         transactions: transactions.data ?? [],
@@ -59,15 +59,15 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       };
     }
 
-    const [profile, wallet, orders, fundings, transactions, catalogue] = await Promise.all([
+    const [profile, wallet, orders, fundings, transactions, catalogue, catalogueOptions] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("data_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("fundings").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-      (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+      (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),\n      (supabase as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
     ]);
-    const results = [profile, wallet, orders, fundings, transactions, catalogue];
+    const results = [profile, wallet, orders, fundings, transactions, catalogue, catalogueOptions];
     if (results.some((result) => result.error)) throw new Error("Unable to load your DEX Sub account");
 
     return {
