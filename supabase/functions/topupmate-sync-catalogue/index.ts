@@ -61,31 +61,30 @@ Deno.serve(async req => {
   const {data:run,error:runError}=await admin.from("provider_catalogue_sync_runs").insert({provider_id:provider.id,triggered_by:user.id,trigger_source:"admin",status:"running"}).select("id").single();
   if(runError||!run) return json({error:"Unable to start catalogue sync"},500);
   const results:Obj[]=[]; let products=0,options=0;
-  let statusPayload:Obj={};
-  try { statusPayload=await fetchEndpoint("/status/") as Obj; } catch { statusPayload={}; }
   for(const spec of services) {
     try {
-      const payload=spec.key==="cable-provider"
-        ? {response:(statusPayload as Obj).cable??(statusPayload as any).response?.cable??[]}
-        : spec.key==="electricity"
-          ? {response:(statusPayload as Obj).electricity??(statusPayload as any).response?.electricity??[]}
-          : await fetchEndpoint("/services/?service="+encodeURIComponent(spec.key));
-      if((spec.key==="cable-provider"||spec.key==="electricity")&&rows(payload).length===0)
-        throw new Error("Topupmate /status/ did not return any "+spec.key+" options.");
+      // Topupmate's /services/ catalogue is the source for biller/operator IDs.
+      // The same cable catalogue can contain both provider rows and priced plans.
+      const serviceKey=spec.key==="cable-provider"?"cabletv":spec.key;
+      const payload=await fetchEndpoint("/services/?service="+encodeURIComponent(serviceKey));
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
       const list=rows(payload);
       for(const item of list) {
-        const codeKeys=spec.key==="data"
-          ? ["planid","plan_id","planId","data_plan","dataplan","id","code"]
-          : spec.key==="rechargepin"
-            ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
-            : spec.key==="datapin"
-              ? ["data_plan","dataplan","planid","plan_id","planId","item_code","id","code"]
-              : spec.key==="smile"
-                ? ["BundleTypeCode","bundle_type_code","planid","plan_id","planId","id","code"]
-                : ["id","plan_id","planid","planId","provider_id","providerId","code","product_id","productId"];
+        const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
+          ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","id","code"]
+          : spec.key==="data"
+            ? ["planid","plan_id","planId","data_plan","dataplan","id","code"]
+            : spec.key==="rechargepin"
+              ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
+              : spec.key==="datapin"
+                ? ["data_plan","dataplan","planid","plan_id","planId","item_code","id","code"]
+                : spec.key==="smile"
+                  ? ["BundleTypeCode","bundle_type_code","planid","plan_id","planId","id","code"]
+                  : ["plan_id","planid","planId","id","provider_id","providerId","code","product_id","productId"];
         const code=first(item,codeKeys);
-        const label=first(item,["name","plan_name","planName","product_name","productName","package_name","packageName","provider","provider_name","description"]);
+        const label=spec.kind==="options"
+          ? first(item,["provider_name","providerName","name","display_name","biller_name","provider","description"])
+          : first(item,["name","plan_name","planName","product_name","productName","package_name","packageName","provider","provider_name","description"]);
         if(!code||!label) continue;
         if(spec.kind==="options") {
           const {error}=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:spec.category,p_option_type:spec.optionType,p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:spec.key,supplier_discount:item.discount??item.discount_percent??item.discountPercentage??null}});
