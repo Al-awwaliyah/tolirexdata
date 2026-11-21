@@ -1,132 +1,87 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "../_shared/cors.ts";
 
-type Body = {
-  service: "airtime" | "data";
-  productId?: string;
-  networkCode: string;
-  recipient: string;
-  amount?: number;
-  idempotencyKey: string;
-};
-type SupplierPayload = {
-  orderid?: string; requestid?: string; status?: string; statuscode?: string;
-  orderstatus?: string; orderremark?: string; remark?: string;
-};
-
-const ROOT = "https://www.nellobytesystems.com";
-const clean = (v: unknown) => typeof v === "string" ? v.trim() : "";
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-});
-function statusOf(p: SupplierPayload) {
-  return clean(p.orderstatus || p.status).toUpperCase();
+type Body={service:"airtime"|"data";productId?:string;networkCode:string;recipient:string;amount?:number;idempotencyKey:string};
+type Obj=Record<string,any>;
+const clean=(v:unknown)=>String(v??"").trim();
+const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
+const stateOf=(body:Obj)=>clean(body?.status??body?.response?.status??body?.data?.status).toLowerCase();
+const messageOf=(body:Obj)=>clean(body?.message??body?.detail??body?.response?.message??body?.data?.message??body?.status);
+const referenceOf=(body:Obj)=>clean(body?.reference??body?.ref??body?.transaction_id??body?.response?.reference??body?.data?.reference);
+async function topupmate(path:string,method:"GET"|"POST",token:string,payload?:Obj):Promise<Obj>{
+  const url=new URL("https://connect.topupmate.com/api"+path);
+  if(method==="GET"&&payload) for(const [k,v] of Object.entries(payload)) if(v!==undefined&&v!==null) url.searchParams.set(k,String(v));
+  const response=await fetch(url,{method,headers:{"Authorization":"Token "+token,"Accept":"application/json","Content-Type":"application/json"},...(method==="POST"?{body:JSON.stringify(payload??{})}:{}),signal:AbortSignal.timeout(25000)});
+  const body=await response.json().catch(()=>({}));
+  if(!body||typeof body!=="object"||Array.isArray(body))throw new Error("Invalid Topupmate response");
+  if(!response.ok)throw new Error("Topupmate HTTP "+response.status);
+  return body as Obj;
 }
-async function supplierRequest(path: string, params: Record<string,string>, timeout = 15000): Promise<SupplierPayload> {
-  const url = new URL(path, ROOT);
-  for (const [key,value] of Object.entries(params)) url.searchParams.set(key,value);
-  const response = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(timeout) });
-  if (!response.ok) throw new Error("Supplier HTTP " + response.status);
-  const payload = await response.json();
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("Invalid supplier response");
-  return payload as SupplierPayload;
-}
-
-Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (request.method !== "POST") return json({ error: "Method not allowed" },405);
-  const auth = request.headers.get("Authorization");
-  if (!auth?.startsWith("Bearer ")) return json({ error: "Authentication required" },401);
-
-  const url = Deno.env.get("SUPABASE_URL");
-  const anon = Deno.env.get("SUPABASE_ANON_KEY");
-  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const userId = Deno.env.get("CLUBKONNECT_USER_ID");
-  const apiKey = Deno.env.get("CLUBKONNECT_API_KEY");
-  if (!url || !anon || !serviceRole) return json({ error: "Function environment is incomplete" },500);
-  if (!userId || !apiKey) return json({ error: "ClubKonnect credentials are not configured" },503);
-
-  const caller = createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
+Deno.serve(async request=>{
+  if(request.method==="OPTIONS")return new Response("ok",{headers:corsHeaders});
+  if(request.method!=="POST")return json({error:"Method not allowed"},405);
+  const auth=request.headers.get("Authorization");
+  if(!auth?.startsWith("Bearer "))return json({error:"Authentication required"},401);
+  const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY"),serviceRole=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),token=Deno.env.get("TOPUPMATE_API_KEY");
+  if(!url||!anon||!serviceRole)return json({error:"Function environment is incomplete"},500);
+  if(!token)return json({error:"Topupmate API key is not configured"},503);
+  const caller=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:authData,error:authError}=await caller.auth.getUser();
-  if (authError || !authData.user) return json({error:"Invalid session"},401);
-
-  let body: Body;
-  try { body=await request.json() as Body; } catch { return json({error:"Invalid JSON body"},400); }
-  if (!body || !["airtime","data"].includes(body.service) ||
-      !/^\d{10,14}$/.test(clean(body.recipient)) ||
-      !/^[A-Za-z0-9_-]{12,100}$/.test(clean(body.idempotencyKey)) ||
-      !/^[A-Za-z0-9_-]{1,30}$/.test(clean(body.networkCode))) {
-    return json({error:"Invalid purchase details"},400);
-  }
-  if (body.service==="data" && !/^[0-9a-f-]{36}$/i.test(clean(body.productId))) return json({error:"Select a valid data plan"},400);
-  if (body.service==="airtime" && (!Number.isFinite(body.amount) || !Number.isInteger(body.amount) || (body.amount as number)<50 || (body.amount as number)>200000))
-    return json({error:"Airtime amount must be between ₦50 and ₦200,000"},400);
-
+  if(authError||!authData.user)return json({error:"Invalid session"},401);
+  let body:Body;try{body=await request.json() as Body}catch{return json({error:"Invalid JSON body"},400)}
+  if(!body||!["airtime","data"].includes(body.service)||!/^[0-9]{10,14}$/.test(clean(body.recipient))||!/^[A-Za-z0-9_-]{12,100}$/.test(clean(body.idempotencyKey))||!/^[A-Za-z0-9_-]{1,30}$/.test(clean(body.networkCode)))return json({error:"Invalid purchase details"},400);
+  if(body.service==="data"&&!/^[0-9a-f-]{36}$/i.test(clean(body.productId)))return json({error:"Select a valid data plan"},400);
+  if(body.service==="airtime"&&(!Number.isFinite(body.amount)||!Number.isInteger(body.amount)||(body.amount as number)<50||(body.amount as number)>200000))return json({error:"Airtime amount must be between ₦50 and ₦200,000"},400);
   const admin=createClient(url,serviceRole,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:order,error:reserveError}=await admin.rpc("reserve_catalogue_service_order",{
-    p_user_id:authData.user.id,p_service_code:body.service,p_product_id:body.productId ?? null,
-    p_network_code:body.networkCode,p_recipient:body.recipient,
-    p_airtime_face_value:body.service==="airtime" ? body.amount : null,
-    p_idempotency_key:body.idempotencyKey,
-  });
-  if (reserveError || !order) return json({error:reserveError?.message ?? "Could not reserve purchase"},409);
-  if (order.status==="successful" || order.status==="processing" || order.status==="unknown" || order.status==="refunded" || order.status==="failed" || order.status==="reversal_pending")
-    return json({orderId:order.id,status:order.status,requestId:order.request_id,reused:true});
-
-  const common={UserID:userId,APIKey:apiKey,MobileNetwork:body.networkCode,MobileNumber:body.recipient,RequestID:order.request_id};
-  let purchasePath: string;
-  const params: Record<string,string>={...common};
-  if (body.service==="airtime") {
-    purchasePath="/APIAirtimeV1.asp"; params.Amount=String(body.amount);
-  } else {
-    purchasePath="/APIDatabundleV1.asp";
-    const {data:product,error:productError}=await admin.from("service_products")
-      .select("provider_product_code,network_or_operator,provider_id")
-      .eq("id",body.productId).single();
-    if (productError || !product || product.network_or_operator!==body.networkCode)
-      return json({error:"Selected data plan is no longer available"},409);
-    params.DataPlan=String(product.provider_product_code).split(":").pop()!;
-  }
-
-  const {error:startedError}=await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:null,p_provider_status:"SUBMISSION_STARTED",p_message:"Supplier submission started"});
-  if (startedError) return json({orderId:order.id,status:"unknown",requestId:order.request_id,message:"Purchase is reserved and requires reconciliation."},202);
-
-  try {
-    const response=await supplierRequest(purchasePath,params);
-    const state=statusOf(response);
-    const orderId=clean(response.orderid);
-    const message=clean(response.orderremark || response.remark || response.status);
-    if (state==="ORDER_COMPLETED") {
-      const {error}=await admin.rpc("complete_catalogue_service_order",{
-        p_order_id:order.id,p_provider_order_id:orderId || null,p_provider_status:state || "ORDER_COMPLETED",p_message:message,
-      });
-      if (error) throw new Error("Supplier completed but local settlement needs reconciliation");
-      return json({orderId:order.id,status:"successful",requestId:order.request_id});
+  const {data:order,error:reserveError}=await admin.rpc("reserve_catalogue_service_order",{p_user_id:authData.user.id,p_service_code:body.service,p_product_id:body.productId??null,p_network_code:body.networkCode,p_recipient:body.recipient,p_airtime_face_value:body.service==="airtime"?body.amount:null,p_idempotency_key:body.idempotencyKey});
+  if(reserveError||!order)return json({error:reserveError?.message??"Could not reserve purchase"},409);
+  if(["successful","processing","unknown","refunded","failed","reversal_pending"].includes(order.status))return json({orderId:order.id,status:order.status,requestId:order.request_id,reused:true});
+  const ref=order.request_id;
+  const markProcessing=async(result:Obj)=>admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:referenceOf(result)||null,p_provider_status:stateOf(result)||"processing",p_message:messageOf(result)||"Topupmate is processing the order"});
+  const settleSuccess=async(result:Obj)=>{
+    const {error}=await admin.rpc("complete_catalogue_service_order",{p_order_id:order.id,p_provider_order_id:referenceOf(result)||null,p_provider_status:stateOf(result)||"success",p_message:messageOf(result)||"Topupmate confirmed success"});
+    if(error)throw new Error("Provider succeeded but local settlement requires reconciliation");
+  };
+  const settleFailure=async(result:Obj)=>{
+    const {error}=await admin.rpc("fail_and_refund_catalogue_service_order",{p_order_id:order.id,p_provider_status:stateOf(result)||"fail",p_reason:messageOf(result)||"Topupmate confirmed failure"});
+    if(error)throw new Error("Provider failure confirmed but wallet refund requires reconciliation");
+  };
+  const reconcile=async()=>{
+    const result=await topupmate("/transaction/status/","GET",token,{reference:ref});
+    const state=stateOf(result);
+    if(state==="success"){await settleSuccess(result);return "successful";}
+    if(state==="fail"){await settleFailure(result);return "refunded";}
+    await markProcessing(result);
+    return "processing";
+  };
+  try{
+    let payload:Obj;
+    if(body.service==="airtime")payload={network:body.networkCode,phone:body.recipient,amount:body.amount,airtime_type:"VTU",ref};
+    else{
+      const {data:product,error}=await admin.from("service_products").select("provider_product_code,network_or_operator,provider_id,service_providers!inner(code)").eq("id",body.productId).single();
+      if(error||!product||product.network_or_operator!==body.networkCode||(product as any).service_providers?.code!=="topupmate")return json({error:"Selected Topupmate data plan is no longer available"},409);
+      const plan=clean(product.provider_product_code).split(":").pop();
+      if(!plan)return json({error:"Selected data plan has no valid supplier plan ID"},409);
+      payload={network:body.networkCode,phone:body.recipient,plan,ref};
     }
-    if (state==="ORDER_RECEIVED" || state==="ORDER_ONHOLD" || state==="ORDER_PROCESSING") {
-      await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:orderId || null,p_provider_status:state,p_message:message});
-      return json({orderId:order.id,status:"processing",requestId:order.request_id});
+    const started=await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:null,p_provider_status:"submission_started",p_message:"Submitting to Topupmate"});
+    if(started.error)return json({orderId:order.id,status:"unknown",requestId:ref,message:"Your purchase is reserved and needs reconciliation."},202);
+    const result=await topupmate(body.service==="airtime"?"/airtime/":"/data/","POST",token,payload);
+    const state=stateOf(result);
+    if(state==="success"){await settleSuccess(result);return json({orderId:order.id,status:"successful",requestId:ref});}
+    if(state==="fail"){await settleFailure(result);return json({orderId:order.id,status:"refunded",requestId:ref});}
+    await markProcessing(result);
+    return json({orderId:order.id,status:"processing",requestId:ref,message:"Topupmate is processing your purchase. Do not submit it again."},202);
+  }catch(error){
+    // A timeout may mean the supplier accepted the request. Query the exact original reference;
+    // never submit a second purchase or create a replacement reference.
+    try{
+      const status=await reconcile();
+      return json({orderId:order.id,status,requestId:ref,reconciled:true,message:status==="refunded"?"The supplier confirmed failure and your wallet refund was recorded.":"We are checking your purchase. Do not submit it again."},status==="processing"?202:200);
+    }catch(queryError){
+      await admin.rpc("mark_service_order_unknown",{p_order_id:order.id,p_provider_status:"QUERY_REQUIRED",p_message:"Topupmate request outcome is uncertain; status lookup required"});
+      console.error("Topupmate purchase/reconciliation failure",{orderId:order.id,error:String(error),queryError:String(queryError)});
+      return json({orderId:order.id,status:"unknown",requestId:ref,message:"We are checking this purchase. Do not submit it again."},202);
     }
-    await admin.rpc("mark_service_order_unknown",{p_order_id:order.id,p_provider_status:state || "UNRECOGNIZED",p_message:message});
-    return json({orderId:order.id,status:"unknown",requestId:order.request_id},202);
-  } catch (error) {
-    // A timeout or transport error may mean the supplier accepted the order.
-    // Query the original RequestID; never submit a second purchase with a new ID.
-    try {
-      const query=await supplierRequest("/APIQueryV1.asp",{UserID:userId,APIKey:apiKey,RequestID:order.request_id});
-      const state=statusOf(query);
-      const message=clean(query.orderremark || query.remark || query.status);
-      if (state==="ORDER_COMPLETED") {
-        const {error:settleError}=await admin.rpc("complete_catalogue_service_order",{
-          p_order_id:order.id,p_provider_order_id:clean(query.orderid) || null,p_provider_status:state || "ORDER_COMPLETED",p_message:message,
-        });
-        if (!settleError) return json({orderId:order.id,status:"successful",requestId:order.request_id,reconciled:true});
-      } else if (state==="ORDER_RECEIVED" || state==="ORDER_ONHOLD" || state==="ORDER_PROCESSING") {
-        await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:clean(query.orderid) || null,p_provider_status:state,p_message:message});
-        return json({orderId:order.id,status:"processing",requestId:order.request_id,reconciled:true});
-      }
-    } catch { /* retain unknown state; operator reconciliation is required */ }
-    await admin.rpc("mark_service_order_unknown",{p_order_id:order.id,p_provider_status:"QUERY_REQUIRED",p_message:error instanceof Error?error.message:"Supplier request outcome is unknown"});
-    return json({orderId:order.id,status:"unknown",requestId:order.request_id,message:"We are checking this purchase. Do not submit it again."},202);
   }
 });
