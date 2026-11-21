@@ -462,13 +462,13 @@ function VirtualCardsWorkspace({busy}:{busy:boolean}) {
     if(result?.error)throw new Error(String(result.error));
     return result;
   };
-  const load=async()=>{setLoading(true);try{const r=await run({action:"list"});setCards(r.cards??[]);}catch(e){setNotice(messageOf(e,"Unable to load virtual cards."));}finally{setLoading(false);}};
+  const load=async()=>{setLoading(true);try{const r=await run({action:"list"});const next=r.cards??[];setCards(next);setSelected(current=>current?next.find((item:any)=>item.id===current.id)??current:current);}catch(e){setNotice(messageOf(e,"Unable to load virtual cards."));}finally{setLoading(false);}};
   useEffect(()=>{void load();},[]);
   const perform=async(payload:any)=>{
     setSaving(true);setNotice("");try{const r=await run(payload);setNotice(r.message??(r.status==="processing"?"Your request is processing.":"Request completed."));if(r.details){setDetails(r.details);setReveal(true);}if(r.transactions)setTransactions(r.transactions);await load();return r;}catch(e){setNotice(messageOf(e,"The card request could not be completed."));}finally{setSaving(false);}
   };
   const saveProfile=async()=>{const r=await perform({action:"save_profile",...profile});if(r?.success)setShowProfile(false);};
-  const create=async()=>{const amountUsd=Number(amount);if(!Number.isFinite(amountUsd)||amountUsd<=0){setNotice("Enter a valid initial funding amount in USD.");return;}const r=await perform({action:"create",amountUsd,brand:"VISA",idempotencyKey:crypto.randomUUID().replace(/-/g,"")});if(r?.success&&r.card){setSelected(r.card);setDetails(r.card);setReveal(true);}};
+  const create=async()=>{const amountUsd=Number(amount);if(!Number.isFinite(amountUsd)||amountUsd<=0){setNotice("Enter a valid initial funding amount in USD.");return;}const r=await perform({action:"create",amountUsd,brand:"VISA",idempotencyKey:crypto.randomUUID().replace(/-/g,"")});if(r?.success&&r.card){const latest=await run({action:"list"});const issued=(latest.cards??[])[0];setCards(latest.cards??[]);if(issued)setSelected(issued);setDetails(r.card);setReveal(true);}};
   const cardAction=(action:"topup"|"withdraw"|"freeze"|"unfreeze"|"terminate")=>{
     if(!selected?.id){setNotice("Select a card first.");return;}
     if(action==="freeze"||action==="unfreeze"||action==="terminate"){
