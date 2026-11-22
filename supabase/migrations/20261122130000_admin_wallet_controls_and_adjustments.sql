@@ -21,7 +21,7 @@ declare
 begin
   if p_user_id is null or p_amount is null or p_amount <= 0
      or p_amount <> round(p_amount,2)
-     or p_direction not in ('credit','debit')
+     or p_direction is null or p_direction not in ('credit','debit')
      or length(v_reason) < 5
      or p_idempotency_key is null
      or p_idempotency_key !~ '^[A-Za-z0-9:_-]{12,120}$' then
@@ -70,6 +70,9 @@ begin
           (v_journal,v_offset_account,'credit',p_amount,v_wallet.currency);
     update public.wallets set balance=balance-p_amount,updated_at=now() where user_id=p_user_id;
   end if;
+
+  insert into public.wallet_transactions(user_id,amount,direction,reference_type,reference_id,description)
+  values(p_user_id,p_amount,p_direction,'wallet_adjustment',v_journal,'Admin adjustment: '||v_reason);
 
   return jsonb_build_object('journal_id',v_journal,'replayed',false);
 exception when unique_violation then
