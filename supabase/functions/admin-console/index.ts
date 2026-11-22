@@ -344,7 +344,7 @@ Deno.serve(async (request) => {
     if (!/^[0-9a-f-]{36}$/i.test(userId) || !/^[0-9a-f-]{36}$/i.test(requestId) || !["credit","debit"].includes(direction) ||
       !Number.isFinite(amount) || amount <= 0 || Math.round(amount*100)!==amount*100 ||
       reason.length < 5 || reason.length > 500) return json({error:"Enter a valid customer, request ID, amount, adjustment type and reason."},400);
-    const idempotencyKey = "admin-wallet:"+auth.user.id+":"+requestId;
+    const idempotencyKey = "aw:"+auth.user.id+":"+userId+":"+requestId;
     const {data,error} = await admin.rpc("admin_adjust_wallet",{
       p_user_id:userId,p_amount:amount,p_direction:direction,p_reason:reason,p_idempotency_key:idempotencyKey
     });
