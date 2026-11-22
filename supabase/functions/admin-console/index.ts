@@ -41,7 +41,7 @@ Deno.serve(async (request) => {
     : action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read"
     : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
     : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage"
-    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "wallet_adjustment" || action === "wallet_status" ? "wallets.adjust" : action === "airtime_pricing" ? "pricing.manage"
+    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "wallet_adjustment" || action === "wallet_status" ? "wallets.adjust" : action === "funding_reconcile" ? "fundings.manage" : action === "airtime_pricing" ? "pricing.manage"
     : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
@@ -299,6 +299,40 @@ Deno.serve(async (request) => {
     if (saved.error) return json({ error: "Unable to save platform setting" }, 500);
     await admin.from("audit_logs").insert({ actor_user_id:auth.user.id, action:"platform_setting.updated", target_type:"platform_setting", target_id:null, before_data:previous.data??null, after_data:{setting_key:key,is_public:body.isPublic===true} });
     return json({ setting:saved.data });
+  }
+
+  if (action === "funding_reconcile") {
+    const id=String(body.id??"");
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return json({error:"Invalid funding event"},400);
+    const {data:event,error:eventError}=await admin.from("funding_events")
+      .select("id,user_id,provider,provider_event_id,tx_reference,amount,currency,status")
+      .eq("id",id).maybeSingle();
+    if (eventError||!event) return json({error:"Funding event not found"},404);
+    if (event.provider!=="flutterwave" || !event.user_id || !event.provider_event_id || !event.tx_reference)
+      return json({error:"This funding record cannot be verified automatically"},409);
+    if (event.status==="credited") return json({settlement:{credited:true,duplicate:true,event_id:id}});
+    if (!["received","verified"].includes(event.status)) return json({error:"Only received or verified deposits can be reconciled"},409);
+    const flwKey=Deno.env.get("FLW_SECRET_KEY");
+    if (!flwKey) return json({error:"Flutterwave server credentials are not configured"},503);
+    const verifyResponse=await fetch("https://api.flutterwave.com/v3/transactions/"+encodeURIComponent(event.provider_event_id)+"/verify",{
+      headers:{Authorization:"Bearer "+flwKey,Accept:"application/json"}
+    });
+    const verified=await verifyResponse.json().catch(()=>null);
+    const tx=verified?.data;
+    if (!verifyResponse.ok || verified?.status!=="success" || tx?.status!=="successful" ||
+      String(tx?.tx_ref)!==String(event.tx_reference) || String(tx?.currency)!=="NGN" ||
+      Number(tx?.amount)!==Number(event.amount)) {
+      return json({error:"Flutterwave verification did not match this funding record. No wallet credit was made."},422);
+    }
+    const {error:updateError}=await admin.from("funding_events").update({status:"verified"}).eq("id",id).in("status",["received","verified"]);
+    if (updateError) return json({error:"Unable to mark the verified funding event for settlement"},500);
+    const {data:settlement,error:settlementError}=await admin.rpc("credit_flutterwave_funding",{p_funding_event_id:id});
+    if (settlementError) return json({error:"Payment was verified but settlement failed. The event remains available for reconciliation."},500);
+    await admin.from("audit_logs").insert({
+      actor_user_id:auth.user.id,action:"flutterwave.deposit.admin_reconciled",target_type:"funding_event",target_id:id,
+      after_data:{amount:event.amount,currency:event.currency,transaction_id:event.provider_event_id,settlement}
+    });
+    return json({settlement});
   }
 
   if (action === "wallet_adjustment") {
