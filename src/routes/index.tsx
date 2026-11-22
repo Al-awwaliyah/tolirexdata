@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -55,7 +55,8 @@ import {
   manageTopupmateVirtualCard,
   manageTopupmateExpandedService,
   purchaseAirtimeOrData,
-  reviewFunding,
+  submitCustomerKyc,
+  ensureFlutterwaveVirtualAccount,
 } from "@/lib/dex.functions";
 import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
@@ -65,7 +66,6 @@ type DataPlan = { id: string; network: string; networkCode: string; data_amount:
 type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
 type CatalogueOption = { id: string; category_code: string; option_type: string; option_code: string; parent_option_code: string | null; name: string };
 type DataOrder = TableRows<"data_orders">;
-type Funding = TableRows<"fundings">;
 type WalletTransaction = TableRows<"wallet_transactions">;
 type ServiceOrder = { id:string; user_id:string; category_id:string; product_id:string|null; request_id:string; recipient:string; amount:number; currency:string; status:string; provider_status:string|null; created_at:string; updated_at:string };
 type Profile = TableRows<"profiles">;
@@ -77,16 +77,43 @@ type DashboardData = {
   catalogueOptions: CatalogueOption[];
   orders: DataOrder[];
   serviceOrders: ServiceOrder[];
-  fundings: Funding[];
   transactions: WalletTransaction[];
   users: Profile[];
   isAdmin: boolean;
+  kyc?: { id: string; status: string; level: number; review_note?: string | null; created_at: string } | null;
+  virtualAccount?: { id: string; account_number: string; bank_name: string; account_name: string; currency: string; status: string; is_permanent: boolean } | null;
 };
 type ViewKey = "overview" | "buy" | "fund" | "activity" | "airtime" | "cable" | "electricity" | "epin" | "data-pin" | "education" | "internet" | "gift-cards" | "cards" | "fx" | "referrals" | "coupons" | "promotions" | "cashback" | "loyalty";
 type Network = string;
 type AuthMode = "signin" | "signup";
 
 
+
+
+function KycAndFundingOnboarding({dashboard,onRefresh}:{dashboard:DashboardData;onRefresh:()=>void}) {
+ const [firstName,setFirstName]=useState(""); const [lastName,setLastName]=useState("");
+ const [phone,setPhone]=useState(String((dashboard.profile as any)?.phone??""));
+ const [kind,setKind]=useState<"bvn"|"nin">("nin"); const [identity,setIdentity]=useState("");
+ const [consent,setConsent]=useState(false); const [busy,setBusy]=useState(false); const [message,setMessage]=useState("");
+ const issuanceStarted=useRef(false);
+ const kyc=dashboard.kyc; const account=dashboard.virtualAccount;
+ const submit=async()=>{if(!consent||!/^[0-9]{11}$/.test(identity)||firstName.trim().length<2||lastName.trim().length<2){setMessage("Enter your legal name, valid 11-digit identity number and consent.");return;}
+ setBusy(true);setMessage("");try{await submitCustomerKyc({data:{firstName:firstName.trim(),lastName:lastName.trim(),phone,identityType:kind,identityNumber:identity,consent:true}});setIdentity("");setMessage("KYC submitted for compliance review.");onRefresh();}catch(e){setMessage(messageOf(e,"Unable to submit KYC."));}finally{setBusy(false);}};
+ useEffect(()=>{if(kyc?.status!=="approved"||account||issuanceStarted.current)return;issuanceStarted.current=true;setBusy(true);setMessage("KYC approved. Setting up your permanent bank account…");void ensureFlutterwaveVirtualAccount().then(()=>{setMessage("Your permanent Flutterwave virtual account is ready.");onRefresh();}).catch(e=>{setMessage(messageOf(e,"KYC is approved, but account setup needs attention. Please refresh or contact support; do not submit another KYC application."));}).finally(()=>setBusy(false));},[kyc?.status,account?.id,onRefresh]);
+ return <section className="mb-6 grid gap-4 lg:grid-cols-2">
+ <div className="rounded-2xl border bg-background p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase text-muted-foreground">Identity verification</p><h2 className="mt-1 font-semibold">{kyc?.status==="approved"?"KYC approved":kyc?.status==="pending"?"KYC under review":"Complete your KYC"}</h2></div><StatusBadge status={kyc?.status??"not_submitted"}/></div>
+ {kyc?.status==="approved"?<p className="mt-3 text-sm text-muted-foreground">Your identity is verified. TolirexData automatically requests your permanent wallet account after approval.</p>:kyc?.status==="pending"?<p className="mt-3 text-sm text-muted-foreground">Your KYC submission is awaiting compliance review.</p>:<div className="mt-4 grid gap-3 sm:grid-cols-2">
+ <Field label="Legal first name"><Input value={firstName} onChange={e=>setFirstName(e.target.value)}/></Field><Field label="Legal last name"><Input value={lastName} onChange={e=>setLastName(e.target.value)}/></Field>
+ <Field label="Phone number"><Input value={phone} onChange={e=>setPhone(e.target.value)}/></Field>
+ <Field label="Identity type"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={kind} onChange={e=>setKind(e.target.value as "bvn"|"nin")}><option value="nin">NIN</option><option value="bvn">BVN</option></select></Field>
+ <div className="sm:col-span-2"><Field label={kind.toUpperCase()}><Input type="password" maxLength={11} inputMode="numeric" value={identity} onChange={e=>setIdentity(e.target.value.replace(/\D/g,"").slice(0,11))}/></Field></div>
+ <label className="sm:col-span-2 flex gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>I consent to secure processing of my identity details for KYC and account eligibility.</label>
+ <Button className="sm:col-span-2" disabled={busy} onClick={()=>void submit()}>{busy?"Submitting…":"Submit KYC"}</Button></div>}
+ {message&&<p role="status" className="mt-3 text-xs text-muted-foreground">{message}</p>}<p className="mt-3 text-[10px] text-muted-foreground">BVN/NIN is encrypted server-side and is not displayed in your profile.</p></div>
+ <div className="rounded-2xl border bg-background p-5"><p className="text-xs font-semibold uppercase text-muted-foreground">Permanent wallet account</p><h2 className="mt-1 font-semibold">Flutterwave bank transfer</h2>
+ {account?<div className="mt-4 rounded-xl bg-primary/5 p-4"><p className="text-xs text-muted-foreground">{account.bank_name}</p><p className="mt-1 text-2xl font-bold tracking-wider">{account.account_number}</p><p className="mt-2 text-sm font-medium">{account.account_name}</p><p className="mt-1 text-xs text-muted-foreground">Permanent {account.currency} account</p></div>:<p className="mt-3 text-sm text-muted-foreground">{kyc?.status==="approved"?"Your permanent account is being provisioned automatically.":"Your permanent account is generated automatically after KYC approval."}</p>}
+ </div></section>;
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -117,7 +144,6 @@ function Index() {
   const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [phone, setPhone] = useState("");
-  const [fundingAmount, setFundingAmount] = useState("");
 
 
   const refreshDashboard = useCallback(async () => {
@@ -181,19 +207,6 @@ function Index() {
     });
   };
 
-  const handleFunding = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setNotice("Permanent virtual-account funding is not enabled yet. Do not transfer money to unverified account details.");
-  };
-
-  const handleReviewFunding = (funding: Funding, decision: "approved" | "rejected") => action(async () => {
-    await reviewFunding({ data: { fundingId: funding.id, decision } });
-    await refreshDashboard();
-    setNotice(`Funding request ${decision}.`);
-  });
-
-
-
   const signOut = async () => {
     setBusy(true);
     clearNotice();
@@ -233,10 +246,6 @@ function Index() {
           setPhone={setPhone}
           onBuy={handleBuy}
           onAirtimePurchase={handleAirtimePurchase}
-          fundingAmount={fundingAmount}
-          setFundingAmount={setFundingAmount}
-          onFunding={handleFunding}
-          onReviewFunding={handleReviewFunding}
         />
       ) : (
         <Storefront
@@ -298,9 +307,6 @@ function DashboardShell(props: {
   selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   onAirtimePurchase: (payload: { networkCode: string; recipient: string; amount: number }) => Promise<void>;
-  fundingAmount: string; setFundingAmount: (amount: string) => void;
-  onFunding: (event: FormEvent<HTMLFormElement>) => void;
-  onReviewFunding: (funding: Funding, decision: "approved" | "rejected") => void;
 }) {
   const accountLabel = props.accountType.replace(/[_-]/g, " ");
   const navItems: { key: ViewKey; label: string; icon: ReactNode; group: string }[] = [
@@ -330,6 +336,7 @@ function DashboardShell(props: {
       <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{(["Main","Services","Finance","Rewards & growth"] as const).map((group)=><section className="tr-nav-group" key={group}><p className="tr-sidebar-label">{group}</p>{navItems.filter((item)=>item.group===group).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</section>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Your account, payments and personal information are protected by access controls.</p></div></aside>
         <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{accountLabel.toUpperCase()} ACCOUNT · {new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
           {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice}/>}
+          {props.dashboard && <KycAndFundingOnboarding dashboard={props.dashboard} onRefresh={props.onRefresh}/>}
           {props.loading && !props.dashboard ? <LoadingScreen compact/> : null}
           {props.view === "overview" && <Overview dashboard={props.dashboard} accountType={props.accountType} onNavigate={props.setView}/>}
           {props.view === "buy" && <BuyDataView {...props}/>}
@@ -697,35 +704,21 @@ function BuyDataView(props: {
   );
 }
 
-function FundWalletView(props: { busy: boolean; fundingAmount: string; setFundingAmount: (amount: string) => void; onFunding: (event: FormEvent<HTMLFormElement>) => void }) {
-  return (
-    <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[1fr_.9fr]">
-      <form onSubmit={props.onFunding} className="border bg-background p-5 sm:p-6">
-        <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary"><ArrowDownLeft /></span><div><h2 className="font-semibold text-foreground">Request a wallet top-up</h2><p className="text-sm text-muted-foreground">Bank transfer</p></div></div>
-        <label htmlFor="funding-amount" className="mt-7 block text-sm font-medium text-foreground">Amount in naira</label>
-        <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-muted-foreground">₦</span><Input id="funding-amount" className="pl-8" type="number" min="1" step="1" inputMode="numeric" placeholder="5,000" value={props.fundingAmount} onChange={(event) => props.setFundingAmount(event.target.value)} required /></div>
-        <Button type="submit" className="mt-5 w-full" disabled={props.busy}>{props.busy ? "Submitting…" : "I Have Sent It"} <ArrowRight /></Button>
-        <p className="mt-3 text-xs leading-5 text-muted-foreground">Submit only after you have transferred the amount to verified ToliRex bank details.</p>
-      </form>
-      <div className="border bg-background p-5 sm:p-6">
-        <div className="flex items-start gap-3"><span className="grid size-9 place-items-center rounded-full bg-chart-4/20 text-chart-4"><CreditCard className="size-4" /></span><div><h2 className="font-semibold text-foreground">Bank transfer details</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Account details have not been configured yet. Confirm verified transfer details with ToliRex before sending any money.</p></div></div>
-        <div className="mt-6 border-t pt-5">
-          <p className="text-sm font-medium text-foreground">After your request</p>
-          <ul className="mt-3 space-y-3 text-sm text-muted-foreground">
-            <li className="flex gap-2"><Clock3 className="mt-0.5 size-4 shrink-0 text-primary" />Your request stays pending while it is reviewed.</li>
-            <li className="flex gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />Your wallet updates only after admin approval.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
+function FundWalletView(props: { dashboard: DashboardData | null; onRefresh: () => void }) {
+  const account=props.dashboard?.virtualAccount;
+  const kycStatus=props.dashboard?.kyc?.status;
+  return <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[1fr_.9fr]">
+    <section className="rounded-2xl border bg-background p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary"><ArrowDownLeft/></span><div><h2 className="font-semibold">Fund your wallet by bank transfer</h2><p className="text-sm text-muted-foreground">Your dedicated permanent account</p></div></div>
+      {account?<div className="mt-6 rounded-xl bg-primary/5 p-5"><p className="text-xs text-muted-foreground">{account.bank_name}</p><p className="mt-2 text-3xl font-bold tracking-wider">{account.account_number}</p><p className="mt-2 text-sm font-semibold">{account.account_name}</p><p className="mt-1 text-xs text-muted-foreground">{account.currency} · Permanent virtual account</p><Button className="mt-4" variant="outline" onClick={()=>void navigator.clipboard?.writeText(account.account_number)}>Copy account number</Button></div>:<div className="mt-5"><p className="text-sm leading-6 text-muted-foreground">{kycStatus==="approved"?"Your KYC is approved and your permanent bank account is being provisioned. Refresh this page shortly if the account details do not appear.":"Complete and receive KYC approval. Your permanent Flutterwave bank account will then be generated automatically."}</p></div>}
+    </section>
+    <section className="rounded-2xl border bg-background p-5 sm:p-6"><h2 className="font-semibold">Automatic wallet funding</h2><ol className="mt-4 space-y-4 text-sm text-muted-foreground"><li>1. Transfer from any Nigerian bank to the permanent account shown here.</li><li>2. Flutterwave notifies TolirexData and the payment is verified against Flutterwave's transaction API.</li><li>3. Your wallet is credited automatically after successful verification.</li><li>4. Your transaction history and wallet balance update after settlement.</li></ol><p className="mt-5 border-t pt-4 text-xs leading-5 text-muted-foreground">Never transfer to an account number that is not displayed inside your signed-in TolirexData dashboard. Customer manual funding claims and payment-proof uploads are not supported.</p></section>
+  </div>;
 }
-
 function ActivityView({ dashboard }: { dashboard: DashboardData | null }) {
   const transactions = [...(dashboard?.transactions ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const orders = [...(dashboard?.orders ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const serviceOrders = [...(dashboard?.serviceOrders ?? [])].sort((a,b)=>b.created_at.localeCompare(a.created_at));
-  const fundings = [...(dashboard?.fundings ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  
   return (
     <div className="space-y-6">
       <section className="border bg-background">
@@ -741,13 +734,10 @@ function ActivityView({ dashboard }: { dashboard: DashboardData | null }) {
       </section>
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="border bg-background">
-          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Legacy Data orders</h2></div>
+          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Data purchase history</h2></div>
           {orders.length ? orders.map((order) => <OrderRow key={order.id} order={order} />) : <EmptyState icon={<Database />} title="No data orders yet" copy="Your completed purchases will show here." />}
         </section>
-        <section className="border bg-background">
-          <div className="border-b px-5 py-4"><h2 className="font-semibold text-foreground">Funding requests</h2></div>
-          {fundings.length ? fundings.map((funding) => <FundingRow key={funding.id} funding={funding} />) : <EmptyState icon={<ArrowDownLeft />} title="No funding requests" copy="Requests you submit will show here." />}
-        </section>
+
       </div>
     </div>
   );
@@ -758,6 +748,8 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<"personal"|"agent"|"business">("personal");
+  const [businessName, setBusinessName] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -776,7 +768,7 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
           password,
           options: {
             emailRedirectTo: window.location.origin,
-            data: { full_name: name.trim(), phone },
+            data: { full_name: name.trim(), phone, account_type: accountType, business_legal_name: accountType === "business" ? businessName.trim() : "", agent_business_name: accountType === "agent" ? businessName.trim() : "" },
           },
         });
         if (error) throw error;
@@ -808,6 +800,8 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
         </DialogHeader>
         <form onSubmit={(event) => void submit(event)} className="mt-2 space-y-4">
           {mode === "signup" && <>
+            <Field label="Account type"><select value={accountType} onChange={(event)=>setAccountType(event.target.value as "personal"|"agent"|"business")} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="personal">Personal account</option><option value="agent">Agent / Reseller account</option><option value="business">Business account</option></select></Field>
+            {accountType !== "personal" && <Field label={accountType === "business" ? "Registered business name" : "Business / store name"}><Input value={businessName} onChange={event=>setBusinessName(event.target.value)} required/></Field>}
             <Field label="Full name"><Input autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} required /></Field>
             <Field label="Phone number"><Input autoComplete="tel" inputMode="numeric" maxLength={11} placeholder="08012345678" value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))} required /></Field>
           </>}
@@ -852,10 +846,6 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
 
 function OrderRow({ order }: { order: DataOrder }) {
   return <div className="flex items-center justify-between gap-3 border-b px-5 py-4 last:border-0"><div><p className="text-sm font-medium text-foreground">{order.network} · {order.data_amount}</p><p className="mt-1 text-xs text-muted-foreground">{order.phone} · {formatDate(order.created_at)}</p></div><div className="text-right"><strong className="text-sm text-foreground">{formatNaira(order.amount)}</strong><StatusBadge status={order.status} /></div></div>;
-}
-
-function FundingRow({ funding }: { funding: Funding }) {
-  return <div className="flex items-center justify-between gap-3 border-b px-5 py-4 last:border-0"><div><p className="text-sm font-medium text-foreground">Bank transfer</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(funding.created_at)}</p></div><div className="text-right"><strong className="text-sm text-foreground">{formatNaira(funding.amount)}</strong><StatusBadge status={funding.status} /></div></div>;
 }
 
 function StatusBadge({ status }: { status: string }) {

@@ -45,3 +45,7 @@ jobs:
           deno check supabase/functions/topupmate-virtual-cards/index.ts
           deno check supabase/functions/topupmate-expanded-services/index.ts
           deno check supabase/functions/admin-console/index.ts
+          deno check supabase/functions/flutterwave-virtual-accounts/index.ts
+          deno check supabase/functions/flutterwave-webhook/index.ts
+          deno check supabase/functions/submit-kyc/index.ts
+          deno check supabase/functions/review-kyc/index.ts

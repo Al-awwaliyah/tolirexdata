@@ -38,6 +38,122 @@ const modules: ModuleItem[] = [
   { id: "audit", label: "Audit Logs", group: "System", icon: ClipboardList, description: "Review sensitive administrative and system activity.", capabilities: ["Actor, action and target history", "Before-and-after change records", "Financial and permission change review", "Security investigation trail"] },
 ];
 
+
+function AdminDataWorkspace({ moduleId, moduleLabel, onError }: { moduleId: string; moduleLabel: string; onError: (message: string) => void }) {
+  const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const pageSize = 25;
+  const [walletView,setWalletView] = useState<"wallets"|"ledger">("wallets");
+  const [adjustment,setAdjustment] = useState({userId:"",amount:"",direction:"credit",reason:"",requestId:""});
+  const [adjustmentSaving,setAdjustmentSaving] = useState(false);
+  const reconcileFunding = async (id:string) => {
+    setReviewing(id);
+    const {data,error}=await supabase.functions.invoke("admin-console",{body:{action:"funding_reconcile",id}});
+    if(error||data?.error) onError(data?.error??error?.message??"Deposit reconciliation failed.");
+    else {onError("");await load();}
+    setReviewing(null);
+  };
+  const setWalletStatus = async (userId:string,status:"active"|"frozen") => {
+    setReviewing(userId);
+    const {data,error}=await supabase.functions.invoke("admin-console",{body:{action:"wallet_status",userId,status,reason:status==="frozen"?"Admin wallet freeze":"Admin wallet reactivation"}});
+    if(error||data?.error) onError(data?.error??error?.message??"Unable to update wallet status.");
+    else {onError("");await load();}
+    setReviewing(null);
+  };
+  const submitAdjustment = async () => {
+    setAdjustmentSaving(true);
+    const {data,error}=await supabase.functions.invoke("admin-console",{body:{action:"wallet_adjustment",userId:adjustment.userId,requestId:adjustment.requestId,amount:Number(adjustment.amount),direction:adjustment.direction,reason:adjustment.reason}});
+    if(error||data?.error) onError(data?.error??error?.message??"Wallet adjustment failed.");
+    else {onError("");setAdjustment({userId:"",amount:"",direction:"credit",reason:"",requestId:""});await load();}
+    setAdjustmentSaving(false);
+  };
+
+  const [campaign,setCampaign] = useState({code:"",description:"",discountType:"fixed",discountValue:"",minOrderAmount:"0",perUserLimit:"1",active:true});
+  const [campaignSaving,setCampaignSaving] = useState(false);
+  const setCampaignStatus = async (id:string, active:boolean) => {
+    setReviewing(id);
+    const {data,error}=await supabase.functions.invoke("admin-console",{body:{action:"coupon_status",id,active}});
+    if(error||data?.error) onError(data?.error??error?.message??"Unable to update campaign.");
+    else {onError("");await load();}
+    setReviewing(null);
+  };
+  const saveCampaign = async () => {
+    setCampaignSaving(true);
+    const {data,error} = await supabase.functions.invoke("admin-console",{body:{action:"coupon_save",...campaign,discountValue:Number(campaign.discountValue),minOrderAmount:Number(campaign.minOrderAmount),perUserLimit:Number(campaign.perUserLimit)}});
+    if(error||data?.error) onError(data?.error??error?.message??"Unable to save campaign.");
+    else {setCampaign({code:"",description:"",discountType:"fixed",discountValue:"",minOrderAmount:"0",perUserLimit:"1",active:true});onError("");await load();}
+    setCampaignSaving(false);
+  };
+
+  const aliases: Record<string,string> = { admins: "admin-team" };
+  const load = async () => {
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke("admin-console", {
+      body: { action: "workspace", module: moduleId === "wallets" ? walletView : (aliases[moduleId] ?? moduleId), page, pageSize, search },
+    });
+    if (error || data?.error) { setRows([]); setTotal(0); onError(data?.error ?? error?.message ?? "Unable to load this workspace."); }
+    else if (data?.metrics) { setRows(Object.entries(data.metrics).map(([metric, value]) => ({ metric, value }))); setTotal(Object.keys(data.metrics).length); onError(""); }
+    else { setRows(data?.rows ?? []); setTotal(data?.total ?? 0); onError(""); }
+    setBusy(false);
+  };
+  useEffect(() => { void load(); }, [moduleId, page, walletView]);
+  const review = async (id: string, decision: "approved" | "rejected" | "needs_information") => {
+    setReviewing(id);
+    const { data, error } = await supabase.functions.invoke("review-kyc", { body: { kyc_record_id: id, decision, review_note: note } });
+    if (error || data?.error) onError(data?.error ?? error?.message ?? "KYC review failed.");
+    else { onError(""); setNote(""); await load(); }
+    setReviewing(null);
+  };
+  const filteredRows = moduleId === "kyc" && statusFilter !== "all" ? rows.filter(r => r.status === statusFilter) : rows;
+  const isAccountApplication = moduleId === "agents" || moduleId === "businesses";
+  const decideAccount = async (id: string, status: "active" | "rejected") => {
+    setReviewing(id);
+    const { data, error } = await supabase.functions.invoke("admin-console", { body: { action: "account_application", module: moduleId, id, status } });
+    if (error || data?.error) onError(data?.error ?? error?.message ?? "Unable to update account application.");
+    else { onError(""); await load(); }
+    setReviewing(null);
+  };
+  const columns = rows.length ? Object.keys(rows[0]).filter(k => !["identity_ciphertext","document_storage_path","raw_payload","metadata","safe_provider_metadata","before_data","after_data","ip_hash"].includes(k)) : [];
+  const title = moduleId === "kyc" ? "Identity review queue" : moduleId === "fundings" ? "Incoming transfer and settlement records" : moduleId === "wallets" ? (walletView === "ledger" ? "Double-entry ledger entries" : "Wallet accounts") : moduleLabel + " records";
+  return <section className="space-y-4">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-xs text-slate-500">{total.toLocaleString()} records · live database</p></div><button onClick={()=>void load()} disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-semibold text-slate-600"><RefreshCw size={13} className={"mr-1 inline "+(busy?"animate-spin":"")}/> Refresh</button></div>
+      <div className="mt-4 flex flex-wrap gap-2"><input value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setPage(1);void load();}}} placeholder="Search records" className="min-w-[220px] flex-1 rounded-xl border px-3 py-2 text-xs"/>{moduleId==="kyc"&&<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-xl border px-3 py-2 text-xs"><option value="all">All statuses</option>{["pending","approved","rejected","needs_information"].map(s=><option key={s} value={s}>{s.replace(/_/g," ")}</option>)}</select>}<button onClick={()=>{setPage(1);void load();}} className="rounded-xl bg-[#14366f] px-4 py-2 text-xs font-semibold text-white">Search</button></div>
+      {moduleId==="wallets"&&<div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-xs font-medium text-slate-500">Finance view</span><button onClick={()=>{setWalletView("wallets");setPage(1);}} className={walletView==="wallets"?"rounded-lg bg-[#14366f] px-3 py-2 text-xs font-semibold text-white":"rounded-lg border px-3 py-2 text-xs"}>Wallet accounts</button><button onClick={()=>{setWalletView("ledger");setPage(1);}} className={walletView==="ledger"?"rounded-lg bg-[#14366f] px-3 py-2 text-xs font-semibold text-white":"rounded-lg border px-3 py-2 text-xs"}>Ledger entries</button></div>}
+      {moduleId==="kyc"&&<div className="mt-4 rounded-xl bg-slate-50 p-3"><label className="block text-xs font-medium text-slate-600">Review note (optional)<textarea value={note} onChange={e=>setNote(e.target.value)} maxLength={500} className="mt-2 w-full rounded-lg border bg-white p-2 text-xs" rows={2}/></label><p className="mt-2 text-[10px] text-slate-500">Identity numbers and encrypted documents are never displayed in this table. Approval records the reviewer and decision.</p></div>}
+    </div>
+    {moduleId==="wallets"&&walletView==="wallets"&&adjustment.userId&&<div className="rounded-2xl border border-blue-100 bg-white p-5">
+      <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Wallet adjustment</h3><p className="mt-1 text-xs text-slate-500">Customer: {adjustment.userId}. Every adjustment posts a balanced journal and customer wallet activity record.</p></div><button onClick={()=>setAdjustment({userId:"",amount:"",direction:"credit",reason:""})} className="rounded-lg border px-3 py-2 text-xs">Close</button></div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="text-xs font-medium">Direction<select value={adjustment.direction} onChange={e=>setAdjustment(v=>({...v,direction:e.target.value}))} className="mt-1.5 w-full rounded-lg border bg-white px-3 py-2.5"><option value="credit">Credit wallet</option><option value="debit">Debit wallet</option></select></label><label className="text-xs font-medium">Amount (NGN)<input type="number" min="0.01" step="0.01" value={adjustment.amount} onChange={e=>setAdjustment(v=>({...v,amount:e.target.value}))} className="mt-1.5 w-full rounded-lg border px-3 py-2.5"/></label><label className="text-xs font-medium">Reason<input value={adjustment.reason} maxLength={500} onChange={e=>setAdjustment(v=>({...v,reason:e.target.value}))} placeholder="Explain the adjustment" className="mt-1.5 w-full rounded-lg border px-3 py-2.5"/></label></div>
+      <div className="mt-4 flex justify-end"><button onClick={()=>void submitAdjustment()} disabled={adjustmentSaving||!adjustment.amount||Number(adjustment.amount)<=0||!adjustment.reason.trim()||adjustment.reason.trim().length<5} className="rounded-xl bg-[#14366f] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{adjustmentSaving?"Posting journal…":"Confirm audited adjustment"}</button></div>
+    </div>}
+    {moduleId==="promotions"&&<div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <h3 className="text-sm font-semibold">Create coupon campaign</h3>
+      <p className="mt-1 text-xs text-slate-500">Saved campaigns are managed centrally and validated by the server at redemption.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="text-xs font-medium">Coupon code<input value={campaign.code} onChange={e=>setCampaign(v=>({...v,code:e.target.value.toUpperCase()}))} maxLength={32} placeholder="WELCOME10" className="mt-1.5 w-full rounded-lg border px-3 py-2.5"/></label>
+        <label className="text-xs font-medium">Discount type<select value={campaign.discountType} onChange={e=>setCampaign(v=>({...v,discountType:e.target.value}))} className="mt-1.5 w-full rounded-lg border bg-white px-3 py-2.5"><option value="fixed">Fixed amount (₦)</option><option value="percentage">Percentage (%)</option></select></label>
+        <label className="text-xs font-medium">Discount value<input type="number" min="0.01" value={campaign.discountValue} onChange={e=>setCampaign(v=>({...v,discountValue:e.target.value}))} className="mt-1.5 w-full rounded-lg border px-3 py-2.5"/></label>
+        <label className="text-xs font-medium">Minimum order (₦)<input type="number" min="0" value={campaign.minOrderAmount} onChange={e=>setCampaign(v=>({...v,minOrderAmount:e.target.value}))} className="mt-1.5 w-full rounded-lg border px-3 py-2.5"/></label>
+        <label className="text-xs font-medium">Per-user limit<input type="number" min="1" step="1" value={campaign.perUserLimit} onChange={e=>setCampaign(v=>({...v,perUserLimit:e.target.value}))} className="mt-1.5 w-full rounded-lg border px-3 py-2.5"/></label>
+      </div>
+      <label className="mt-3 block text-xs font-medium">Description<textarea value={campaign.description} onChange={e=>setCampaign(v=>({...v,description:e.target.value}))} maxLength={500} rows={2} className="mt-1.5 w-full rounded-lg border px-3 py-2.5"/></label>
+      <div className="mt-4 flex items-center justify-between gap-3"><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={campaign.active} onChange={e=>setCampaign(v=>({...v,active:e.target.checked}))}/> Activate campaign</label><button onClick={()=>void saveCampaign()} disabled={campaignSaving||!campaign.code.trim()||!campaign.discountValue||!Number.isFinite(Number(campaign.discountValue))||Number(campaign.discountValue)<=0||Number(campaign.minOrderAmount)<0||Number(campaign.perUserLimit)<1} className="rounded-xl bg-[#14366f] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{campaignSaving?"Saving…":"Create campaign"}</button></div>
+    </div>}
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="w-full min-w-[760px] text-left text-xs"><thead><tr className="border-b bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">{columns.map(k=><th key={k} className="p-3">{k.replace(/_/g," ")}</th>)}{(moduleId==="kyc"||isAccountApplication||moduleId==="promotions"||(moduleId==="wallets"&&walletView==="wallets")||moduleId==="fundings")&&<th className="p-3">Actions</th>}</tr></thead><tbody>
+      {busy?<tr><td colSpan={columns.length+((moduleId==="kyc"||isAccountApplication||moduleId==="promotions"||(moduleId==="wallets"&&walletView==="wallets")||moduleId==="fundings")?1:0)} className="p-10 text-center text-slate-400">Loading records…</td></tr>:filteredRows.length===0?<tr><td colSpan={columns.length+1} className="p-10 text-center text-slate-400">No records found.</td></tr>:filteredRows.map((row,i)=><tr key={String(row.id??row.user_id??i)} className="border-b border-slate-50">{columns.map(k=><td key={k} className="max-w-[260px] truncate p-3 text-slate-600">{typeof row[k]==="object"&&row[k]!==null?"—":String(row[k]??"—")}</td>)}{moduleId==="kyc"&&<td className="p-3"><div className="flex flex-wrap gap-1">{row.status==="pending"?<><button disabled={reviewing===String(row.id)} onClick={()=>void review(String(row.id),"approved")} className="rounded-md bg-emerald-600 px-2 py-1.5 text-[10px] font-semibold text-white">Approve</button><button disabled={reviewing===String(row.id)} onClick={()=>void review(String(row.id),"rejected")} className="rounded-md bg-rose-600 px-2 py-1.5 text-[10px] font-semibold text-white">Reject</button><button disabled={reviewing===String(row.id)} onClick={()=>void review(String(row.id),"needs_information")} className="rounded-md border px-2 py-1.5 text-[10px] font-semibold">Request info</button></>:<span className="text-[10px] text-slate-400">Reviewed</span>}</div></td>}{isAccountApplication&&<td className="p-3"><div className="flex flex-wrap gap-1">{row.status==="pending"?<><button disabled={reviewing===String(row.id)} onClick={()=>void decideAccount(String(row.id),"active")} className="rounded-md bg-emerald-600 px-2 py-1.5 text-[10px] font-semibold text-white">Approve</button><button disabled={reviewing===String(row.id)} onClick={()=>void decideAccount(String(row.id),"rejected")} className="rounded-md bg-rose-600 px-2 py-1.5 text-[10px] font-semibold text-white">Reject</button></>:<span className="text-[10px] text-slate-400">Reviewed</span>}</div></td>}{moduleId==="promotions"&&<td className="p-3"><button disabled={reviewing===String(row.id)} onClick={()=>void setCampaignStatus(String(row.id),row.active!==true)} className={row.active===true?"rounded-md border border-amber-200 px-3 py-1.5 text-[10px] font-semibold text-amber-700":"rounded-md bg-emerald-600 px-3 py-1.5 text-[10px] font-semibold text-white"}>{reviewing===String(row.id)?"Saving…":row.active===true?"Pause":"Activate"}</button></td>}{moduleId==="wallets"&&walletView==="wallets"&&<td className="p-3"><div className="flex flex-wrap gap-1"><button onClick={()=>setAdjustment({userId:String(row.user_id),amount:"",direction:"credit",reason:"",requestId:crypto.randomUUID()})} className="rounded-md bg-[#14366f] px-2 py-1.5 text-[10px] font-semibold text-white">Adjust</button><button disabled={reviewing===String(row.user_id)} onClick={()=>void setWalletStatus(String(row.user_id),row.wallet_status==="frozen"?"active":"frozen")} className="rounded-md border px-2 py-1.5 text-[10px] font-semibold">{row.wallet_status==="frozen"?"Unfreeze":"Freeze"}</button></div></td>}{moduleId==="fundings"&&<td className="p-3">{row.provider==="flutterwave"&&["received","verified"].includes(String(row.status))?<button disabled={reviewing===String(row.id)} onClick={()=>void reconcileFunding(String(row.id))} className="rounded-md bg-[#14366f] px-3 py-1.5 text-[10px] font-semibold text-white">{reviewing===String(row.id)?"Verifying…":"Verify & settle"}</button>:<span className="text-[10px] text-slate-400">{row.status==="credited"?"Settled":"No action"}</span>}</td>}</tr>)}
+    </tbody></table></div>
+    <div className="flex items-center justify-between text-xs text-slate-500"><span>{total.toLocaleString()} records · Page {page} / {Math.max(1,Math.ceil(total/pageSize))}</span><div className="flex gap-2"><button disabled={page<=1||busy} onClick={()=>setPage(p=>p-1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Previous</button><button disabled={page>=Math.ceil(total/pageSize)||busy} onClick={()=>setPage(p=>p+1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Next</button></div></div>
+    <p className="text-[11px] text-slate-500">Administrative access is permission-checked by the server. Sensitive payloads and identity documents are intentionally excluded.</p>
+  </section>;
+}
+
 export const Route = createFileRoute("/admin")({ component: AdminDashboard });
 
 function AdminDashboard() {
@@ -387,7 +503,7 @@ function AdminDashboard() {
             </>}
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm font-semibold">Pricing governance</h3><ul className="mt-3 list-disc space-y-2 pl-5 text-xs leading-5 text-slate-500"><li>Card fees and markups are stored in the database, not in Edge Function secrets.</li><li>Every settings update records the administrator and before/after values in the audit log.</li><li>Customer charges are recalculated server-side using the latest saved settings and current Topupmate FX quote.</li><li>Existing card operations retain the pricing snapshot used when they were created.</li></ul></div>
-        </section> : active==="transactions" ? <ServiceOrdersWorkspace/> : <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_8px_rgba(15,23,42,.025)] sm:p-7"><div className="flex items-start gap-3"><span className="grid size-11 place-items-center rounded-xl bg-[#eff4fc] text-[#244d8e]"><current.icon size={20}/></span><div><h2 className="text-base font-semibold">{current.label} workspace</h2><p className="mt-1 text-xs text-slate-400">Dedicated administration module</p></div></div><div className="mt-7"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Included capabilities</h3><div className="mt-3 grid gap-3 md:grid-cols-2">{current.capabilities.map((cap)=> <div key={cap} className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3.5"><CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600"/><span className="text-sm text-slate-700">{cap}</span></div>)}</div></div><div className="mt-7 rounded-xl border border-amber-200 bg-amber-50/70 p-4"><p className="text-xs font-semibold text-amber-900">Module implementation status</p><p className="mt-1 text-xs leading-5 text-amber-800">This module is included in the dedicated admin navigation and architecture. Its live data tables, server functions and operational actions will be connected in the corresponding implementation phase. No placeholder action will alter customer balances or financial records.</p></div></section>}
+        </section> : active==="transactions" ? <ServiceOrdersWorkspace/> : <AdminDataWorkspace moduleId={active} moduleLabel={current.label} onError={setError}/>}
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-5 text-[10px] text-slate-400"><span>TolirexData Administration · Restricted access</span><span>Developer/API product disabled for launch</span></footer>
       </main>
     </div>
