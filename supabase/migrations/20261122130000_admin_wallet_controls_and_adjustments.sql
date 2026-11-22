@@ -16,6 +16,7 @@ declare
   v_wallet_account uuid;
   v_offset_account uuid;
   v_journal uuid;
+  v_reference_id uuid := gen_random_uuid();
   v_existing public.journal_transactions%rowtype;
   v_reason text := left(trim(coalesce(p_reason,'')),500);
 begin
@@ -31,7 +32,7 @@ begin
   select * into v_existing from public.journal_transactions
     where idempotency_key=p_idempotency_key;
   if found then
-    if v_existing.reference_type <> 'wallet_adjustment' or v_existing.reference_id <> p_user_id then
+    if v_existing.reference_type <> 'wallet_adjustment' then
       raise exception 'Idempotency key already belongs to another operation';
     end if;
     return jsonb_build_object('journal_id',v_existing.id,'replayed',true);
@@ -51,12 +52,12 @@ begin
   if p_direction='credit' then
     select id into v_offset_account from public.ledger_accounts where account_code='platform:promotion-expense';
   else
-    select id into v_offset_account from public.ledger_accounts where account_code='platform:operating-revenue';
+    select id into v_offset_account from public.ledger_accounts where account_code='platform:promotion-expense';
   end if;
   if v_offset_account is null then raise exception 'Adjustment control ledger account missing'; end if;
 
   insert into public.journal_transactions(reference_type,reference_id,idempotency_key,description)
-  values('wallet_adjustment',p_user_id,p_idempotency_key,'Admin wallet '||p_direction||': '||v_reason)
+  values('wallet_adjustment',v_reference_id,p_idempotency_key,'Admin wallet '||p_direction||': '||v_reason)
   returning id into v_journal;
 
   if p_direction='credit' then
@@ -77,7 +78,7 @@ begin
   return jsonb_build_object('journal_id',v_journal,'replayed',false);
 exception when unique_violation then
   select * into v_existing from public.journal_transactions where idempotency_key=p_idempotency_key;
-  if found and v_existing.reference_type='wallet_adjustment' and v_existing.reference_id=p_user_id then
+  if found and v_existing.reference_type='wallet_adjustment' then
     return jsonb_build_object('journal_id',v_existing.id,'replayed',true);
   end if;
   raise;
