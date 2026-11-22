@@ -211,7 +211,7 @@ export const submitCustomerKyc = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({
     firstName: z.string().min(2).max(80), lastName: z.string().min(2).max(80),
     phone: z.string().min(10).max(16), identityType: z.enum(["bvn","nin"]),
-    identityNumber: z.string().regex(/^\\d{11}$/), consent: z.literal(true),
+    identityNumber: z.string().regex(/^\d{11}$/), consent: z.literal(true),
   }).parse(input))
   .handler(async ({ data, context }) => {
     const authContext = context as AuthContext;
