@@ -351,7 +351,7 @@ Deno.serve(async (request) => {
     if (error || !data?.journal_id) return json({error:error?.message??"Wallet adjustment failed"},400);
     if (data.replayed !== true) await admin.from("audit_logs").insert({
       actor_user_id:auth.user.id,action:"wallet.adjustment."+direction,target_type:"wallet",target_id:userId,
-      before_data:null,after_data:{amount,currency:"NGN",direction,reason,journal_id:data.journal_id}
+      before_data:{balance:data.balance_before,currency:data.currency},after_data:{balance:data.balance_after,amount,currency:data.currency,direction,reason,journal_id:data.journal_id}
     });
     return json({adjustment:data});
   }
