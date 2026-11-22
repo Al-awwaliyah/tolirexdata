@@ -340,15 +340,16 @@ Deno.serve(async (request) => {
     const direction = String(body.direction ?? "");
     const amount = Number(body.amount);
     const reason = String(body.reason ?? "").trim();
-    if (!/^[0-9a-f-]{36}$/i.test(userId) || !["credit","debit"].includes(direction) ||
+    const requestId = String(body.requestId ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(userId) || !/^[0-9a-f-]{36}$/i.test(requestId) || !["credit","debit"].includes(direction) ||
       !Number.isFinite(amount) || amount <= 0 || Math.round(amount*100)!==amount*100 ||
-      reason.length < 5 || reason.length > 500) return json({error:"Enter a valid customer, amount, adjustment type and reason."},400);
-    const idempotencyKey = "admin-wallet:"+auth.user.id+":"+crypto.randomUUID();
+      reason.length < 5 || reason.length > 500) return json({error:"Enter a valid customer, request ID, amount, adjustment type and reason."},400);
+    const idempotencyKey = "admin-wallet:"+auth.user.id+":"+requestId;
     const {data,error} = await admin.rpc("admin_adjust_wallet",{
       p_user_id:userId,p_amount:amount,p_direction:direction,p_reason:reason,p_idempotency_key:idempotencyKey
     });
     if (error || !data?.journal_id) return json({error:error?.message??"Wallet adjustment failed"},400);
-    await admin.from("audit_logs").insert({
+    if (data.replayed !== true) await admin.from("audit_logs").insert({
       actor_user_id:auth.user.id,action:"wallet.adjustment."+direction,target_type:"wallet",target_id:userId,
       before_data:null,after_data:{amount,currency:"NGN",direction,reason,journal_id:data.journal_id}
     });
