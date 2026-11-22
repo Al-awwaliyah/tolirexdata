@@ -19,6 +19,8 @@ declare
   v_reference_id uuid := gen_random_uuid();
   v_existing public.journal_transactions%rowtype;
   v_reason text := left(trim(coalesce(p_reason,'')),500);
+  v_balance_before numeric(18,2);
+  v_balance_after numeric(18,2);
 begin
   if p_user_id is null or p_amount is null or p_amount <= 0
      or p_amount <> round(p_amount,2)
@@ -41,6 +43,8 @@ begin
   select * into v_wallet from public.wallets where user_id=p_user_id for update;
   if not found then raise exception 'Wallet not found'; end if;
   if v_wallet.wallet_status <> 'active' then raise exception 'Wallet must be active for adjustment'; end if;
+  if v_wallet.currency <> 'NGN' then raise exception 'Only NGN wallet adjustments are supported'; end if;
+  v_balance_before := v_wallet.balance;
   if p_direction='debit' and v_wallet.balance < p_amount then
     raise exception 'Adjustment exceeds available wallet balance';
   end if;
@@ -64,18 +68,18 @@ begin
     insert into public.ledger_entries(journal_transaction_id,ledger_account_id,direction,amount,currency)
     values(v_journal,v_offset_account,'debit',p_amount,v_wallet.currency),
           (v_journal,v_wallet_account,'credit',p_amount,v_wallet.currency);
-    update public.wallets set balance=balance+p_amount,updated_at=now() where user_id=p_user_id;
+    update public.wallets set balance=balance+p_amount,updated_at=now() where user_id=p_user_id returning balance into v_balance_after;
   else
     insert into public.ledger_entries(journal_transaction_id,ledger_account_id,direction,amount,currency)
     values(v_journal,v_wallet_account,'debit',p_amount,v_wallet.currency),
           (v_journal,v_offset_account,'credit',p_amount,v_wallet.currency);
-    update public.wallets set balance=balance-p_amount,updated_at=now() where user_id=p_user_id;
+    update public.wallets set balance=balance-p_amount,updated_at=now() where user_id=p_user_id returning balance into v_balance_after;
   end if;
 
   insert into public.wallet_transactions(user_id,amount,direction,reference_type,reference_id,description)
   values(p_user_id,p_amount,p_direction,'wallet_adjustment',v_journal,'Admin adjustment: '||v_reason);
 
-  return jsonb_build_object('journal_id',v_journal,'replayed',false);
+  return jsonb_build_object('journal_id',v_journal,'replayed',false,'balance_before',v_balance_before,'balance_after',v_balance_after,'currency',v_wallet.currency);
 exception when unique_violation then
   select * into v_existing from public.journal_transactions where idempotency_key=p_idempotency_key;
   if found and v_existing.reference_type='wallet_adjustment' then
