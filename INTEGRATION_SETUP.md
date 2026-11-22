@@ -1,4 +1,4 @@
-# DEX Sub — provider and payment integration handoff
+# TolirexData — provider and payment integration handoff
 
 ## Current project state
 
