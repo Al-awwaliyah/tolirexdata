@@ -1,0 +1,85 @@
+-- Admin wallet controls: audited status changes and balanced, idempotent adjustments.
+-- Wallet balance remains a compatibility projection; the matching journal is mandatory.
+create or replace function public.admin_adjust_wallet(
+  p_user_id uuid,
+  p_amount numeric,
+  p_direction text,
+  p_reason text,
+  p_idempotency_key text
+) returns jsonb
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare
+  v_wallet public.wallets%rowtype;
+  v_wallet_account uuid;
+  v_offset_account uuid;
+  v_journal uuid;
+  v_existing public.journal_transactions%rowtype;
+  v_reason text := left(trim(coalesce(p_reason,'')),500);
+begin
+  if p_user_id is null or p_amount is null or p_amount <= 0
+     or p_amount <> round(p_amount,2)
+     or p_direction not in ('credit','debit')
+     or length(v_reason) < 5
+     or p_idempotency_key is null
+     or p_idempotency_key !~ '^[A-Za-z0-9:_-]{12,120}$' then
+    raise exception 'Invalid wallet adjustment details';
+  end if;
+
+  select * into v_existing from public.journal_transactions
+    where idempotency_key=p_idempotency_key;
+  if found then
+    if v_existing.reference_type <> 'wallet_adjustment' or v_existing.reference_id <> p_user_id then
+      raise exception 'Idempotency key already belongs to another operation';
+    end if;
+    return jsonb_build_object('journal_id',v_existing.id,'replayed',true);
+  end if;
+
+  select * into v_wallet from public.wallets where user_id=p_user_id for update;
+  if not found then raise exception 'Wallet not found'; end if;
+  if v_wallet.wallet_status <> 'active' then raise exception 'Wallet must be active for adjustment'; end if;
+  if p_direction='debit' and v_wallet.balance < p_amount then
+    raise exception 'Adjustment exceeds available wallet balance';
+  end if;
+
+  select id into v_wallet_account from public.ledger_accounts
+    where account_code='customer-wallet:'||p_user_id::text;
+  if v_wallet_account is null then raise exception 'Wallet ledger account missing'; end if;
+
+  if p_direction='credit' then
+    select id into v_offset_account from public.ledger_accounts where account_code='platform:promotion-expense';
+  else
+    select id into v_offset_account from public.ledger_accounts where account_code='platform:operating-revenue';
+  end if;
+  if v_offset_account is null then raise exception 'Adjustment control ledger account missing'; end if;
+
+  insert into public.journal_transactions(reference_type,reference_id,idempotency_key,description)
+  values('wallet_adjustment',p_user_id,p_idempotency_key,'Admin wallet '||p_direction||': '||v_reason)
+  returning id into v_journal;
+
+  if p_direction='credit' then
+    insert into public.ledger_entries(journal_transaction_id,ledger_account_id,direction,amount,currency)
+    values(v_journal,v_offset_account,'debit',p_amount,v_wallet.currency),
+          (v_journal,v_wallet_account,'credit',p_amount,v_wallet.currency);
+    update public.wallets set balance=balance+p_amount,updated_at=now() where user_id=p_user_id;
+  else
+    insert into public.ledger_entries(journal_transaction_id,ledger_account_id,direction,amount,currency)
+    values(v_journal,v_wallet_account,'debit',p_amount,v_wallet.currency),
+          (v_journal,v_offset_account,'credit',p_amount,v_wallet.currency);
+    update public.wallets set balance=balance-p_amount,updated_at=now() where user_id=p_user_id;
+  end if;
+
+  return jsonb_build_object('journal_id',v_journal,'replayed',false);
+exception when unique_violation then
+  select * into v_existing from public.journal_transactions where idempotency_key=p_idempotency_key;
+  if found and v_existing.reference_type='wallet_adjustment' and v_existing.reference_id=p_user_id then
+    return jsonb_build_object('journal_id',v_existing.id,'replayed',true);
+  end if;
+  raise;
+end;
+$$;
+
+revoke all on function public.admin_adjust_wallet(uuid,numeric,text,text,text) from public,anon,authenticated;
+grant execute on function public.admin_adjust_wallet(uuid,numeric,text,text,text) to service_role;
