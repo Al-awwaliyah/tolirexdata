@@ -378,7 +378,7 @@ Deno.serve(async (request) => {
       kyc: { table: "kyc_records", columns: "id,user_id,level,status,reviewer_id,reviewed_at,review_note,created_at,updated_at", order: "created_at", search: "user_id" },
       agents: { table: "agent_accounts", columns: "id,user_id,business_name,status,commission_plan,approved_by,approved_at,created_at,updated_at", order: "created_at", search: "user_id" },
       businesses: { table: "businesses", columns: "id,legal_name,trading_name,registration_number,country_code,status,created_by,created_at,updated_at", order: "created_at", search: "legal_name" },
-      wallets: { table: "wallets", columns: "id,user_id,balance,currency,wallet_status,created_at,updated_at", order: "updated_at", search: "user_id" },
+      wallets: { table: "wallets", columns: "user_id,balance,currency,wallet_status,created_at,updated_at", order: "updated_at", search: "user_id" },
       "virtual-accounts": { table: "virtual_accounts", columns: "id,user_id,provider,provider_reference,bank_name,currency,is_permanent,status,created_at,updated_at", order: "created_at", search: "user_id" },
       "virtual-cards": { table: "virtual_cards", columns: "id,user_id,provider,provider_card_id,masked_pan,last4,card_type,currency,name_on_card,expiry_month,expiry_year,status,amount_funded,created_at,updated_at", order: "created_at", search: "user_id" },
       fundings: { table: "funding_events", columns: "id,user_id,virtual_account_id,provider,provider_event_id,provider_transaction_id,tx_reference,amount,currency,sender_name,sender_bank,sender_account_last4,status,processed_at,created_at", order: "created_at", search: "tx_reference" },
