@@ -29,7 +29,7 @@ Deno.serve(async (request) => {
   const action = String(body.action ?? "");
   const workspacePermissions: Record<string, string> = {
     kyc: "kyc.review", agents: "customers.read", businesses: "customers.read",
-    wallets: "wallets.read", "virtual-accounts": "finance.read", "virtual-cards": "finance.read",
+    wallets: "wallets.read", ledger: "wallets.read", "virtual-accounts": "finance.read", "virtual-cards": "finance.read",
     fundings: "finance.read", transactions: "orders.read", catalogue: "services.manage",
     providers: "providers.manage", pricing: "pricing.manage", referrals: "growth.manage",
     promotions: "growth.manage", loyalty: "growth.manage", notifications: "notifications.manage",
@@ -41,7 +41,7 @@ Deno.serve(async (request) => {
     : action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read"
     : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
     : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage"
-    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "airtime_pricing" ? "pricing.manage"
+    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "wallet_adjustment" || action === "wallet_status" ? "wallets.adjust" : action === "airtime_pricing" ? "pricing.manage"
     : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
@@ -301,6 +301,43 @@ Deno.serve(async (request) => {
     return json({ setting:saved.data });
   }
 
+  if (action === "wallet_adjustment") {
+    const userId = String(body.userId ?? "");
+    const direction = String(body.direction ?? "");
+    const amount = Number(body.amount);
+    const reason = String(body.reason ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(userId) || !["credit","debit"].includes(direction) ||
+      !Number.isFinite(amount) || amount <= 0 || Math.round(amount*100)!==amount*100 ||
+      reason.length < 5 || reason.length > 500) return json({error:"Enter a valid customer, amount, adjustment type and reason."},400);
+    const idempotencyKey = "admin-wallet:"+auth.user.id+":"+crypto.randomUUID();
+    const {data,error} = await admin.rpc("admin_adjust_wallet",{
+      p_user_id:userId,p_amount:amount,p_direction:direction,p_reason:reason,p_idempotency_key:idempotencyKey
+    });
+    if (error || !data?.journal_id) return json({error:error?.message??"Wallet adjustment failed"},400);
+    await admin.from("audit_logs").insert({
+      actor_user_id:auth.user.id,action:"wallet.adjustment."+direction,target_type:"wallet",target_id:userId,
+      before_data:null,after_data:{amount,currency:"NGN",direction,reason,journal_id:data.journal_id}
+    });
+    return json({adjustment:data});
+  }
+
+  if (action === "wallet_status") {
+    const userId = String(body.userId ?? "");
+    const status = String(body.status ?? "");
+    const reason = String(body.reason ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(userId) || !["active","frozen"].includes(status) || reason.length < 5 || reason.length > 500)
+      return json({error:"A valid wallet status and reason are required."},400);
+    const before = await admin.from("wallets").select("user_id,balance,currency,wallet_status").eq("user_id",userId).maybeSingle();
+    if (before.error || !before.data) return json({error:"Wallet not found"},404);
+    const updated = await admin.from("wallets").update({wallet_status:status,updated_at:new Date().toISOString()}).eq("user_id",userId).select("user_id,balance,currency,wallet_status,updated_at").single();
+    if (updated.error || !updated.data) return json({error:"Unable to update wallet status"},500);
+    await admin.from("audit_logs").insert({
+      actor_user_id:auth.user.id,action:status==="frozen"?"wallet.frozen":"wallet.unfrozen",target_type:"wallet",target_id:userId,
+      before_data:{wallet_status:before.data.wallet_status},after_data:{wallet_status:status,reason}
+    });
+    return json({wallet:updated.data});
+  }
+
   if (action === "workspace") {
     const definitions: Record<string, { table: string; columns: string; order: string; search?: string }> = {
       kyc: { table: "kyc_records", columns: "id,user_id,level,status,reviewer_id,reviewed_at,review_note,created_at,updated_at", order: "created_at", search: "user_id" },
@@ -323,6 +360,22 @@ Deno.serve(async (request) => {
       "admin-team": { table: "platform_admin_memberships", columns: "user_id,admin_role,active,granted_by,created_at,updated_at", order: "created_at" },
       audit: { table: "audit_logs", columns: "id,actor_user_id,action,target_type,target_id,created_at", order: "created_at", search: "action" },
     };
+    if (workspaceModule === "ledger") {
+      const page = Math.max(1,Math.min(10000,Number(body.page)||1));
+      const pageSize = Math.max(10,Math.min(100,Number(body.pageSize)||25));
+      const {data,error,count} = await admin.from("ledger_entries")
+        .select("id,journal_transaction_id,direction,amount,currency,created_at,ledger_accounts(account_code,account_name,account_type,user_id),journal_transactions(reference_type,reference_id,description,status)",{count:"exact"})
+        .order("created_at",{ascending:false}).range((page-1)*pageSize,page*pageSize-1);
+      if (error) return json({error:"Unable to load ledger entries"},500);
+      const rows=(data??[]).map((entry:any)=>({
+        id:entry.id,journal_transaction_id:entry.journal_transaction_id,reference_type:entry.journal_transactions?.reference_type??null,
+        reference_id:entry.journal_transactions?.reference_id??null,description:entry.journal_transactions?.description??null,
+        journal_status:entry.journal_transactions?.status??null,account_code:entry.ledger_accounts?.account_code??null,
+        account_name:entry.ledger_accounts?.account_name??null,account_type:entry.ledger_accounts?.account_type??null,
+        user_id:entry.ledger_accounts?.user_id??null,direction:entry.direction,amount:entry.amount,currency:entry.currency,created_at:entry.created_at
+      }));
+      return json({rows,total:count??0,page,pageSize});
+    }
     if (workspaceModule === "reports") {
       const count = async (table: string, configure?: (query: any) => any) => {
         let query = admin.from(table).select("id", { count: "exact", head: true });
