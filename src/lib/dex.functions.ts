@@ -112,6 +112,7 @@ export const purchaseAirtimeOrData = createServerFn({ method: "POST" })
     productId: z.string().uuid().optional(),
     amount: z.number().int().min(50).max(200000).optional(),
     idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{12,100}$/),
+    couponCode: z.string().regex(/^[A-Za-z0-9_-]{1,32}$/).optional(),
   }).superRefine((value, ctx) => {
     if (value.service === "data" && !value.productId) {
       ctx.addIssue({ code: "custom", path: ["productId"], message: "Choose a data plan." });
@@ -286,6 +287,7 @@ export const manageTopupmateExpandedService = createServerFn({ method: "POST" })
     subtype: z.string().optional(),
     accountType: z.enum(["PhoneNumber","AccountNumber"]).optional(),
     idempotencyKey: z.string().min(12).max(100).optional(),
+    couponCode: z.string().max(32).optional(),
     reference: z.string().optional(),
   }).parse(input))
   .handler(async ({ data, context }) => {

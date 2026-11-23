@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "../_shared/cors.ts";
 
-type Body={service:"airtime"|"data";productId?:string;networkCode:string;recipient:string;amount?:number;idempotencyKey:string};
+type Body={service:"airtime"|"data";productId?:string;networkCode:string;recipient:string;amount?:number;idempotencyKey:string;couponCode?:string};
 type Obj=Record<string,any>;
 const clean=(v:unknown)=>String(v??"").trim();
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
@@ -30,11 +30,11 @@ Deno.serve(async request=>{
   const {data:authData,error:authError}=await caller.auth.getUser();
   if(authError||!authData.user)return json({error:"Invalid session"},401);
   let body:Body;try{body=await request.json() as Body}catch{return json({error:"Invalid JSON body"},400)}
-  if(!body||!["airtime","data"].includes(body.service)||!/^[0-9]{10,14}$/.test(clean(body.recipient))||!/^[A-Za-z0-9_-]{12,100}$/.test(clean(body.idempotencyKey))||!/^[A-Za-z0-9_-]{1,30}$/.test(clean(body.networkCode)))return json({error:"Invalid purchase details"},400);
+  if(!body||!["airtime","data"].includes(body.service)||!/^[0-9]{10,14}$/.test(clean(body.recipient))||!/^[A-Za-z0-9_-]{12,100}$/.test(clean(body.idempotencyKey))||!/^[A-Za-z0-9_-]{1,30}$/.test(clean(body.networkCode))||(body.couponCode!==undefined&&!/^[A-Za-z0-9_-]{1,32}$/.test(clean(body.couponCode))))return json({error:"Invalid purchase details"},400);
   if(body.service==="data"&&!/^[0-9a-f-]{36}$/i.test(clean(body.productId)))return json({error:"Select a valid data plan"},400);
   if(body.service==="airtime"&&(!Number.isFinite(body.amount)||!Number.isInteger(body.amount)||(body.amount as number)<50||(body.amount as number)>200000))return json({error:"Airtime amount must be between ₦50 and ₦200,000"},400);
   const admin=createClient(url,serviceRole,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:order,error:reserveError}=await admin.rpc("reserve_catalogue_service_order",{p_user_id:authData.user.id,p_service_code:body.service,p_product_id:body.productId??null,p_network_code:body.networkCode,p_recipient:body.recipient,p_airtime_face_value:body.service==="airtime"?body.amount:null,p_idempotency_key:body.idempotencyKey});
+  const {data:order,error:reserveError}=await admin.rpc("reserve_catalogue_service_order",{p_user_id:authData.user.id,p_service_code:body.service,p_product_id:body.productId??null,p_network_code:body.networkCode,p_recipient:body.recipient,p_airtime_face_value:body.service==="airtime"?body.amount:null,p_idempotency_key:body.idempotencyKey,p_coupon_code:clean(body.couponCode).toUpperCase()||null});
   if(reserveError||!order)return json({error:reserveError?.message??"Could not reserve purchase"},409);
   if(["successful","processing","unknown","refunded","failed","reversal_pending"].includes(order.status))return json({orderId:order.id,status:order.status,requestId:order.request_id,reused:true});
   const ref=order.request_id;
@@ -65,11 +65,12 @@ Deno.serve(async request=>{
       if(!plan)return json({error:"Selected data plan has no valid supplier plan ID"},409);
       payload={network:body.networkCode,phone:body.recipient,plan,ref};
     }
-    const started=await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:null,p_provider_status:"submission_started",p_message:"Submitting to Topupmate"});
-    if(started.error)return json({orderId:order.id,status:"unknown",requestId:ref,message:"Your purchase is reserved and needs reconciliation."},202);
+    const {data:claimed,error:claimError}=await admin.rpc("claim_topupmate_service_order",{p_order_id:order.id});
+    if(claimError)return json({orderId:order.id,status:"unknown",requestId:ref,message:"Your purchase is reserved and needs reconciliation."},202);
+    if(!claimed)return json({orderId:order.id,status:"processing",requestId:ref,reused:true,message:"This purchase has already been submitted or is being reconciled. Do not submit it again."},202);
     const result=await topupmate(body.service==="airtime"?"/airtime/":"/data/","POST",token,payload);
     const state=stateOf(result);
-    if(state==="success"){await settleSuccess(result);return json({orderId:order.id,status:"successful",requestId:ref});}
+    if(state==="success"){await settleSuccess(result);const discount=Number(order.service_metadata?.coupon_discount)||0;return json({orderId:order.id,status:"successful",requestId:ref,couponCode:order.service_metadata?.coupon_code||null,discountAmount:discount,chargedAmount:Number(order.amount),originalAmount:Number(order.service_metadata?.original_amount)||Number(order.amount)});}
     if(state==="fail"){await settleFailure(result);return json({orderId:order.id,status:"refunded",requestId:ref});}
     await markProcessing(result);
     return json({orderId:order.id,status:"processing",requestId:ref,message:"Topupmate is processing your purchase. Do not submit it again."},202);
