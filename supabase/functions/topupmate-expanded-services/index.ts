@@ -137,7 +137,7 @@ Deno.serve(async request=>{
    }else if(category==="recharge_pin"){
     path="/rechargepin/";payload={network:optionCode,quantity,plan:supplierPlan,businessname:"TolirexData",ref};
    }else if(category==="data_pin"){
-    path="/datapins/";payload={network:optionCode,quantity,data_plan:supplierPlan,businessname:"TolirexData",ref};
+    path="/datapin/";payload={network:optionCode,quantity,data_plan:supplierPlan,businessname:"TolirexData",ref};
    }else if(category==="education"){
     path="/exam/";payload={provider:supplierPlan,quantity,ref};
    }else if(category==="gift_card"){
