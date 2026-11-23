@@ -1,4 +1,6 @@
 -- Atomic coupon redemption for catalogue-driven Topupmate purchases.
+-- Remove the prior 10-argument overload so all service reservations use the coupon-aware function.
+drop function if exists public.reserve_topupmate_service_order(uuid,text,uuid,text,text,text,numeric,integer,text,jsonb);
 -- Customer wallet is charged the discounted amount; promotion expense funds the discount.
 create or replace function public.reserve_topupmate_service_order(
   p_user_id uuid,
