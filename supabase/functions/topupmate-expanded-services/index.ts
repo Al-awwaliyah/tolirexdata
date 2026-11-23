@@ -122,7 +122,8 @@ Deno.serve(async request=>{
     p_option_type:category==="cable_tv"?"cable_provider":category==="electricity"?"operator":"network",
     p_option_code:optionCode||null,p_recipient:recipient||productCode(product??{}),
     p_face_value:category==="electricity"?faceValue:null,p_quantity:quantity,
-    p_idempotency_key:idempotency,p_service_metadata:metadata
+    p_idempotency_key:idempotency,p_service_metadata:metadata,
+    p_coupon_code:text(body.couponCode).toUpperCase()||null
    });
    if(reserveError||!order)return json({error:reserveError?.message??"Unable to reserve this purchase."},409);
    if(["successful","processing","unknown","refunded","failed","reversal_pending"].includes(order.status))
