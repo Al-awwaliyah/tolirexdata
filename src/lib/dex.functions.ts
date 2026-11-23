@@ -59,6 +59,10 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       };
     }
 
+    // KYC and virtual-account records are read server-side with the service role,
+    // but always constrained to the authenticated user ID from requireSupabaseAuth.
+    // This avoids an RLS visibility gap incorrectly showing an approved KYC as missing.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [profile, wallet, orders, serviceOrders, transactions, catalogue, catalogueOptions, kycResult, accountResult] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle(),
@@ -67,8 +71,8 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
       (supabase as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
-      (supabase as any).from("kyc_records").select("id,status,level,review_note,created_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(1).maybeSingle(),
-      (supabase as any).from("virtual_accounts").select("id,account_number,bank_name,account_name,currency,status,is_permanent").eq("user_id",userId).eq("provider","flutterwave").eq("status","active").eq("is_permanent",true).maybeSingle(),
+      (supabaseAdmin as any).from("kyc_records").select("id,status,level,review_note,created_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+      (supabaseAdmin as any).from("virtual_accounts").select("id,account_number,bank_name,account_name,currency,status,is_permanent").eq("user_id",userId).eq("provider","flutterwave").eq("status","active").eq("is_permanent",true).maybeSingle(),
     ]);
     const results = [profile, wallet, orders, serviceOrders, transactions, catalogue, catalogueOptions, kycResult, accountResult];
     if (results.some((result) => result.error)) throw new Error("Unable to load your TolirexData account");
