@@ -20,6 +20,14 @@ create table if not exists public.business_wallets (
   updated_at timestamptz not null default now()
 );
 
+-- The owner may have a personal/agent VA as well as a separate business VA.
+-- Scope the user uniqueness constraint to non-business accounts only.
+drop index if exists public.one_active_virtual_account_per_user;
+drop index if exists public.virtual_accounts_one_active_permanent_user_uq;
+create unique index if not exists virtual_accounts_one_active_permanent_personal_user_uq
+  on public.virtual_accounts(user_id)
+  where business_id is null and is_permanent = true and status = 'active';
+
 create unique index if not exists virtual_accounts_one_active_permanent_business_uq
   on public.virtual_accounts(business_id)
   where business_id is not null and is_permanent = true and status = 'active';
