@@ -146,15 +146,6 @@ function Index() {
   const [phone, setPhone] = useState("");
   const virtualAccountIssuanceStarted = useRef(false);
 
-  // Provisioning must continue even when the approved-KYC onboarding card is hidden.
-  useEffect(() => {
-    if (dashboard?.kyc?.status !== "approved" || dashboard.virtualAccount || virtualAccountIssuanceStarted.current) return;
-    virtualAccountIssuanceStarted.current = true;
-    void ensureFlutterwaveVirtualAccount().then(() => refreshDashboard()).catch((error) => {
-      setNotice(messageOf(error, "Your KYC is approved, but permanent account setup needs attention. Open Wallet funding or contact support."));
-    });
-  }, [dashboard?.kyc?.status, dashboard?.virtualAccount?.id, refreshDashboard]);
-
   const refreshDashboard = useCallback(async () => {
     setDashboardLoading(true);
     try {
@@ -166,6 +157,15 @@ function Index() {
       setDashboardLoading(false);
     }
   }, [getDashboard]);
+
+  // Provisioning must continue even when the approved-KYC onboarding card is hidden.
+  useEffect(() => {
+    if (dashboard?.kyc?.status !== "approved" || dashboard.virtualAccount || virtualAccountIssuanceStarted.current) return;
+    virtualAccountIssuanceStarted.current = true;
+    void ensureFlutterwaveVirtualAccount().then(() => refreshDashboard()).catch((error) => {
+      setNotice(messageOf(error, "Your KYC is approved, but permanent account setup needs attention. Open Wallet funding or contact support."));
+    });
+  }, [dashboard?.kyc?.status, dashboard?.virtualAccount?.id, refreshDashboard]);
 
   useEffect(() => {
     if (!user) {
