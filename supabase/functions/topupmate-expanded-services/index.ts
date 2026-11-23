@@ -105,7 +105,7 @@ Deno.serve(async request=>{
    }
    if(category==="education"&&quantity>20)return json({error:"Exam PIN quantity cannot exceed 20."},400);
    if(category==="internet"&&!recipient)return json({error:"Enter the ISP account number or phone number."},400);
-   if(category==="gift_card"&&(!product||!/^\\S+@\\S+\\.\\S+$/.test(recipient)||quantity>20))return json({error:"Select a gift card, enter a valid recipient email and choose a valid quantity."},400);
+   if(category==="gift_card"&&(!product||!/^\S+@\S+\.\S+$/.test(recipient)||quantity>20))return json({error:"Select a gift card, enter a valid recipient email and choose a valid quantity."},400);
    const metadata:Obj={quantity};
    if(body.meterType)metadata.meter_type=text(body.meterType);
    if(body.subtype)metadata.subtype=text(body.subtype);
