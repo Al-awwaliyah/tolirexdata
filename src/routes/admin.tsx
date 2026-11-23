@@ -39,6 +39,37 @@ const modules: ModuleItem[] = [
 ];
 
 
+function TopupmateBalancePanel({ onError }: { onError: (message: string) => void }) {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [currency, setCurrency] = useState("NGN");
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [hasChecked, setHasChecked] = useState(false);
+  const load = async () => {
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke("admin-console", { body: { action: "topupmate_balance" } });
+    if (error || data?.error) {
+      setBalance(null);
+      onError(data?.error ?? error?.message ?? "Unable to retrieve Topupmate wallet balance.");
+    } else {
+      setBalance(Number(data.balance));
+      setCurrency(String(data.currency ?? "NGN"));
+      setCheckedAt(data.checkedAt ?? null);
+      onError("");
+    }
+    setHasChecked(true);
+    setBusy(false);
+  };
+  useEffect(() => { void load(); }, []);
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div><p className="text-xs font-medium text-slate-500">Topupmate supplier wallet</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{balance === null ? "—" : new Intl.NumberFormat("en-NG", { style: "currency", currency, maximumFractionDigits: 2 }).format(balance)}</h2><p className="mt-1 text-xs text-slate-500">{checkedAt ? "Live provider balance · checked " + new Date(checkedAt).toLocaleString() : hasChecked ? "Balance unavailable" : "Checking provider account…"}</p></div>
+      <button onClick={() => void load()} disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"><RefreshCw size={13} className={"mr-1 inline "+(busy?"animate-spin":"")}/>{busy?"Checking…":"Refresh balance"}</button>
+    </div>
+    <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">Read-only account balance retrieved directly from Topupmate. This is your supplier wallet balance, not the total of customer wallets. Provider credentials remain server-side.</div>
+  </section>;
+}
+
 function AdminDataWorkspace({ moduleId, moduleLabel, onError }: { moduleId: string; moduleLabel: string; onError: (message: string) => void }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [total, setTotal] = useState(0);
@@ -122,6 +153,7 @@ function AdminDataWorkspace({ moduleId, moduleLabel, onError }: { moduleId: stri
   const columns = rows.length ? Object.keys(rows[0]).filter(k => !["identity_ciphertext","document_storage_path","raw_payload","metadata","safe_provider_metadata","before_data","after_data","ip_hash"].includes(k)) : [];
   const title = moduleId === "kyc" ? "Identity review queue" : moduleId === "fundings" ? "Incoming transfer and settlement records" : moduleId === "wallets" ? (walletView === "ledger" ? "Double-entry ledger entries" : "Wallet accounts") : moduleLabel + " records";
   return <section className="space-y-4">
+    {moduleId==="providers"&&<TopupmateBalancePanel onError={onError}/>}
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-xs text-slate-500">{total.toLocaleString()} records · live database</p></div><button onClick={()=>void load()} disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-semibold text-slate-600"><RefreshCw size={13} className={"mr-1 inline "+(busy?"animate-spin":"")}/> Refresh</button></div>
       <div className="mt-4 flex flex-wrap gap-2"><input value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setPage(1);void load();}}} placeholder="Search records" className="min-w-[220px] flex-1 rounded-xl border px-3 py-2 text-xs"/>{moduleId==="kyc"&&<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-xl border px-3 py-2 text-xs"><option value="all">All statuses</option>{["pending","approved","rejected","needs_information"].map(s=><option key={s} value={s}>{s.replace(/_/g," ")}</option>)}</select>}<button onClick={()=>{setPage(1);void load();}} className="rounded-xl bg-[#14366f] px-4 py-2 text-xs font-semibold text-white">Search</button></div>
