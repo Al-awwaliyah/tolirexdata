@@ -144,7 +144,16 @@ function Index() {
   const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [phone, setPhone] = useState("");
+  const virtualAccountIssuanceStarted = useRef(false);
 
+  // Provisioning must continue even when the approved-KYC onboarding card is hidden.
+  useEffect(() => {
+    if (dashboard?.kyc?.status !== "approved" || dashboard.virtualAccount || virtualAccountIssuanceStarted.current) return;
+    virtualAccountIssuanceStarted.current = true;
+    void ensureFlutterwaveVirtualAccount().then(() => refreshDashboard()).catch((error) => {
+      setNotice(messageOf(error, "Your KYC is approved, but permanent account setup needs attention. Open Wallet funding or contact support."));
+    });
+  }, [dashboard?.kyc?.status, dashboard?.virtualAccount?.id, refreshDashboard]);
 
   const refreshDashboard = useCallback(async () => {
     setDashboardLoading(true);
@@ -336,7 +345,7 @@ function DashboardShell(props: {
       <div className="tr-app-layout"><aside className="tr-sidebar"><p className="tr-sidebar-label">MENU</p><nav>{(["Main","Services","Finance","Rewards & growth"] as const).map((group)=><section className="tr-nav-group" key={group}><p className="tr-sidebar-label">{group}</p>{navItems.filter((item)=>item.group===group).map((item)=><button key={item.key} onClick={()=>props.setView(item.key)} className={props.view===item.key?"active":""}><span>{item.icon}</span>{item.label}</button>)}</section>)}</nav><div className="tr-sidebar-bottom"><ShieldCheck/><b>Your account is protected</b><p>Your account, payments and personal information are protected by access controls.</p></div></aside>
         <main className="tr-main"><div className="tr-page-top"><div><p className="tr-muted">{accountLabel.toUpperCase()} ACCOUNT · {new Intl.DateTimeFormat("en-NG",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</p><h1>{headingForView(props.view, props.userName)}</h1></div><button className="tr-refresh" onClick={props.onRefresh} disabled={props.loading}><Clock3/> Refresh</button></div>
           {props.notice && <Notice message={props.notice} onClose={props.onDismissNotice}/>}
-          {props.dashboard && <KycAndFundingOnboarding dashboard={props.dashboard} onRefresh={props.onRefresh}/>}
+          {props.dashboard?.kyc?.status !== "approved" && props.dashboard && <KycAndFundingOnboarding dashboard={props.dashboard} onRefresh={props.onRefresh}/>}
           {props.loading && !props.dashboard ? <LoadingScreen compact/> : null}
           {props.view === "overview" && <Overview dashboard={props.dashboard} accountType={props.accountType} onNavigate={props.setView}/>}
           {props.view === "buy" && <BuyDataView {...props}/>}
@@ -708,7 +717,9 @@ function FundWalletView(props: { dashboard: DashboardData | null; onRefresh: () 
   const account=props.dashboard?.virtualAccount;
   const kycStatus=props.dashboard?.kyc?.status;
   return <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[1fr_.9fr]">
-    <section className="rounded-2xl border bg-background p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary"><ArrowDownLeft/></span><div><h2 className="font-semibold">Fund your wallet by bank transfer</h2><p className="text-sm text-muted-foreground">Your dedicated permanent account</p></div></div>
+    <section className="rounded-2xl border bg-background p-5 sm:p-6">
+      {kycStatus === "approved" && <div className="mb-5 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Identity verification</p><p className="mt-1 text-sm font-medium text-emerald-900">KYC approved</p></div><CheckCircle2 className="size-5 text-emerald-600"/></div>}
+      <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary"><ArrowDownLeft/></span><div><h2 className="font-semibold">Fund your wallet by bank transfer</h2><p className="text-sm text-muted-foreground">Your dedicated permanent account</p></div></div>
       {account?<div className="mt-6 rounded-xl bg-primary/5 p-5"><p className="text-xs text-muted-foreground">{account.bank_name}</p><p className="mt-2 text-3xl font-bold tracking-wider">{account.account_number}</p><p className="mt-2 text-sm font-semibold">{account.account_name}</p><p className="mt-1 text-xs text-muted-foreground">{account.currency} · Permanent virtual account</p><Button className="mt-4" variant="outline" onClick={()=>void navigator.clipboard?.writeText(account.account_number)}>Copy account number</Button></div>:<div className="mt-5"><p className="text-sm leading-6 text-muted-foreground">{kycStatus==="approved"?"Your KYC is approved and your permanent bank account is being provisioned. Refresh this page shortly if the account details do not appear.":"Complete and receive KYC approval. Your permanent Flutterwave bank account will then be generated automatically."}</p></div>}
     </section>
     <section className="rounded-2xl border bg-background p-5 sm:p-6"><h2 className="font-semibold">Automatic wallet funding</h2><ol className="mt-4 space-y-4 text-sm text-muted-foreground"><li>1. Transfer from any Nigerian bank to the permanent account shown here.</li><li>2. Flutterwave notifies TolirexData and the payment is verified against Flutterwave's transaction API.</li><li>3. Your wallet is credited automatically after successful verification.</li><li>4. Your transaction history and wallet balance update after settlement.</li></ol><p className="mt-5 border-t pt-4 text-xs leading-5 text-muted-foreground">Never transfer to an account number that is not displayed inside your signed-in TolirexData dashboard. Customer manual funding claims and payment-proof uploads are not supported.</p></section>
