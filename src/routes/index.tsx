@@ -449,6 +449,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [meterType,setMeterType]=useState<"prepaid"|"postpaid">("prepaid");
   const [serviceAmount,setServiceAmount]=useState("1000");
   const [quantity,setQuantity]=useState("1");
+  const [couponCode,setCouponCode]=useState("");
   const [internetAccountType,setInternetAccountType]=useState<"PhoneNumber"|"AccountNumber">("PhoneNumber");
   const [verifiedName,setVerifiedName]=useState("");
   const [serviceNotice,setServiceNotice]=useState("");
@@ -490,7 +491,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       const productPayload=selectedProduct?{productId:selectedProduct.id}:{};
       const optionPayload=selectedOptionCode?{optionCode:selectedOptionCode}:{};
       const base={action:"purchase" as const,categoryCode:category,...productPayload,...optionPayload,
-        recipient,quantity:Number(quantity)||1,contactPhone:contactPhone||undefined,idempotencyKey:crypto.randomUUID().replace(/-/g,"")};
+        recipient,quantity:Number(quantity)||1,contactPhone:contactPhone||undefined,couponCode:couponCode.trim().toUpperCase()||undefined,idempotencyKey:crypto.randomUUID().replace(/-/g,"")};
       const payload=view==="electricity"?{...base,amount:Number(serviceAmount),meterType}
         :view==="cable"?{...base,subtype:"renew"}
         :view==="internet"?{...base,accountType:internetAccountType}
@@ -547,6 +548,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     </section> : ["cable","electricity","epin","data-pin","education","internet","gift-cards"].includes(view) ? <section className="tr-feature-panel">
       <div className="tr-feature-panel-heading"><div><h3>{view==="cable"?"Cable TV subscription":view==="electricity"?"Electricity payment":view==="epin"?"Recharge PINs":view==="data-pin"?"Data PINs":view==="education"?"Education PINs":view==="internet"?"Internet bundle":"Gift card purchase"}</h3><p>Live Topupmate catalogue · published products and admin-approved prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Products available":"No published products"}</span></div>
       {serviceNotice&&<div role="status" className="my-4 rounded-xl border bg-secondary/50 p-3 text-sm">{serviceNotice}</div>}
+      <label className="mt-4 grid max-w-xl gap-2 text-sm font-medium">Coupon code (optional)<Input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/><span className="text-xs font-normal text-muted-foreground">The coupon is checked against the final server-calculated price before your wallet is charged.</span></label>
       {view==="cable"&&<div className="mt-5 grid max-w-xl gap-4">
         <label className="grid gap-2 text-sm font-medium">TV provider<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setSelectedProductId("");setVerifiedName("");}}><option value="">Choose provider</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
         <label className="grid gap-2 text-sm font-medium">SmartCard / IUC number<Input value={recipient} onChange={e=>{setRecipient(e.target.value.replace(/\D/g,""));setVerifiedName("");}} maxLength={20} placeholder="Enter decoder number"/></label>
