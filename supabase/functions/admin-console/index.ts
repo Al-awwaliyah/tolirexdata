@@ -41,7 +41,7 @@ Deno.serve(async (request) => {
     : action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read"
     : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
     : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage"
-    : action === "provider_status" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "wallet_adjustment" || action === "wallet_status" ? "wallets.adjust" : action === "funding_reconcile" ? "fundings.manage" : action === "airtime_pricing" ? "pricing.manage"
+    : action === "provider_status" || action === "topupmate_balance" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "wallet_adjustment" || action === "wallet_status" ? "wallets.adjust" : action === "funding_reconcile" ? "fundings.manage" : action === "airtime_pricing" ? "pricing.manage"
     : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
@@ -49,6 +49,44 @@ Deno.serve(async (request) => {
   if (permissionError || permitted !== true) return json({ error: "You do not have permission for this workspace" }, 403);
 
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  if (action === "topupmate_balance") {
+    const apiKey = (Deno.env.get("TOPUPMATE_API_KEY") ?? "").trim();
+    if (!apiKey) return json({ error: "Topupmate API key is not configured" }, 503);
+    try {
+      const response = await fetch("https://connect.topupmate.com/api/user/", {
+        method: "GET",
+        headers: { Authorization: `Token ${apiKey}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(15000),
+      });
+      const raw = await response.text();
+      let payload: any = null;
+      try { payload = raw ? JSON.parse(raw) : null; } catch { payload = null; }
+      if (!response.ok || !payload || typeof payload !== "object") {
+        console.error("Topupmate wallet balance request failed", { http_status: response.status });
+        return json({ error: response.status === 401 || response.status === 403 ? "Topupmate rejected the configured API credentials" : "Unable to retrieve Topupmate wallet balance", providerStatus: response.status }, 502);
+      }
+      const candidates = [payload, payload.data, payload.response, payload.wallet, payload.data?.wallet, payload.response?.wallet].filter((x: any) => x && typeof x === "object");
+      let balance: number | null = null;
+      let currency = "NGN";
+      for (const candidate of candidates) {
+        const value = candidate.balance ?? candidate.wallet_balance ?? candidate.available_balance ?? candidate.availableBalance;
+        if (value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value))) {
+          balance = Number(value);
+          currency = String(candidate.currency ?? candidate.wallet_currency ?? candidate.currency_code ?? "NGN").toUpperCase();
+          break;
+        }
+      }
+      if (balance === null) {
+        console.error("Topupmate wallet response did not contain a recognized balance field", { http_status: response.status });
+        return json({ error: "Topupmate responded, but its wallet balance field could not be identified. Check the provider response format." }, 502);
+      }
+      return json({ balance, currency, checkedAt: new Date().toISOString(), source: "Topupmate live account" });
+    } catch (error) {
+      console.error("Topupmate wallet balance request error", error);
+      return json({ error: "Topupmate wallet balance is temporarily unavailable" }, 502);
+    }
+  }
 
   if (action === "overview") {
     const count = async (table: string, configure?: (query: any) => any) => {
