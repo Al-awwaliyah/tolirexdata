@@ -286,6 +286,7 @@ export const manageTopupmateExpandedService = createServerFn({ method: "POST" })
     subtype: z.string().optional(),
     accountType: z.enum(["PhoneNumber","AccountNumber"]).optional(),
     idempotencyKey: z.string().min(12).max(100).optional(),
+    couponCode: z.string().max(32).optional(),
     reference: z.string().optional(),
   }).parse(input))
   .handler(async ({ data, context }) => {
