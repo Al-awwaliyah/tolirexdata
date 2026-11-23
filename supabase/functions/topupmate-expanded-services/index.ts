@@ -213,7 +213,7 @@ Deno.serve(async request=>{
    if(!reference)return json({error:"Transaction reference is required."},400);
    const {data:order,error}=await admin.from("service_orders").select("id,status,request_id,service_metadata").eq("request_id",reference).eq("user_id",auth.user.id).maybeSingle();
    if(error||!order)return json({error:"Transaction not found."},404);
-   const q=await topupmateGet("/transaction/status/",{reference});
+   // Topupmate documents GET /transaction/ for status lookup. Use the exact\n   // original supplier ref; never generate a new reference for reconciliation.\n   const q=await topupmateGet("/transaction/",{ref:reference});
    if(!q.ok)return json({orderId:order.id,status:order.status,reference,message:"Supplier status is temporarily unavailable."},202);
    const state=classify(q.body);
    if(state==="success"){
