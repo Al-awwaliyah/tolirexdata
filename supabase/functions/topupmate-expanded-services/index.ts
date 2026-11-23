@@ -105,7 +105,7 @@ Deno.serve(async request=>{
    }
    if(category==="education"&&quantity>20)return json({error:"Exam PIN quantity cannot exceed 20."},400);
    if(category==="internet"&&!recipient)return json({error:"Enter the ISP account number or phone number."},400);
-   if(category==="gift_card"&&(!product||!/^\\S+@\\S+\\.\\S+$/.test(recipient)||quantity>20))return json({error:"Select a gift card, enter a valid recipient email and choose a valid quantity."},400);
+   if(category==="gift_card"&&(!product||!/^\S+@\S+\.\S+$/.test(recipient)||quantity>20))return json({error:"Select a gift card, enter a valid recipient email and choose a valid quantity."},400);
    const metadata:Obj={quantity};
    if(body.meterType)metadata.meter_type=text(body.meterType);
    if(body.subtype)metadata.subtype=text(body.subtype);
@@ -161,8 +161,14 @@ Deno.serve(async request=>{
      payload={phone,amount,ref};
     }
    }
-   const {error:startedError}=await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:null,p_provider_status:"submission_started",p_message:"Submitting to Topupmate"});
-   if(startedError)return json({orderId:order.id,status:"unknown",reference:ref,message:"Your purchase is reserved and requires reconciliation."},202);
+   // Claim the reserved order atomically. Only one request may submit this
+   // persistent supplier reference; retries must reconcile, never resubmit.
+   const {data:claimed,error:claimError}=await admin.rpc("claim_topupmate_service_order",{p_order_id:order.id});
+   if(claimError)return json({orderId:order.id,status:"unknown",reference:ref,message:"Your purchase is reserved and requires reconciliation."},202);
+   if(claimed!==true){
+    const {data:current}=await admin.from("service_orders").select("status,request_id").eq("id",order.id).maybeSingle();
+    return json({orderId:order.id,status:current?.status??"unknown",reference:current?.request_id??ref,reused:true,message:"This purchase has already been submitted or is being processed. Do not submit it again."},202);
+   }
    let response;
    try{response=await topupmatePost(path,payload);}catch(error){
     await admin.rpc("mark_service_order_unknown",{p_order_id:order.id,p_provider_status:"transport_error",p_message:"Topupmate response was not received"});
@@ -207,7 +213,7 @@ Deno.serve(async request=>{
    if(!reference)return json({error:"Transaction reference is required."},400);
    const {data:order,error}=await admin.from("service_orders").select("id,status,request_id,service_metadata").eq("request_id",reference).eq("user_id",auth.user.id).maybeSingle();
    if(error||!order)return json({error:"Transaction not found."},404);
-   const q=await topupmateGet("/transaction/status/",{reference});
+   // Topupmate documents GET /transaction/ for status lookup. Use the exact\n   // original supplier ref; never generate a new reference for reconciliation.\n   const q=await topupmateGet("/transaction/",{ref:reference});
    if(!q.ok)return json({orderId:order.id,status:order.status,reference,message:"Supplier status is temporarily unavailable."},202);
    const state=classify(q.body);
    if(state==="success"){

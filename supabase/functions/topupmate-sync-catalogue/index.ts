@@ -109,7 +109,7 @@ Deno.serve(async req => {
           const cost=num(item.price??item.amount??item.cost??item.provider_price??item.providerPrice??item.selling_price);
           if(!cost) continue;
           let network=networkCode(first(item,["networkid","network_id","networkId","network_code","networkCode","network","network_name","networkName","provider_id","provider","provider_name"]));
-          if(network&&!/^\\d+$/.test(network)){
+          if(network&&!/^\d+$/.test(network)){
             const optionType=spec.key==="cabletv"?"cable_provider":"network";
             const {data:matchedNetwork}=await admin.from("provider_service_options")
               .select("option_code").eq("provider_id",provider.id).eq("option_type",optionType)
