@@ -65,8 +65,9 @@ Deno.serve(async request=>{
       if(!plan)return json({error:"Selected data plan has no valid supplier plan ID"},409);
       payload={network:body.networkCode,phone:body.recipient,plan,ref};
     }
-    const started=await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:null,p_provider_status:"submission_started",p_message:"Submitting to Topupmate"});
-    if(started.error)return json({orderId:order.id,status:"unknown",requestId:ref,message:"Your purchase is reserved and needs reconciliation."},202);
+    const {data:claimed,error:claimError}=await admin.rpc("claim_topupmate_service_order",{p_order_id:order.id});
+    if(claimError)return json({orderId:order.id,status:"unknown",requestId:ref,message:"Your purchase is reserved and needs reconciliation."},202);
+    if(!claimed)return json({orderId:order.id,status:"processing",requestId:ref,reused:true,message:"This purchase has already been submitted or is being reconciled. Do not submit it again."},202);
     const result=await topupmate(body.service==="airtime"?"/airtime/":"/data/","POST",token,payload);
     const state=stateOf(result);
     if(state==="success"){await settleSuccess(result);const discount=Number(order.service_metadata?.coupon_discount)||0;return json({orderId:order.id,status:"successful",requestId:ref,couponCode:order.service_metadata?.coupon_code||null,discountAmount:discount,chargedAmount:Number(order.amount),originalAmount:Number(order.service_metadata?.original_amount)||Number(order.amount)});}
