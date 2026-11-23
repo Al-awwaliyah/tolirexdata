@@ -188,7 +188,9 @@ Deno.serve(async request=>{
       else fulfilmentPending=true;
      }catch{fulfilmentPending=true;}
     }
-    return json({orderId:order.id,status:"successful",reference:ref,fulfilment,fulfilmentPending});
+    const couponDiscount=number(order.service_metadata?.coupon_discount);
+    return json({orderId:order.id,status:"successful",reference:ref,fulfilment,fulfilmentPending,
+     couponCode:text(order.service_metadata?.coupon_code)||null,discountAmount:couponDiscount,chargedAmount:number(order.amount),originalAmount:number(order.service_metadata?.original_amount)||number(order.amount)});
    }
    if(response.ok&&state==="fail"){
     const {error}=await admin.rpc("fail_and_refund_catalogue_service_order",{p_order_id:order.id,p_provider_status:"fail",p_reason:topupmateMessage(response.body)});
