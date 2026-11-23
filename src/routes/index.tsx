@@ -144,6 +144,7 @@ function Index() {
   const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [phone, setPhone] = useState("");
+  const [dataCouponCode,setDataCouponCode] = useState("");
   const virtualAccountIssuanceStarted = useRef(false);
 
   const refreshDashboard = useCallback(async () => {
@@ -203,15 +204,17 @@ function Index() {
     event.preventDefault();
     if (!selectedPlan || !selectedPlan.networkCode || !isValidNigerianPhone(phone)) { setNotice("Choose a published data plan with a valid supplier network and enter a valid Nigerian phone number."); return; }
     await action(async () => {
-      const result = await purchaseAirtimeOrData({ data: { service:"data", productId:selectedPlan.id, networkCode:selectedPlan.networkCode, recipient:phone, idempotencyKey:crypto.randomUUID().replace(/-/g,"") } });
-      setNotice(result.status==="successful" ? "Data purchase completed successfully." : result.status==="refunded" ? "Supplier rejected the order; your wallet refund has been processed." : "Your order is processing or being checked. Check Transactions before submitting again.");
+      const result = await purchaseAirtimeOrData({ data: { service:"data", productId:selectedPlan.id, networkCode:selectedPlan.networkCode, recipient:phone, couponCode:dataCouponCode.trim().toUpperCase()||undefined, idempotencyKey:crypto.randomUUID().replace(/-/g,"") } });
+      const saved=result.discountAmount>0?` ${result.couponCode} saved ${formatNaira(Number(result.discountAmount))}; you paid ${formatNaira(Number(result.chargedAmount))}.`:"";
+      setNotice(result.status==="successful" ? "Data purchase completed successfully."+saved : result.status==="refunded" ? "Supplier rejected the order; your wallet refund has been processed." : "Your order is processing or being checked. Check Transactions before submitting again.");
       await refreshDashboard();
     });
   };
-  const handleAirtimePurchase = async (payload:{networkCode:string;recipient:string;amount:number}) => {
+  const handleAirtimePurchase = async (payload:{networkCode:string;recipient:string;amount:number;couponCode?:string}) => {
     await action(async () => {
       const result = await purchaseAirtimeOrData({ data:{ service:"airtime", ...payload, idempotencyKey:crypto.randomUUID().replace(/-/g,"") } });
-      setNotice(result.status==="successful" ? "Airtime purchase completed successfully." : result.status==="refunded" ? "Supplier rejected the order; your wallet refund has been processed." : "Your order is processing or being checked. Check Transactions before submitting again.");
+      const saved=result.discountAmount>0?` ${result.couponCode} saved ${formatNaira(Number(result.discountAmount))}; you paid ${formatNaira(Number(result.chargedAmount))}.`:"";
+      setNotice(result.status==="successful" ? "Airtime purchase completed successfully."+saved : result.status==="refunded" ? "Supplier rejected the order; your wallet refund has been processed." : "Your order is processing or being checked. Check Transactions before submitting again.");
       await refreshDashboard();
     });
   };
@@ -254,6 +257,8 @@ function Index() {
           phone={phone}
           setPhone={setPhone}
           onBuy={handleBuy}
+          dataCouponCode={dataCouponCode}
+          setDataCouponCode={setDataCouponCode}
           onAirtimePurchase={handleAirtimePurchase}
         />
       ) : (
@@ -314,7 +319,7 @@ function DashboardShell(props: {
   loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
   network: Network; setNetwork: (network: Network) => void; networkChoices: string[]; plans: DataPlan[];
   selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
-  phone: string; setPhone: (phone: string) => void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
+  phone: string; setPhone: (phone: string) => void; dataCouponCode:string; setDataCouponCode:(code:string)=>void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   onAirtimePurchase: (payload: { networkCode: string; recipient: string; amount: number }) => Promise<void>;
 }) {
   const accountLabel = props.accountType.replace(/[_-]/g, " ");
@@ -438,10 +443,11 @@ const featureDetails: Record<FeatureView, {title:string;eyebrow:string;descripti
   loyalty:{title:"Loyalty",eyebrow:"REWARDS & GROWTH",description:"Track loyalty points, membership tier and eligible redemption options.",icon:<Award/>,group:"growth",emptyTitle:"Loyalty programme not configured",emptyCopy:"Your points, tier and redemption options will appear when the loyalty programme is configured and enabled."},
 };
 
-function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAirtimePurchase}:{view:FeatureView;accountType:string;catalogue:CatalogueProduct[];catalogueOptions:CatalogueOption[];busy:boolean;onAirtimePurchase:(payload:{networkCode:string;recipient:string;amount:number})=>Promise<void>}) {
+function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAirtimePurchase}:{view:FeatureView;accountType:string;catalogue:CatalogueProduct[];catalogueOptions:CatalogueOption[];busy:boolean;onAirtimePurchase:(payload:{networkCode:string;recipient:string;amount:number;couponCode?:string})=>Promise<void>}) {
   const [airtimeNetwork,setAirtimeNetwork]=useState("");
   const [airtimePhone,setAirtimePhone]=useState("");
   const [airtimeAmount,setAirtimeAmount]=useState("100");
+  const [airtimeCouponCode,setAirtimeCouponCode]=useState("");
   const [selectedProductId,setSelectedProductId]=useState("");
   const [selectedOptionCode,setSelectedOptionCode]=useState("");
   const [recipient,setRecipient]=useState("");
@@ -540,10 +546,11 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     </section>
     {view==="cards" ? <VirtualCardsWorkspace busy={busy}/> : view==="airtime" ? <section className="tr-feature-panel">
       <div className="tr-feature-panel-heading"><div><h3>Buy airtime</h3><p>Networks come from the supplier catalogue; rates must be configured by an administrator.</p></div><span className="tr-catalogue-state"><i/>{options.length?"Networks synced":"No networks published"}</span></div>
-      {options.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount)});}}>
+      {options.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount),couponCode:airtimeCouponCode.trim().toUpperCase()||undefined});}}>
         <label className="grid gap-2 text-sm font-medium">Mobile network<select className="h-11 border bg-background px-3" value={airtimeNetwork} onChange={(event)=>setAirtimeNetwork(event.target.value)} required><option value="">Choose network</option>{options.map(option=><option key={option.id} value={option.option_code}>{option.name}</option>)}</select></label>
         <label className="grid gap-2 text-sm font-medium">Phone number<Input inputMode="numeric" maxLength={11} placeholder="08012345678" value={airtimePhone} onChange={(event)=>setAirtimePhone(event.target.value.replace(/\D/g,""))} required/></label>
         <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={(event)=>setAirtimeAmount(event.target.value)} required/></label>
+        <label className="grid gap-2 text-sm font-medium">Coupon code (optional)<Input value={airtimeCouponCode} onChange={event=>setAirtimeCouponCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/></label>
         <Button type="submit" disabled={busy||!airtimeNetwork||!/^\d{11}$/.test(airtimePhone)||Number(airtimeAmount)<50||Number(airtimeAmount)>200000}>{busy?"Processing…":"Continue to purchase"} <ArrowRight/></Button>
       </form> : <EmptyState icon={<Smartphone/>} title="Airtime networks are not published" copy="Networks become selectable after the supplier catalogue is synchronized and published."/>}
     </section> : ["cable","electricity","epin","data-pin","education","internet","gift-cards"].includes(view) ? <section className="tr-feature-panel">
@@ -705,6 +712,7 @@ function BuyDataView(props: {
         <p className="mt-1 text-sm text-muted-foreground">Data will be sent to the number you enter.</p>
         <label className="mt-5 block text-sm font-medium text-foreground" htmlFor="data-phone">Recipient phone number</label>
         <Input id="data-phone" className="mt-2" inputMode="numeric" autoComplete="tel" placeholder="08012345678" maxLength={11} value={props.phone} onChange={(event) => props.setPhone(event.target.value.replace(/\D/g, ""))} required />
+        <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">Coupon code (optional)<Input value={props.dataCouponCode} onChange={event=>props.setDataCouponCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/></label>
         <div className="my-5 border-t" />
         <div className="flex justify-between text-sm"><span className="text-muted-foreground">Selected plan</span><span className="font-medium text-foreground">{props.selectedPlan ? `${props.selectedPlan.network} ${props.selectedPlan.data_amount}` : "Choose a plan"}</span></div>
         <div className="mt-3 flex justify-between text-sm"><span className="text-muted-foreground">Wallet balance</span><span className="font-medium text-foreground">{formatNaira(props.dashboard?.wallet?.balance ?? 0)}</span></div>
