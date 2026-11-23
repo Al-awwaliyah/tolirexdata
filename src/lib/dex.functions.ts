@@ -29,7 +29,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
 
     if (adminAccess) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const [profiles, wallets, orders, serviceOrders, transactions, catalogue, catalogueOptions] = await Promise.all([
+      const [profiles, wallets, orders, serviceOrders, transactions, catalogue, catalogueOptions, kycResult, accountResult] = await Promise.all([
         supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallets").select("*").limit(500),
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
@@ -37,8 +37,12 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
         (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
         (supabaseAdmin as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
+        // Admins may also use a Personal customer dashboard. Load their own KYC
+        // and virtual account records exactly as for non-admin customers.
+        (supabaseAdmin as any).from("kyc_records").select("id,status,level,review_note,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        (supabaseAdmin as any).from("virtual_accounts").select("id,account_number,bank_name,account_name,currency,status,is_permanent").eq("user_id", userId).eq("provider", "flutterwave").eq("status", "active").eq("is_permanent", true).maybeSingle(),
       ]);
-      const results = [profiles, wallets, orders, serviceOrders, transactions, catalogue, catalogueOptions];
+      const results = [profiles, wallets, orders, serviceOrders, transactions, catalogue, catalogueOptions, kycResult, accountResult];
       if (results.some((result) => result.error)) throw new Error("Unable to load the admin dashboard");
 
       return {
@@ -56,6 +60,8 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         transactions: transactions.data ?? [],
         users: profiles.data ?? [],
         isAdmin: false,
+        kyc: kycResult.data ?? null,
+        virtualAccount: accountResult.data ?? null,
       };
     }
 
