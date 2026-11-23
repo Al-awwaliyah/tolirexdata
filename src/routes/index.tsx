@@ -498,7 +498,8 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         :view==="gift-cards"?{...base}
         :base;
       const result=await runExpanded(payload);
-      setServiceNotice(result.status==="successful"?(result.fulfilmentPending?"Purchase completed. Your gift-card code can be retrieved again below.":"Purchase completed successfully."):"Your request is awaiting Topupmate confirmation. Do not submit it again.");
+      const couponSummary=Number(result.discountAmount)>0?` ${result.couponCode} saved ${formatNaira(Number(result.discountAmount))}; you paid ${formatNaira(Number(result.chargedAmount))}.`:"";
+      setServiceNotice(result.status==="successful"?(result.fulfilmentPending?"Purchase completed. Your gift-card code can be retrieved again below."+couponSummary:"Purchase completed successfully."+couponSummary):"Your request is awaiting Topupmate confirmation. Do not submit it again.");
       setFulfilment(result.fulfilment??null);
       setLastServiceReference(result.reference??"");
       setServicePending(["unknown","processing"].includes(result.status));
