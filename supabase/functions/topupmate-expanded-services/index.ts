@@ -161,8 +161,14 @@ Deno.serve(async request=>{
      payload={phone,amount,ref};
     }
    }
-   const {error:startedError}=await admin.rpc("mark_service_order_processing",{p_order_id:order.id,p_provider_order_id:null,p_provider_status:"submission_started",p_message:"Submitting to Topupmate"});
-   if(startedError)return json({orderId:order.id,status:"unknown",reference:ref,message:"Your purchase is reserved and requires reconciliation."},202);
+   // Claim the reserved order atomically. Only one request may submit this
+   // persistent supplier reference; retries must reconcile, never resubmit.
+   const {data:claimed,error:claimError}=await admin.rpc("claim_topupmate_service_order",{p_order_id:order.id});
+   if(claimError)return json({orderId:order.id,status:"unknown",reference:ref,message:"Your purchase is reserved and requires reconciliation."},202);
+   if(claimed!==true){
+    const {data:current}=await admin.from("service_orders").select("status,request_id").eq("id",order.id).maybeSingle();
+    return json({orderId:order.id,status:current?.status??"unknown",reference:current?.request_id??ref,reused:true,message:"This purchase has already been submitted or is being processed. Do not submit it again."},202);
+   }
    let response;
    try{response=await topupmatePost(path,payload);}catch(error){
     await admin.rpc("mark_service_order_unknown",{p_order_id:order.id,p_provider_status:"transport_error",p_message:"Topupmate response was not received"});
