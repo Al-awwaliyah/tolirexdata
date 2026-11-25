@@ -118,7 +118,7 @@ Deno.serve(async req => {
           }
           if(spec.key==="cabletv"&&!network)continue;
           const validity=first(item,["validity","validity_period","validityperiod","duration","period","plan_period","planperiod"]);
-          const rawPlanType=first(item,["plan_type","planType","data_type","dataType","type","plan_category","planCategory","package_type","packageType"]);
+          const rawPlanType=first(item,["plantype","plan_type","planType","data_type","dataType","type","plan_category","planCategory","package_type","packageType"]);
           const normalizedPlanType=rawPlanType.toLowerCase().replace(/[^a-z]/g,"");
           const planType=normalizedPlanType.includes("sme")?"sme":normalizedPlanType.includes("gift")?"gifting":normalizedPlanType.includes("corporate")?"corporate":null;
           const {error}=await admin.rpc("sync_provider_catalogue_product",{p_provider_code:"topupmate",p_category_code:spec.category,p_product_code:spec.key+":"+code,p_name:label,p_network_or_operator:network||null,p_description:validity||null,p_face_value:num(item.face_value??item.denomination),p_cost_price:cost,p_metadata:{source_service:spec.key,supplier_plan_id:code,plan_type:planType,topupmate_plan_type:rawPlanType||null,topupmate_network_id:first(item,["networkid","network_id","networkId","network_code","networkCode"])||null,topupmate_raw_network:first(item,["network","network_name","networkName","provider","provider_name","providerName"])||null}});
