@@ -321,8 +321,9 @@ function DashboardShell(props: {
   userName: string; accountType: string; isAdmin: boolean; view: ViewKey; setView: (view: ViewKey) => void;
   onSignOut: () => void; notice: string; onDismissNotice: () => void; busy: boolean;
   loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
-  network: Network; setNetwork: (network: Network) => void; networkChoices: string[]; plans: DataPlan[];
-  selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
+  network: Network; setNetwork: (network: Network) => void; networkChoices: string[];
+  selectedPlanType: "sme"|"gifting"|"corporate"|""; setSelectedPlanType:(value:"sme"|"gifting"|"corporate"|"")=>void;
+  plans: DataPlan[]; selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; dataCouponCode:string; setDataCouponCode:(code:string)=>void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   onAirtimePurchase: (payload: { networkCode: string; recipient: string; amount: number }) => Promise<void>;
 }) {
@@ -671,6 +672,16 @@ function VirtualCardsWorkspace({busy}:{busy:boolean}) {
   </section>;
 }
 
+function networkDisplayName(value: string) {
+  const key = String(value ?? "").trim().toLowerCase();
+  const known: Record<string,string> = {
+    "1":"MTN", "2":"Airtel", "3":"Glo", "4":"9mobile",
+    "mtn":"MTN", "airtel":"Airtel", "glo":"Glo",
+    "9mobile":"9mobile", "etisalat":"9mobile"
+  };
+  return known[key] ?? value;
+}
+
 function BuyDataView(props: {
   dashboard: DashboardData | null;
   busy: boolean;
@@ -685,53 +696,82 @@ function BuyDataView(props: {
   setSelectedPlanId: (id: string) => void;
   phone: string;
   setPhone: (phone: string) => void;
+  dataCouponCode: string;
+  setDataCouponCode: (code: string) => void;
   onBuy: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const filteredPlans = props.plans.filter(plan => plan.network === props.network && plan.planType === props.selectedPlanType);
+  const typeCounts = {
+    sme: props.plans.filter(plan => plan.network === props.network && plan.planType === "sme").length,
+    gifting: props.plans.filter(plan => plan.network === props.network && plan.planType === "gifting").length,
+    corporate: props.plans.filter(plan => plan.network === props.network && plan.planType === "corporate").length,
+  };
+  const networkInitials = (name: string) => name === "9mobile" ? "9M" : name.slice(0,3).toUpperCase();
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <section className="border bg-background p-5 sm:p-6">
-        <h2 className="text-lg font-semibold text-foreground">Choose a data plan</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Only products published from the connected supplier catalogue will appear here. Plans and prices are never manually estimated.</p>
-        {props.plans.length > 0 && <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Select a network">
-          {props.networkChoices.map((choice, index) => (
-            <Button key={choice} variant={props.network === choice ? "default" : "outline"} onClick={() => { props.setNetwork(choice); props.setSelectedPlanId(""); props.setSelectedPlanType(""); }}>
-              <span>{choice}</span>
-            </Button>
-          ))}
-        </div>}
-        {props.plans.length ? (
-          <>
-          {!props.network ? <p className="mt-5 rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Select a network to continue.</p> : <>
-          <div className="mt-6 grid grid-cols-3 gap-2" role="group" aria-label="Select data plan type">
-            {(["sme","gifting","corporate"] as const).map(type=><Button key={type} type="button" variant={props.selectedPlanType===type?"default":"outline"} onClick={()=>{props.setSelectedPlanType(type);props.setSelectedPlanId("");}}>{type==="sme"?"SME":type==="gifting"?"Gifting":"Corporate"}</Button>)}
+    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_350px]">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-[11px] font-semibold uppercase tracking-[.14em] text-primary">Data bundles</p><h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Choose your data plan</h2><p className="mt-1 text-sm text-slate-500">Select a network, choose a bundle type and find the plan that suits you.</p></div>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Database className="size-5"/></span>
           </div>
-          {!props.selectedPlanType ? <p className="mt-5 rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Choose a plan type to view available published plans.</p> : <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            {props.plans.filter(plan=>plan.planType===props.selectedPlanType).map((plan) => {
-              const chosen = (props.selectedPlan?.id === plan.id) || props.selectedPlanId === plan.id;
-              return (
-                <button key={plan.id} type="button" onClick={() => props.setSelectedPlanId(plan.id)} className={`flex min-h-24 items-center justify-between gap-4 border p-4 text-left transition-colors ${chosen ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-secondary"}`}>
-                  <span><strong className="block text-lg text-foreground">{plan.data_amount}</strong><span className="mt-1 block text-sm text-muted-foreground">{plan.validity}</span></span>
-                  <span className="text-right"><strong className="block text-base text-foreground">{formatNaira(plan.price)}</strong>{chosen && <CheckCircle2 className="ml-auto mt-2 size-4 text-primary" />}</span>
-                </button>
-              );
-            })}
-          </div>}
-          </>}
-          </>
-        ) : <EmptyState icon={<Database />} title="No plans available" copy="No supplier products have been published for this service yet. No static or estimated plans are shown." />}
+        </div>
+        <div className="space-y-6 p-5 sm:p-6">
+          <div>
+            <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">1. Select network</h3><span className="text-xs text-slate-400">{props.networkChoices.length} available</span></div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {props.networkChoices.map(choice => {
+                const label = networkDisplayName(choice);
+                const active = props.network === choice;
+                return <button key={choice} type="button" onClick={() => {props.setNetwork(choice);props.setSelectedPlanId("");props.setSelectedPlanType("");}} aria-pressed={active} className={`group flex min-h-[76px] items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all ${active ? "border-primary bg-primary/[.06] ring-2 ring-primary/10" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}>
+                  <span className={`grid size-10 shrink-0 place-items-center rounded-full text-xs font-bold ${active ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>{networkInitials(label)}</span>
+                  <span className="min-w-0"><strong className="block text-sm font-semibold text-slate-900">{label}</strong><small className="mt-0.5 block text-xs text-slate-500">Mobile network</small></span>
+                  {active && <CheckCircle2 className="ml-auto size-4 shrink-0 text-primary"/>}
+                </button>;
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="mb-3"><h3 className="text-sm font-semibold text-slate-800">2. Choose bundle type</h3><p className="mt-1 text-xs text-slate-500">Plans are grouped using the classification supplied by Topupmate.</p></div>
+            <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1.5">
+              {(["sme","gifting","corporate"] as const).map(type => {
+                const active=props.selectedPlanType===type;
+                const label=type==="sme"?"SME":type==="gifting"?"Gifting":"Corporate";
+                return <button key={type} type="button" onClick={()=>{props.setSelectedPlanType(type);props.setSelectedPlanId("");}} aria-pressed={active} className={`rounded-lg px-2 py-3 text-sm font-semibold transition-all ${active ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
+                  {label}<span className={`ml-1.5 text-[10px] ${active?"text-primary/70":"text-slate-400"}`}>{props.network ? typeCounts[type] : ""}</span>
+                </button>;
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">3. Select a plan</h3>{props.selectedPlanType && <span className="text-xs text-slate-400">{filteredPlans.length} plans</span>}</div>
+            {!props.network ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><Database className="mx-auto size-7 text-slate-300"/><p className="mt-2 text-sm font-medium text-slate-700">Choose your network</p><p className="mt-1 text-xs text-slate-500">Available data bundles will appear here.</p></div>
+            : !props.selectedPlanType ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">Choose a bundle type</p><p className="mt-1 text-xs text-slate-500">Select SME, Gifting or Corporate to see available plans.</p></div>
+            : filteredPlans.length === 0 ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">No {props.selectedPlanType} plans published for {networkDisplayName(props.network)}</p><p className="mt-1 text-xs text-slate-500">Try another bundle type or check back after the supplier catalogue is refreshed.</p></div>
+            : <div className="grid gap-3 sm:grid-cols-2">
+              {filteredPlans.map(plan => {
+                const chosen=props.selectedPlan?.id===plan.id || props.selectedPlanId===plan.id;
+                return <button key={plan.id} type="button" onClick={()=>props.setSelectedPlanId(plan.id)} aria-pressed={chosen} className={`flex min-h-[92px] items-center justify-between gap-3 rounded-xl border p-4 text-left transition-all ${chosen ? "border-primary bg-primary/[.04] ring-2 ring-primary/10" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"}`}>
+                  <span className="min-w-0"><strong className="block text-lg font-bold tracking-tight text-slate-900">{plan.data_amount}</strong><span className="mt-1 block truncate text-xs text-slate-500">{plan.validity || "Data bundle"}</span><span className="mt-2 inline-flex rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{props.selectedPlanType}</span></span>
+                  <span className="shrink-0 text-right"><strong className="block text-base font-bold text-slate-900">{formatNaira(plan.price)}</strong>{chosen && <CheckCircle2 className="ml-auto mt-2 size-4 text-primary"/>}</span>
+                </button>;
+              })}
+            </div>}
+          </div>
+          <p className="flex items-center gap-2 border-t border-slate-100 pt-4 text-[11px] text-slate-400"><ShieldCheck className="size-4"/> Only published supplier plans and configured selling prices are displayed.</p>
+        </div>
       </section>
-      <form onSubmit={props.onBuy} className="h-fit border bg-background p-5 sm:p-6">
-        <h2 className="text-lg font-semibold text-foreground">Order details</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Data will be sent to the number you enter.</p>
-        <label className="mt-5 block text-sm font-medium text-foreground" htmlFor="data-phone">Recipient phone number</label>
-        <Input id="data-phone" className="mt-2" inputMode="numeric" autoComplete="tel" placeholder="08012345678" maxLength={11} value={props.phone} onChange={(event) => props.setPhone(event.target.value.replace(/\D/g, ""))} required />
-        <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">Coupon code (optional)<Input value={props.dataCouponCode} onChange={event=>props.setDataCouponCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/></label>
-        <div className="my-5 border-t" />
-        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Selected plan</span><span className="font-medium text-foreground">{props.selectedPlan ? `${props.selectedPlan.network} ${props.selectedPlan.data_amount}` : "Choose a plan"}</span></div>
-        <div className="mt-3 flex justify-between text-sm"><span className="text-muted-foreground">Wallet balance</span><span className="font-medium text-foreground">{formatNaira(props.dashboard?.wallet?.balance ?? 0)}</span></div>
-        <div className="mt-4 flex justify-between border-t pt-4"><span className="font-medium text-foreground">Total</span><strong className="text-xl text-foreground">{formatNaira(props.selectedPlan?.price ?? 0)}</strong></div>
-        <Button type="submit" className="mt-5 w-full" disabled={props.busy || !props.selectedPlan}>{props.busy ? "Processing…" : "Buy data"} <ArrowRight /></Button>
-        <p className="mt-3 text-center text-xs text-muted-foreground">Payment comes directly from your ToliRex wallet.</p>
+      <form onSubmit={props.onBuy} className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-center gap-3 border-b border-slate-100 pb-4"><span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary"><FileClock className="size-5"/></span><div><h2 className="text-base font-semibold text-slate-900">Order summary</h2><p className="mt-0.5 text-xs text-slate-500">Review your purchase details</p></div></div>
+        <label className="mt-5 block text-xs font-semibold text-slate-700" htmlFor="data-phone">Recipient phone number</label>
+        <Input id="data-phone" className="mt-2 h-11 rounded-xl border-slate-200" inputMode="numeric" autoComplete="tel" placeholder="08012345678" maxLength={11} value={props.phone} onChange={event=>props.setPhone(event.target.value.replace(/\D/g,""))} required/>
+        <label className="mt-4 block text-xs font-semibold text-slate-700">Coupon code <span className="font-normal text-slate-400">(optional)</span><Input className="mt-2 h-11 rounded-xl border-slate-200" value={props.dataCouponCode} onChange={event=>props.setDataCouponCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/></label>
+        <div className="my-5 border-t border-slate-100"/>
+        <div className="rounded-xl bg-slate-50 p-4"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Selected plan</p><p className="mt-2 text-sm font-semibold text-slate-800">{props.selectedPlan ? `${networkDisplayName(props.selectedPlan.network)} · ${props.selectedPlan.data_amount}` : "Choose a plan to continue"}</p><p className="mt-1 text-xs text-slate-500">{props.selectedPlan ? (props.selectedPlan.validity || "Data bundle") : "Your selected bundle will appear here."}</p></div>
+        <div className="mt-4 flex items-center justify-between text-sm"><span className="text-slate-500">Wallet balance</span><strong className="font-semibold text-slate-800">{formatNaira(props.dashboard?.wallet?.balance ?? 0)}</strong></div>
+        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4"><span className="text-sm font-semibold text-slate-700">Total</span><strong className="text-2xl font-bold tracking-tight text-slate-900">{formatNaira(props.selectedPlan?.price ?? 0)}</strong></div>
+        <Button type="submit" className="mt-5 h-11 w-full rounded-xl" disabled={props.busy || !props.selectedPlan}>{props.busy ? "Processing…" : "Buy data"} <ArrowRight className="ml-1 size-4"/></Button>
+        <p className="mt-3 text-center text-[11px] text-slate-400">Secure payment from your TolirexData wallet.</p>
       </form>
     </div>
   );
