@@ -185,7 +185,7 @@ function Index() {
     const selectedNetworkStillExists = !network || allPlans.some((plan) => plan.network === network);
     return allPlans.filter((plan) => !selectedNetworkStillExists || !network || plan.network === network);
   }, [dashboard?.isAdmin, dashboard?.plans, network]);
-  const typedPlans=availablePlans.filter(plan=>plan.planType===selectedPlanType);
+  const typedPlans=availablePlans.filter(plan=>plan.network===network&&plan.planType===selectedPlanType);
   const selectedPlan = typedPlans.find((plan) => plan.id === selectedPlanId) ?? typedPlans[0];
   const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
 
@@ -701,6 +701,7 @@ function BuyDataView(props: {
         </div>}
         {props.plans.length ? (
           <>
+          {!props.network ? <p className="mt-5 rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Select a network to continue.</p> : <>
           <div className="mt-6 grid grid-cols-3 gap-2" role="group" aria-label="Select data plan type">
             {(["sme","gifting","corporate"] as const).map(type=><Button key={type} type="button" variant={props.selectedPlanType===type?"default":"outline"} onClick={()=>{props.setSelectedPlanType(type);props.setSelectedPlanId("");}}>{type==="sme"?"SME":type==="gifting"?"Gifting":"Corporate"}</Button>)}
           </div>
@@ -715,6 +716,7 @@ function BuyDataView(props: {
               );
             })}
           </div>}
+          </>}
           </>
         ) : <EmptyState icon={<Database />} title="No plans available" copy="No supplier products have been published for this service yet. No static or estimated plans are shown." />}
       </section>
