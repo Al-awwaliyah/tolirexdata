@@ -593,13 +593,13 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         <Button disabled={serviceBusy||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
       </div>}
       {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
-        <label className="grid gap-2 text-sm font-medium">Internet plan<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose bundle</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose internet plan</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">ISP account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Enter account number or phone"/></label>
         <label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>
         <Button disabled={serviceBusy||!selectedProductId||!recipient} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Buy internet plan"} <ArrowRight/></Button>
       </div>}
       {view==="gift-cards"&&<div className="mt-5 grid max-w-xl gap-4">
-        <label className="grid gap-2 text-sm font-medium">Gift card product / denomination<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose gift card</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose gift card</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Recipient email<Input type="email" value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="recipient@example.com"/></label>
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||!/^\S+@\S+\.\S+$/.test(recipient)||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase gift card"} <ArrowRight/></Button>
