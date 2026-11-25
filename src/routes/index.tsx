@@ -552,7 +552,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     {view==="cards" ? <VirtualCardsWorkspace busy={busy}/> : view==="airtime" ? <section className="tr-feature-panel">
       <div className="tr-feature-panel-heading"><div><h3>Buy airtime</h3><p>Networks come from the supplier catalogue; rates must be configured by an administrator.</p></div><span className="tr-catalogue-state"><i/>{options.length?"Networks synced":"No networks published"}</span></div>
       {options.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount),couponCode:airtimeCouponCode.trim().toUpperCase()||undefined});}}>
-        <label className="grid gap-2 text-sm font-medium">Mobile network<select className="h-11 border bg-background px-3" value={airtimeNetwork} onChange={(event)=>setAirtimeNetwork(event.target.value)} required><option value="">Choose network</option>{options.map(option=><option key={option.id} value={option.option_code}>{option.name}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose mobile network</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{options.map((option,index)=><ProviderChoice key={option.id} name={option.name} code={option.option_code} selected={airtimeNetwork===option.option_code} index={index} onClick={()=>setAirtimeNetwork(option.option_code)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Phone number<Input inputMode="numeric" maxLength={11} placeholder="08012345678" value={airtimePhone} onChange={(event)=>setAirtimePhone(event.target.value.replace(/\D/g,""))} required/></label>
         <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={(event)=>setAirtimeAmount(event.target.value)} required/></label>
         <label className="grid gap-2 text-sm font-medium">Coupon code (optional)<Input value={airtimeCouponCode} onChange={event=>setAirtimeCouponCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/></label>
@@ -563,16 +563,16 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       {serviceNotice&&<div role="status" className="my-4 rounded-xl border bg-secondary/50 p-3 text-sm">{serviceNotice}</div>}
       <label className="mt-4 grid max-w-xl gap-2 text-sm font-medium">Coupon code (optional)<Input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/><span className="text-xs font-normal text-muted-foreground">The coupon is checked against the final server-calculated price before your wallet is charged.</span></label>
       {view==="cable"&&<div className="mt-5 grid max-w-xl gap-4">
-        <label className="grid gap-2 text-sm font-medium">TV provider<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setSelectedProductId("");setVerifiedName("");}}><option value="">Choose provider</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose TV provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");setVerifiedName("");setRecipient("");}}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">SmartCard / IUC number<Input value={recipient} onChange={e=>{setRecipient(e.target.value.replace(/\D/g,""));setVerifiedName("");}} maxLength={20} placeholder="Enter decoder number"/></label>
         <Button type="button" variant="outline" disabled={serviceBusy||!selectedOptionCode||recipient.length<8} onClick={()=>void verifyService()}>{serviceBusy?"Verifying…":"Verify decoder"}</Button>
         {verifiedName&&<p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Verified customer: {verifiedName}</p>}
-        <label className="grid gap-2 text-sm font-medium">Subscription package<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose package</option>{selectedProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose subscription package</p><div className="grid gap-2 sm:grid-cols-2">{selectedProducts.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Contact phone (optional)<Input value={contactPhone} onChange={e=>setContactPhone(e.target.value.replace(/\D/g,""))} maxLength={11} placeholder="08012345678"/></label>
         <Button disabled={serviceBusy||!verifiedName||!selectedProductId||!selectedOptionCode} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Pay for subscription"} <ArrowRight/></Button>
       </div>}
       {view==="electricity"&&<div className="mt-5 grid max-w-xl gap-4">
-        <label className="grid gap-2 text-sm font-medium">Electricity distribution company<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setVerifiedName("");}}><option value="">Choose disco</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose electricity provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setVerifiedName("");setRecipient("");}}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Meter type<select className="h-11 border bg-background px-3" value={meterType} onChange={e=>{setMeterType(e.target.value as "prepaid"|"postpaid");setVerifiedName("");}}><option value="prepaid">Prepaid</option><option value="postpaid">Postpaid</option></select></label>
         <label className="grid gap-2 text-sm font-medium">Meter number<Input value={recipient} onChange={e=>{setRecipient(e.target.value.replace(/\D/g,""));setVerifiedName("");}} placeholder="Enter meter number"/></label>
         <Button type="button" variant="outline" disabled={serviceBusy||!selectedOptionCode||!recipient} onClick={()=>void verifyService()}>{serviceBusy?"Verifying…":"Verify meter"}</Button>
@@ -582,24 +582,24 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         <Button disabled={serviceBusy||!verifiedName||Number(serviceAmount)<=0||!selectedOptionCode} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Pay electricity bill"} <ArrowRight/></Button>
       </div>}
       {["epin","data-pin"].includes(view)&&<div className="mt-5 grid max-w-xl gap-4">
-        <label className="grid gap-2 text-sm font-medium">Mobile network<select className="h-11 border bg-background px-3" value={selectedOptionCode} onChange={e=>{setSelectedOptionCode(e.target.value);setSelectedProductId("");}}><option value="">Choose network</option>{serviceOptions.map(o=><option key={o.id} value={o.option_code}>{o.name}</option>)}</select></label>
-        <label className="grid gap-2 text-sm font-medium">PIN denomination / plan<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose product</option>{selectedProducts.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose mobile network</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");}}/>)}</div></div>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose PIN denomination / plan</p><div className="grid gap-2 sm:grid-cols-2">{selectedProducts.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={100} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||!selectedOptionCode||Number(quantity)<1||Number(quantity)>100} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase PINs"} <ArrowRight/></Button>
       </div>}
       {view==="education"&&<div className="mt-5 grid max-w-xl gap-4">
-        <label className="grid gap-2 text-sm font-medium">Examination PIN product<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose exam PIN</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose examination PIN</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
       </div>}
       {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
-        <label className="grid gap-2 text-sm font-medium">Internet plan<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose bundle</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose internet plan</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">ISP account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Enter account number or phone"/></label>
         <label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>
         <Button disabled={serviceBusy||!selectedProductId||!recipient} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Buy internet plan"} <ArrowRight/></Button>
       </div>}
       {view==="gift-cards"&&<div className="mt-5 grid max-w-xl gap-4">
-        <label className="grid gap-2 text-sm font-medium">Gift card product / denomination<select className="h-11 border bg-background px-3" value={selectedProductId} onChange={e=>setSelectedProductId(e.target.value)}><option value="">Choose gift card</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {formatNaira(p.selling_price)}</option>)}</select></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose gift card</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Recipient email<Input type="email" value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="recipient@example.com"/></label>
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||!/^\S+@\S+\.\S+$/.test(recipient)||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase gift card"} <ArrowRight/></Button>
@@ -894,6 +894,24 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
       </DialogContent>
     </Dialog>
   );
+}
+
+function ProviderChoice({name,code,selected,index,onClick}:{name:string;code:string;selected:boolean;index:number;onClick:()=>void}) {
+  const tones=["bg-emerald-50 text-emerald-700","bg-blue-50 text-blue-700","bg-amber-50 text-amber-700","bg-violet-50 text-violet-700"];
+  const initials=name.trim().split(/\\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={`group flex min-h-[82px] items-center gap-3 rounded-2xl border bg-background p-3 text-left transition hover:border-primary/50 hover:bg-primary/[0.03] ${selected?"border-primary bg-primary/[0.06] ring-2 ring-primary/10":"border-border"}`}>
+    <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold ${tones[index%tones.length]}`}>{initials||name.slice(0,1).toUpperCase()}</span>
+    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{name}</span><span className="mt-0.5 block text-xs text-muted-foreground">{selected?"Selected":"Choose provider"}</span></span>
+    <span className={`grid size-5 shrink-0 place-items-center rounded-full border text-[11px] ${selected?"border-primary bg-primary text-primary-foreground":"border-muted-foreground/30 text-transparent"}`}>✓</span>
+  </button>;
+}
+
+function ProductChoice({product,selected,onClick}:{product:CatalogueProduct;selected:boolean;onClick:()=>void}) {
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={`flex min-h-[68px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition hover:border-primary/50 ${selected?"border-primary bg-primary/[0.05] ring-2 ring-primary/10":"border-border bg-background"}`}>
+    <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${selected?"bg-primary text-primary-foreground":"bg-secondary text-muted-foreground"}`}>▦</span>
+    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{product.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">Published package</span></span>
+    <span className="whitespace-nowrap text-sm font-bold">{formatNaira(product.selling_price)}</span>
+  </button>;
 }
 
 function NetworkMark({ network, index }: { network: string; index: number }) {
