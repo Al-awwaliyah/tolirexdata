@@ -4,10 +4,13 @@ alter table public.service_products drop constraint if exists service_products_p
 alter table public.service_products add constraint service_products_plan_type_check
   check (plan_type is null or plan_type in ('sme','gifting','corporate'));
 
+-- Keep every existing view column in its original ordinal position.
+-- PostgreSQL CREATE OR REPLACE VIEW cannot insert a new column in the middle
+-- of an existing view definition; append plan_type after the existing columns.
 create or replace view public.public_service_catalog with (security_barrier=true) as
 select
   p.id,p.category_id,c.code as category_code,c.name as category_name,
-  p.name,p.network_or_operator,p.description,p.face_value,p.plan_type,
+  p.name,p.network_or_operator,p.description,p.face_value,
   coalesce(
     case
       when pr.fixed_selling_price is not null then pr.fixed_selling_price
@@ -15,7 +18,8 @@ select
       else round(p.cost_price+pr.markup_value,2)
     end,p.selling_price
   )::numeric(18,2) as selling_price,
-  p.currency,p.sort_order
+  p.currency,p.sort_order,
+  p.plan_type
 from public.service_products p
 join public.service_categories c on c.id=p.category_id
 join public.service_providers sp on sp.id=p.provider_id
