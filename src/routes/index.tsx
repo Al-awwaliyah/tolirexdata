@@ -62,8 +62,8 @@ import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
-type DataPlan = { id: string; network: string; networkCode: string; data_amount: string; validity: string; price: number; active: boolean };
-type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
+type DataPlan = { id: string; network: string; networkCode: string; planType: "sme"|"gifting"|"corporate"|null; data_amount: string; validity: string; price: number; active: boolean };
+type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; plan_type?: "sme"|"gifting"|"corporate"|null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
 type CatalogueOption = { id: string; category_code: string; option_type: string; option_code: string; parent_option_code: string | null; name: string };
 type DataOrder = TableRows<"data_orders">;
 type WalletTransaction = TableRows<"wallet_transactions">;
@@ -143,6 +143,7 @@ function Index() {
   const [busy, setBusy] = useState(false);
   const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [selectedPlanType,setSelectedPlanType]=useState<"sme"|"gifting"|"corporate"|"">("");
   const [phone, setPhone] = useState("");
   const [dataCouponCode,setDataCouponCode] = useState("");
   const virtualAccountIssuanceStarted = useRef(false);
@@ -184,7 +185,8 @@ function Index() {
     const selectedNetworkStillExists = !network || allPlans.some((plan) => plan.network === network);
     return allPlans.filter((plan) => !selectedNetworkStillExists || !network || plan.network === network);
   }, [dashboard?.isAdmin, dashboard?.plans, network]);
-  const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0];
+  const typedPlans=availablePlans.filter(plan=>plan.network===network&&plan.planType===selectedPlanType);
+  const selectedPlan = typedPlans.find((plan) => plan.id === selectedPlanId) ?? typedPlans[0];
   const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
 
   const clearNotice = () => setNotice("");
@@ -250,6 +252,8 @@ function Index() {
           network={network}
           setNetwork={setNetwork}
           networkChoices={availableNetworks}
+          selectedPlanType={selectedPlanType}
+          setSelectedPlanType={setSelectedPlanType}
           plans={availablePlans}
           selectedPlan={selectedPlan}
           selectedPlanId={selectedPlanId}
@@ -673,6 +677,8 @@ function BuyDataView(props: {
   network: Network;
   setNetwork: (network: Network) => void;
   networkChoices: string[];
+  selectedPlanType:"sme"|"gifting"|"corporate"|"";
+  setSelectedPlanType:(value:"sme"|"gifting"|"corporate"|"")=>void;
   plans: DataPlan[];
   selectedPlan: DataPlan | undefined;
   selectedPlanId: string;
@@ -688,14 +694,19 @@ function BuyDataView(props: {
         <p className="mt-1 text-sm text-muted-foreground">Only products published from the connected supplier catalogue will appear here. Plans and prices are never manually estimated.</p>
         {props.plans.length > 0 && <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Select a network">
           {props.networkChoices.map((choice, index) => (
-            <Button key={choice} variant={props.network === choice ? "default" : "outline"} onClick={() => { props.setNetwork(choice); props.setSelectedPlanId(""); }}>
+            <Button key={choice} variant={props.network === choice ? "default" : "outline"} onClick={() => { props.setNetwork(choice); props.setSelectedPlanId(""); props.setSelectedPlanType(""); }}>
               <span>{choice}</span>
             </Button>
           ))}
         </div>}
         {props.plans.length ? (
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            {props.plans.map((plan) => {
+          <>
+          {!props.network ? <p className="mt-5 rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Select a network to continue.</p> : <>
+          <div className="mt-6 grid grid-cols-3 gap-2" role="group" aria-label="Select data plan type">
+            {(["sme","gifting","corporate"] as const).map(type=><Button key={type} type="button" variant={props.selectedPlanType===type?"default":"outline"} onClick={()=>{props.setSelectedPlanType(type);props.setSelectedPlanId("");}}>{type==="sme"?"SME":type==="gifting"?"Gifting":"Corporate"}</Button>)}
+          </div>
+          {!props.selectedPlanType ? <p className="mt-5 rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Choose a plan type to view available published plans.</p> : <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {props.plans.filter(plan=>plan.planType===props.selectedPlanType).map((plan) => {
               const chosen = (props.selectedPlan?.id === plan.id) || props.selectedPlanId === plan.id;
               return (
                 <button key={plan.id} type="button" onClick={() => props.setSelectedPlanId(plan.id)} className={`flex min-h-24 items-center justify-between gap-4 border p-4 text-left transition-colors ${chosen ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-secondary"}`}>
@@ -704,7 +715,9 @@ function BuyDataView(props: {
                 </button>
               );
             })}
-          </div>
+          </div>}
+          </>}
+          </>
         ) : <EmptyState icon={<Database />} title="No plans available" copy="No supplier products have been published for this service yet. No static or estimated plans are shown." />}
       </section>
       <form onSubmit={props.onBuy} className="h-fit border bg-background p-5 sm:p-6">

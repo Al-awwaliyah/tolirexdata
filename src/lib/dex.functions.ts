@@ -35,7 +35,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
         (supabaseAdmin as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,created_at,updated_at").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
-        (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+        (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,plan_type,description,face_value,selling_price,currency,sort_order").order("sort_order"),
         (supabaseAdmin as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
         // Admins may also use a Personal customer dashboard. Load their own KYC
         // and virtual account records exactly as for non-admin customers.
@@ -51,7 +51,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => {
           const networkCode = String(item.network_or_operator ?? "");
           const networkOption = (catalogueOptions.data ?? []).find((option: any) => option.category_code === "data" && option.option_type === "network" && option.option_code === networkCode);
-          return { id: item.id, network: (networkOption?.name ?? networkCode) || item.category_name, networkCode, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
+          return { id: item.id, network: (networkOption?.name ?? networkCode) || item.category_name, networkCode, planType: item.plan_type ?? null, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
         }),
         catalogue: catalogue.data ?? [],
         catalogueOptions: catalogueOptions.data ?? [],
