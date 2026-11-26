@@ -114,9 +114,9 @@ Deno.serve(async request=>{
     }
     if(optionCode==="smile"){
      if(!product||text(product.metadata?.source_service)!=="smile")return json({error:"Select an available Smile bundle."},400);
-     const compact=recipient.replace(/[\\s+()-]/g,"");
-     const accountType=/^234\\d{10}$/.test(compact)||/^0\\d{10}$/.test(compact)?"PhoneNumber":text(body.accountType);
-     if(!["PhoneNumber","AccountNumber"].includes(accountType)||(!/^234\\d{10}$/.test(compact)&&!/^0\\d{10}$/.test(compact)&&!/^\\d{10}$/.test(compact)))return json({error:"Enter a valid Smile phone number or 10-digit account number."},400);
+     const compact=recipient.replace(/[\s+()-]/g,"");
+     const accountType=/^234\d{10}$/.test(compact)||/^0\d{10}$/.test(compact)?"PhoneNumber":text(body.accountType);
+     if(!["PhoneNumber","AccountNumber"].includes(accountType)||(!/^234\d{10}$/.test(compact)&&!/^0\d{10}$/.test(compact)&&!/^\d{10}$/.test(compact)))return json({error:"Enter a valid Smile phone number or 10-digit account number."},400);
     }
    }
    if(category==="gift_card"&&(!product||!/^\S+@\S+\.\S+$/.test(recipient)||quantity>20||!text(product.metadata?.supplier_product_id)||number(product.face_value)<=0))return json({error:"Select a valid gift card denomination, enter a valid recipient email and choose a valid quantity."},400);
