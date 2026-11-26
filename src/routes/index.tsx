@@ -62,7 +62,7 @@ import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
-type DataPlan = { id: string; network: string; networkCode: string; planType: "sme"|"gifting"|"corporate"|null; data_amount: string; validity: string; price: number; active: boolean };
+type DataPlan = { id: string; network: string; networkCode: string; planType: "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"; data_amount: string; validity: string; price: number; active: boolean };
 type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; plan_type?: "sme"|"gifting"|"corporate"|null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
 type CatalogueOption = { id: string; category_code: string; option_type: string; option_code: string; parent_option_code: string | null; name: string };
 type DataOrder = TableRows<"data_orders">;
@@ -143,7 +143,7 @@ function Index() {
   const [busy, setBusy] = useState(false);
   const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
-  const [selectedPlanType,setSelectedPlanType]=useState<"sme"|"gifting"|"corporate"|"">("");
+  const [selectedPlanType,setSelectedPlanType]=useState<"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"">("");
   const [phone, setPhone] = useState("");
   const [dataCouponCode,setDataCouponCode] = useState("");
   const virtualAccountIssuanceStarted = useRef(false);
@@ -322,7 +322,7 @@ function DashboardShell(props: {
   onSignOut: () => void; notice: string; onDismissNotice: () => void; busy: boolean;
   loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
   network: Network; setNetwork: (network: Network) => void; networkChoices: string[];
-  selectedPlanType: "sme"|"gifting"|"corporate"|""; setSelectedPlanType:(value:"sme"|"gifting"|"corporate"|"")=>void;
+  selectedPlanType: "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|""; setSelectedPlanType:(value:"sme"|"gifting"|"corporate"|"")=>void;
   plans: DataPlan[]; selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; dataCouponCode:string; setDataCouponCode:(code:string)=>void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   onAirtimePurchase: (payload: { networkCode: string; recipient: string; amount: number }) => Promise<void>;
@@ -718,9 +718,11 @@ function BuyDataView(props: {
 }) {
   const filteredPlans = props.plans.filter(plan => plan.network === props.network && plan.planType === props.selectedPlanType);
   const typeCounts = {
-    sme: props.plans.filter(plan => plan.network === props.network && plan.planType === "sme").length,
-    gifting: props.plans.filter(plan => plan.network === props.network && plan.planType === "gifting").length,
-    corporate: props.plans.filter(plan => plan.network === props.network && plan.planType === "corporate").length,
+    DAILY: props.plans.filter(plan => plan.network === props.network && plan.planType === "DAILY").length,
+    WEEKLY: props.plans.filter(plan => plan.network === props.network && plan.planType === "WEEKLY").length,
+    MONTHLY: props.plans.filter(plan => plan.network === props.network && plan.planType === "MONTHLY").length,
+    YEARLY: props.plans.filter(plan => plan.network === props.network && plan.planType === "YEARLY").length,
+    OTHER: props.plans.filter(plan => plan.network === props.network && plan.planType === "OTHER").length,
   };
   const networkInitials = (name: string) => name === "9mobile" ? "9M" : name.slice(0,3).toUpperCase();
   return (
@@ -748,11 +750,11 @@ function BuyDataView(props: {
             </div>
           </div>
           <div>
-            <div className="mb-3"><h3 className="text-sm font-semibold text-slate-800">2. Choose bundle type</h3><p className="mt-1 text-xs text-slate-500">Plans are grouped using the classification supplied by Topupmate.</p></div>
-            <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1.5">
-              {(["sme","gifting","corporate"] as const).map(type => {
+            <div className="mb-3"><h3 className="text-sm font-semibold text-slate-800">2. Choose duration</h3><p className="mt-1 text-xs text-slate-500">Browse Daily, Weekly, Monthly, Yearly and other bundles.</p></div>
+            <div className="grid grid-cols-5 gap-1 rounded-xl bg-slate-100 p-1.5">
+              {(["DAILY","WEEKLY","MONTHLY","YEARLY","OTHER"] as const).map(type => {
                 const active=props.selectedPlanType===type;
-                const label=type==="sme"?"SME":type==="gifting"?"Gifting":"Corporate";
+                const label=type==="OTHER"?"Others":type.charAt(0)+type.slice(1).toLowerCase();
                 return <button key={type} type="button" onClick={()=>{props.setSelectedPlanType(type);props.setSelectedPlanId("");}} aria-pressed={active} className={`rounded-lg px-2 py-3 text-sm font-semibold transition-all ${active ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
                   {label}<span className={`ml-1.5 text-[10px] ${active?"text-primary/70":"text-slate-400"}`}>{props.network ? typeCounts[type] : ""}</span>
                 </button>;
@@ -762,8 +764,8 @@ function BuyDataView(props: {
           <div>
             <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">3. Select a plan</h3>{props.selectedPlanType && <span className="text-xs text-slate-400">{filteredPlans.length} plans</span>}</div>
             {!props.network ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><Database className="mx-auto size-7 text-slate-300"/><p className="mt-2 text-sm font-medium text-slate-700">Choose your network</p><p className="mt-1 text-xs text-slate-500">Available data bundles will appear here.</p></div>
-            : !props.selectedPlanType ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">Choose a bundle type</p><p className="mt-1 text-xs text-slate-500">Select SME, Gifting or Corporate to see available plans.</p></div>
-            : filteredPlans.length === 0 ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">No {props.selectedPlanType} plans published for {networkDisplayName(props.network)}</p><p className="mt-1 text-xs text-slate-500">Try another bundle type or check back after the supplier catalogue is refreshed.</p></div>
+            : !props.selectedPlanType ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">Choose a bundle type</p><p className="mt-1 text-xs text-slate-500">Choose a duration tab to see available data bundles.</p></div>
+            : filteredPlans.length === 0 ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">No {props.selectedPlanType.toLowerCase()} plans available for {networkDisplayName(props.network)}</p><p className="mt-1 text-xs text-slate-500">Try another bundle type or check back after the supplier catalogue is refreshed.</p></div>
             : <div className="grid gap-3 sm:grid-cols-2">
               {filteredPlans.map(plan => {
                 const chosen=props.selectedPlan?.id===plan.id || props.selectedPlanId===plan.id;
@@ -774,7 +776,7 @@ function BuyDataView(props: {
               })}
             </div>}
           </div>
-          <p className="flex items-center gap-2 border-t border-slate-100 pt-4 text-[11px] text-slate-400"><ShieldCheck className="size-4"/> Only published supplier plans and configured selling prices are displayed.</p>
+          <p className="flex items-center gap-2 border-t border-slate-100 pt-4 text-[11px] text-slate-400"><ShieldCheck className="size-4"/> Live Topupmate bundles are displayed with the selling price configured by TolirexData.</p>
         </div>
       </section>
       <form onSubmit={props.onBuy} className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
