@@ -42,6 +42,7 @@ begin
 
   insert into public.pricing_rules(product_id,account_type,markup_type,markup_value,fixed_selling_price,active)
   values
+    (p_product_id,'personal','fixed',0,p_personal_price,true),
     (p_product_id,'agent','fixed',0,p_agent_price,true),
     (p_product_id,'business','fixed',0,p_business_price,true)
   on conflict(product_id,account_type) where product_id is not null do update set
@@ -56,3 +57,7 @@ end;
 $$;
 revoke all on function public.admin_set_service_product_prices(uuid,numeric,numeric,numeric) from public,anon;
 grant execute on function public.admin_set_service_product_prices(uuid,numeric,numeric,numeric) to authenticated;
+
+-- Remove obsolete RPCs that allowed manual publication decisions.
+drop function if exists public.admin_set_service_product_publication(uuid,text,numeric,numeric,numeric);
+drop function if exists public.admin_set_service_option_publication(uuid,text);
