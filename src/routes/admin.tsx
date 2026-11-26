@@ -210,7 +210,6 @@ function AdminDashboard() {
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueSyncing, setCatalogueSyncing] = useState(false);
   const [catalogueDrafts, setCatalogueDrafts] = useState<Record<string,{personal:string;agent:string;business:string}>>({});
-  const [airtimePricingDrafts, setAirtimePricingDrafts] = useState<Record<string,{discountFactor:string;minimumAmount:string;maximumAmount:string}>>({});
   const [catalogueSaving, setCatalogueSaving] = useState<string | null>(null);
   const [cardPricing, setCardPricing] = useState({cardCreationEnabled:false,creationFeeUsd:"",minimumInitialFundingUsd:"",creationMarkupUsd:"",topupMinimumUsd:"",topupMarkupPercent:""});
   const [cardPricingLoading, setCardPricingLoading] = useState(false);
@@ -399,18 +398,6 @@ function AdminDashboard() {
     setCatalogueSyncing(false);
   };
 
-  const saveAirtimePricing = async (optionId: string) => {
-    const draft = airtimePricingDrafts[optionId];
-    if (!draft) return;
-    setCatalogueSaving(optionId);
-    const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
-      body: { action: "airtime_pricing", optionId, discountFactor: Number(draft.discountFactor), minimumAmount: Number(draft.minimumAmount), maximumAmount: Number(draft.maximumAmount) },
-    });
-    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Unable to save Airtime supplier pricing.");
-    else { setError(""); await loadCatalogue(); }
-    setCatalogueSaving(null);
-  };
-
   const setCatalogueProviderStatus = async (providerId: string, status: "active" | "degraded" | "disabled") => {
     setCatalogueSaving(providerId);
     const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
@@ -529,11 +516,9 @@ function AdminDashboard() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div><h3 className="text-sm font-semibold">Supplier networks and operators</h3><p className="mt-1 text-xs text-slate-500">Supplier-discovered networks, cable providers and electricity operators are automatically available when the provider is active.</p></div>
             {catalogueOptions.length===0?<p className="mt-3 text-xs text-slate-500">No supplier options have been imported yet. Run a catalogue sync to retrieve the current providers.</p>:<div className="mt-4 grid gap-2 md:grid-cols-2">{catalogueOptions.map(option=>{
-              const airtime = (option.service_categories?.code==="airtime" || option.service_categories?.name==="Airtime") && option.option_type==="network";
-              const draft = airtimePricingDrafts[option.id] ?? {discountFactor:String(option.metadata?.discount_factor??""),minimumAmount:String(option.metadata?.minimum_amount??"50"),maximumAmount:String(option.metadata?.maximum_amount??"200000")};
               return <div key={option.id} className="rounded-xl border border-slate-100 p-3">
                 <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold text-slate-800">{option.name}</p><p className="mt-1 text-[10px] text-slate-500">{option.service_categories?.name??option.service_categories?.code} · {option.option_type} · {option.option_code}</p><p className="mt-1 text-[10px] text-slate-400">{option.active?"Active":"Inactive"}</p></div><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">Supplier catalogue</span></div>
-                {airtime&&catalogueCanPrice&&<div className="mt-3 grid gap-2 sm:grid-cols-4"><label className="text-[10px] font-semibold text-slate-600">Supplier cost factor<input type="number" min="0.01" max="1" step="0.0001" value={draft.discountFactor} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,discountFactor:e.target.value}}))} placeholder="e.g. 0.98" className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><label className="text-[10px] font-semibold text-slate-600">Minimum ₦<input type="number" min="50" value={draft.minimumAmount} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,minimumAmount:e.target.value}}))} className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><label className="text-[10px] font-semibold text-slate-600">Maximum ₦<input type="number" min="50" value={draft.maximumAmount} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,maximumAmount:e.target.value}}))} className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><button disabled={catalogueSaving===option.id||!draft.discountFactor||Number(draft.discountFactor)<=0||Number(draft.discountFactor)>1||Number(draft.minimumAmount)<50||Number(draft.maximumAmount)<Number(draft.minimumAmount)} onClick={()=>void saveAirtimePricing(option.id)} className="self-end rounded-lg bg-[#14366f] px-3 py-2 text-[10px] font-semibold text-white disabled:opacity-40">{catalogueSaving===option.id?"Saving…":"Save pricing"}</button></div>}
+
               </div>;
             })}</div>}
           </div>
