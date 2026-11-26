@@ -25,20 +25,18 @@ function rows(value:unknown): Obj[] {
   }
   return [];
 }
+// Use the exact catalogue keys and lookup sequence used by IyanjuPay.
+// Internet provider cards are handled by the service flow; Topupmate does not
+// expose smile/alpha/kirani/ratel as /services/?service= catalogue keys.
 const services = [
   {key:"network", category:"airtime", kind:"options", optionType:"network"},
-  {key:"airtime", category:"airtime", kind:"options", optionType:"network"},
   {key:"data", category:"data", kind:"products"},
   {key:"cable-provider", category:"cable_tv", kind:"options", optionType:"cable_provider"},
   {key:"cabletv", category:"cable_tv", kind:"products"},
   {key:"electricity", category:"electricity", kind:"options", optionType:"operator"},
   {key:"exampin", category:"education", kind:"products"},
-  {key:"rechargepin", category:"recharge_pin", kind:"products"},
+  {key:"recharge-card", category:"recharge_pin", kind:"products"},
   {key:"datapin", category:"data_pin", kind:"products"},
-  {key:"smile", category:"internet", kind:"products"},
-  {key:"alpha", category:"internet", kind:"products"},
-  {key:"kirani", category:"internet", kind:"products"},
-  {key:"ratel", category:"internet", kind:"products"},
 ] as const;
 
 Deno.serve(async req => {
@@ -71,20 +69,20 @@ Deno.serve(async req => {
     try {
       // Topupmate's /services/ catalogue is the source for biller/operator IDs.
       // The same cable catalogue can contain both provider rows and priced plans.
-      const serviceKey=spec.key==="cable-provider"?"cabletv":spec.key;
+      const serviceKey=spec.key;
       const payload=await fetchEndpoint("/services/?service="+encodeURIComponent(serviceKey));
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
       const list=rows(payload);
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
-          ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","id","code"]
+          ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","networkid","network_id","networkId","id","code"]
           : spec.key==="network"||spec.key==="airtime"
-            ? ["network_id","networkId","network","id","code","provider_id","providerId"]
+            ? ["networkid","network_id","networkId","network","id","code","provider_id","providerId"]
             : spec.key==="cabletv"
               ? ["item_code","itemCode","plan_code","planCode","plan_id","planid","planId","id","code"]
               : spec.key==="data"
                 ? ["planid","plan_id","planId","data_plan","dataplan","id","code"]
-            : spec.key==="rechargepin"
+            : spec.key==="recharge-card"
               ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
               : spec.key==="datapin"
                 ? ["data_plan","dataplan","planid","plan_id","planId","item_code","id","code"]
