@@ -304,7 +304,7 @@ function Storefront({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
         </div>
         <div className="tr-hero-preview">
           <div className="tr-preview-top"><Brand/><span className="tr-avatar">T</span></div>
-          <p className="tr-muted">Example wallet balance</p><div className="tr-preview-balance">₦—</div>
+          <p className="tr-muted">Example wallet balance</p><div className="tr-preview-balance">₦25,0000</div>
           <div className="tr-preview-actions"><span><Plus/>Add money</span><span><ArrowUpRight/>Send</span><span><CreditCard/>Cards</span></div>
           <div className="tr-preview-row"><span className="tr-mini-icon"><Smartphone/></span><span><b>Service payments</b><small>Track every transaction</small></span><strong>Activity</strong></div>
           <div className="tr-preview-row"><span className="tr-mini-icon green"><ArrowDownLeft/></span><span><b>Wallet funding</b><small>Dedicated account after approval</small></span><strong className="positive">Secure</strong></div>
