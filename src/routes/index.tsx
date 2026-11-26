@@ -469,6 +469,9 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [meterType,setMeterType]=useState<"prepaid"|"postpaid">("prepaid");
   const [serviceAmount,setServiceAmount]=useState("1000");
   const [quantity,setQuantity]=useState("1");
+  const [giftCountry,setGiftCountry]=useState("ALL");
+  const [giftCategory,setGiftCategory]=useState("ALL");
+  const [giftSearch,setGiftSearch]=useState("");
   const [couponCode,setCouponCode]=useState("");
   const [internetAccountType,setInternetAccountType]=useState<"PhoneNumber"|"AccountNumber">("PhoneNumber");
   const [verifiedName,setVerifiedName]=useState("");
@@ -543,6 +546,13 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     }catch(error){setServiceNotice(messageOf(error,"The purchase could not be completed."));}
     finally{setServiceBusy(false);}
   };
+  const giftCountries=Array.from(new Set(products.map(item=>item.country_code).filter((value):value is string=>!!value)));
+  const giftCategories=Array.from(new Set(products.map(item=>item.product_category).filter((value):value is string=>!!value)));
+  const visibleGiftProducts=products.filter(item=>
+    (giftCountry==="ALL"||item.country_code===giftCountry)&&
+    (giftCategory==="ALL"||item.product_category===giftCategory)&&
+    (!giftSearch.trim()||item.name.toLowerCase().includes(giftSearch.trim().toLowerCase()))
+  );
   const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode||({"1":"MTN","2":"Airtel","3":"Glo","4":"9mobile"}[String(item.network_or_operator)]===serviceOptions.find(o=>o.option_code===selectedOptionCode)?.name));
   const checkExpandedStatus=async()=>{
     if(!lastServiceReference)return;
@@ -622,8 +632,13 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         {selectedOptionCode==="smile"&&<label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>}
         <Button disabled={serviceBusy||!selectedOptionCode||!recipient||(selectedOptionCode==="smile"?!selectedProductId:Number(serviceAmount)<=0)} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":selectedOptionCode==="smile"?"Buy Smile bundle":"Buy internet top-up"} <ArrowRight/></Button>
       </div>}
-      {view==="gift-cards"&&<div className="mt-5 grid max-w-xl gap-4">
-        <div className="grid gap-2"><p className="text-sm font-semibold">Choose gift card</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
+      {view==="gift-cards"&&<div className="mt-5 grid max-w-3xl gap-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_180px_180px]">
+          <label className="grid gap-2 text-sm font-medium">Search gift cards<Input value={giftSearch} onChange={e=>setGiftSearch(e.target.value)} placeholder="Search gift card brands"/></label>
+          <label className="grid gap-2 text-sm font-medium">Country<select className="h-10 rounded-lg border bg-background px-3 text-sm" value={giftCountry} onChange={e=>setGiftCountry(e.target.value)}><option value="ALL">All countries</option>{giftCountries.map(country=><option key={country} value={country}>{country}</option>)}</select></label>
+          <label className="grid gap-2 text-sm font-medium">Category<select className="h-10 rounded-lg border bg-background px-3 text-sm" value={giftCategory} onChange={e=>setGiftCategory(e.target.value)}><option value="ALL">All categories</option>{giftCategories.map(category=><option key={category} value={category}>{category}</option>)}</select></label>
+        </div>
+        <div className="grid gap-2"><div className="flex items-center justify-between"><p className="text-sm font-semibold">Choose gift card denomination</p><span className="text-xs text-muted-foreground">{visibleGiftProducts.length} available</span></div><div className="grid gap-2 sm:grid-cols-2">{visibleGiftProducts.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div>{visibleGiftProducts.length===0&&<EmptyState icon={<Gift/>} title="No matching gift cards" copy="Try another country, category or search term."/ >}</div>
         <label className="grid gap-2 text-sm font-medium">Recipient email<Input type="email" value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="recipient@example.com"/></label>
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||!/^\S+@\S+\.\S+$/.test(recipient)||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase gift card"} <ArrowRight/></Button>
