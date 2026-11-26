@@ -88,25 +88,34 @@ Deno.serve(async req => {
         }catch(error){lastEndpointError=error;}
       }
       if(payload===null){
+        // IyanjuPay tries the same aliases and leaves the PIN service empty when
+        // none of the live catalogue keys is accepted. Do not fail the entire
+        // provider sync because an optional PIN catalogue is unavailable.
+        if(spec.key==="recharge-card"||spec.key==="datapin"){
+          results.push({service:spec.key,status:"skipped",reason:"No supported Topupmate catalogue key returned products"});
+          continue;
+        }
         throw lastEndpointError instanceof Error?lastEndpointError:new Error("Topupmate catalogue endpoint returned no response");
       }
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
       let list=rows(payload);
       // IyanjuPay also checks /status/ for live Cable TV and electricity
       // provider lists; some Topupmate accounts expose the operators there.
-      if((spec.key==="cable-provider"||spec.key==="electricity")&&!list.length){
+      if(spec.key==="cable-provider"||spec.key==="electricity"){
         try{
           const statusPayload=await fetchEndpoint("/status/");
           const statusRoot=statusPayload as Obj;
           const statusRows=spec.key==="cable-provider"
             ? statusRoot.cable
             : statusRoot.electricity;
+          // IyanjuPay always prefers the provider/operator list from /status/
+          // when the live account returns it, even if /services/ had rows.
           if(Array.isArray(statusRows)&&statusRows.length){
             payload={response:statusRows};
             list=rows(payload);
             await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
           }
-        }catch{/* Keep the original /services/ response; the endpoint failure is non-fatal. */}
+        }catch{/* Keep the successful /services/ response when /status/ is unavailable. */}
       }
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
@@ -291,7 +300,8 @@ Deno.serve(async req => {
     results.push({service:"giftcard",status:"success",records:gifts.length,normalizedProducts:giftProducts});
   } catch(error) { results.push({service:"giftcard",status:"failed",error:error instanceof Error?error.message:"Gift card catalogue failed"}); }
   const failed=results.filter(x=>x.status==="failed");
+  const skipped=results.filter(x=>x.status==="skipped");
   const status=failed.length===0?"success":failed.length===results.length?"failed":"partial";
-  await admin.from("provider_catalogue_sync_runs").update({status,discovered_products:products,discovered_options:options,failed_endpoints:failed,summary:{provider:"topupmate",results},completed_at:new Date().toISOString()}).eq("id",run.id);
-  return json({success:failed.length<results.length,status,provider:"topupmate",discoveredProducts:products,discoveredOptions:options,results},failed.length===results.length?502:200);
+  await admin.from("provider_catalogue_sync_runs").update({status,discovered_products:products,discovered_options:options,failed_endpoints:failed,summary:{provider:"topupmate",results,skipped},completed_at:new Date().toISOString()}).eq("id",run.id);
+  return json({success:failed.length<results.length,status,provider:"topupmate",discoveredProducts:products,discoveredOptions:options,results,skipped:skipped.length},failed.length===results.length?502:200);
 });
