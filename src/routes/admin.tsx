@@ -220,6 +220,12 @@ function AdminDashboard() {
   });
   const [electricityPricingLoading,setElectricityPricingLoading]=useState(false);
   const [electricityPricingSaving,setElectricityPricingSaving]=useState<string|null>(null);
+  const [serviceCategoryPricing,setServiceCategoryPricing]=useState<Record<"airtime"|"internet",Record<"personal"|"agent"|"business",{markupType:"fixed"|"percentage";markupValue:string}>>>({
+    airtime:{personal:{markupType:"fixed",markupValue:"0"},agent:{markupType:"fixed",markupValue:"0"},business:{markupType:"fixed",markupValue:"0"}},
+    internet:{personal:{markupType:"fixed",markupValue:"0"},agent:{markupType:"fixed",markupValue:"0"},business:{markupType:"fixed",markupValue:"0"}}
+  });
+  const [serviceCategoryPricingLoading,setServiceCategoryPricingLoading]=useState<Record<"airtime"|"internet",boolean>>({airtime:false,internet:false});
+  const [serviceCategoryPricingSaving,setServiceCategoryPricingSaving]=useState<string|null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const current = modules.find((item) => item.id === active) ?? modules[0];
@@ -236,6 +242,27 @@ function AdminDashboard() {
     });
     return () => { alive = false; };
   }, [user?.id, loading]);
+
+  const loadServiceCategoryPricing = async (categoryCode:"airtime"|"internet") => {
+    setServiceCategoryPricingLoading(prev=>({...prev,[categoryCode]:true}));
+    const {data,error:invokeError}=await supabase.functions.invoke("admin-console",{body:{action:"service_category_pricing",categoryCode}});
+    if(invokeError||data?.error){setError(data?.error||invokeError?.message||"Unable to load service selling prices.");}
+    else{
+      const next:any={personal:{markupType:"fixed",markupValue:"0"},agent:{markupType:"fixed",markupValue:"0"},business:{markupType:"fixed",markupValue:"0"}};
+      for(const row of data?.pricing??[])if(["personal","agent","business"].includes(row.account_type))next[row.account_type]={markupType:row.markup_type,markupValue:String(row.markup_value??0)};
+      setServiceCategoryPricing(prev=>({...prev,[categoryCode]:next}));
+    }
+    setServiceCategoryPricingLoading(prev=>({...prev,[categoryCode]:false}));
+  };
+  const saveServiceCategoryPricing = async(categoryCode:"airtime"|"internet",accountType:"personal"|"agent"|"business") => {
+    const draft=serviceCategoryPricing[categoryCode][accountType];
+    const key=categoryCode+":"+accountType;
+    setServiceCategoryPricingSaving(key);setError("");
+    const {data,error:invokeError}=await supabase.functions.invoke("admin-console",{body:{action:"service_category_pricing",save:true,categoryCode,accountType,markupType:draft.markupType,markupValue:Number(draft.markupValue)}});
+    if(invokeError||data?.error)setError(data?.error||invokeError?.message||"Unable to save service selling price.");
+    else await loadServiceCategoryPricing(categoryCode);
+    setServiceCategoryPricingSaving(null);
+  };
 
   const loadElectricityPricing = async () => {
     setElectricityPricingLoading(true);
@@ -413,7 +440,7 @@ function AdminDashboard() {
 
   useEffect(() => { if (authorized) void loadOverview(); }, [authorized]);
   useEffect(() => { if (authorized && active === "virtual-cards") void loadCardPricing(); }, [authorized, active]);
-  useEffect(() => { if (authorized && active === "pricing") void loadElectricityPricing(); }, [authorized, active]);
+  useEffect(() => { if (authorized && active === "pricing") { void loadElectricityPricing(); void loadServiceCategoryPricing("airtime"); void loadServiceCategoryPricing("internet"); } }, [authorized, active]);
   useEffect(() => {
     if (authorized && active === "customers") void loadCustomers(customerPage, customerSearch);
   }, [authorized, active, customerPage]);
