@@ -21,23 +21,23 @@ const canonicalTopupmateNetworkName = (value: unknown, fallback = ""): string =>
 };
 
 const normaliseDataPlanLabel = (value:unknown):string => {
-  let label=String(value??"").replace(/\\s+/g," ").trim();
+  let label=String(value??"").replace(/\s+/g," ").trim();
   if(!label)return "Data plan";
-  const compact=label.replace(/\\s+/g,"");
-  const codeSize=compact.match(/^m?(\\d+(?:\\.\\d+)?)(kb|kbs|mb|mbs|gb|gbs|tb|tbs)$/i);
+  const compact=label.replace(/\s+/g,"");
+  const codeSize=compact.match(/^m?(\d+(?:\.\d+)?)(kb|kbs|mb|mbs|gb|gbs|tb|tbs)$/i);
   if(codeSize)return `${codeSize[1]} ${codeSize[2].replace(/s$/i,"").toUpperCase()}`;
-  const embedded=label.match(/(\\d+(?:\\.\\d+)?)\\s*(KB|KBS|MB|MBS|GB|GBS|TB|TBS)\\b/i);
+  const embedded=label.match(/(\d+(?:\.\d+)?)\s*(KB|KBS|MB|MBS|GB|GBS|TB|TBS)\b/i);
   if(embedded)return `${embedded[1]} ${embedded[2].replace(/s$/i,"").toUpperCase()}`;
-  label=label.replace(/\\b(sme|awoof|direct|direct\\s+data|gifting|gift|corporate|business|promo|promotion|bonus|hot\\s*deal|hot)\\b/gi,"").replace(/\\s*[-|–—]\\s*/g," ").replace(/\\(\\s*\\)/g,"").replace(/\\s{2,}/g," ").trim();
+  label=label.replace(/\b(sme|awoof|direct|direct\s+data|gifting|gift|corporate|business|promo|promotion|bonus|hot\s*deal|hot)\b/gi,"").replace(/\s*[-|–—]\s*/g," ").replace(/\(\s*\)/g,"").replace(/\s{2,}/g," ").trim();
   return label||"Data plan";
 };
 
 const planGroupFromSupplier = (name: unknown, validity: unknown): "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER" => {
-  const period=String(validity??"").replace(/\\s+/g," ").trim().toLowerCase();
+  const period=String(validity??"").replace(/\s+/g," ").trim().toLowerCase();
   const source=`${period} ${String(name??"")}`.toLowerCase();
   if(/hot|promo|promotion|bonus|awoof|sme|direct|gifting|gift/.test(period))return "OTHER";
   let days=0;
-  const duration=period.match(/(\\d+(?:\\.\\d+)?)\\s*(day|days|week|weeks|month|months|year|years)|^(daily|weekly|monthly|yearly|annual)$/i);
+  const duration=period.match(/(\d+(?:\.\d+)?)\s*(day|days|week|weeks|month|months|year|years)|^(daily|weekly|monthly|yearly|annual)$/i);
   if(duration){
     const count=Number(duration[1]??1);
     const unit=String(duration[2]??duration[3]).toLowerCase();
@@ -45,19 +45,19 @@ const planGroupFromSupplier = (name: unknown, validity: unknown): "DAILY"|"WEEKL
     else if(unit.startsWith("month"))days=count*30;
     else if(unit.startsWith("week"))days=count*7;
     else days=count;
-  }else if(/^\\d+$/.test(period))days=Number(period);
+  }else if(/^\d+$/.test(period))days=Number(period);
   else{
-    const hour=period.match(/(\\d+(?:\\.\\d+)?)\\s*(?:hours?|hrs?|h)\\b/);
+    const hour=period.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/);
     if(hour)days=Math.max(1,Math.ceil(Number(hour[1])/24));
   }
   if(days>=1&&days<=3)return "DAILY";
   if(days>=7&&days<=14)return "WEEKLY";
   if(days>=30&&days<=90)return "MONTHLY";
   if(days===365)return "YEARLY";
-  if(/daily|1\\s*day|24\\s*hour/.test(source))return "DAILY";
-  if(/weekly|7\\s*day|1\\s*week/.test(source))return "WEEKLY";
-  if(/monthly|30\\s*day|31\\s*day|1\\s*month/.test(source))return "MONTHLY";
-  if(/yearly|annual|365\\s*day|1\\s*year/.test(source))return "YEARLY";
+  if(/daily|1\s*day|24\s*hour/.test(source))return "DAILY";
+  if(/weekly|7\s*day|1\s*week/.test(source))return "WEEKLY";
+  if(/monthly|30\s*day|31\s*day|1\s*month/.test(source))return "MONTHLY";
+  if(/yearly|annual|365\s*day|1\s*year/.test(source))return "YEARLY";
   return "OTHER";
 };
 
