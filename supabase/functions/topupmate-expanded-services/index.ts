@@ -90,7 +90,7 @@ Deno.serve(async request=>{
     const meterOwner=text(meterData?.Customer_Name??meterData?.customer_name??meterData?.customername??meterData?.name);
     if(!verify.ok||classify(verify.body)==="fail"||!meterOwner)return json({error:"Meter verification must return a verified customer before payment."},409);
    } else if(category==="cable_tv"){
-    if(!product||!optionCode||!/^\d{8,20}$/.test(recipient))return json({error:"Select a published cable package and enter a valid SmartCard/IUC."},400);
+    if(!product||!optionCode||!/^\d{8,20}$/.test(recipient))return json({error:"Select a cable package and enter a valid SmartCard/IUC."},400);
     await providerOption("cable_tv","cable_provider",optionCode);
     const verify=await topupmatePost("/cabletv/verify/",{provider:optionCode,iucnumber:recipient});
     const cableData=resultPayload(verify.body);
