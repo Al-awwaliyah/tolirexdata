@@ -163,6 +163,57 @@ Deno.serve(async req => {
       results.push({service:spec.key,status:"failed",error:message});
     }
   }
+  // IyanjuPay's live service integration exposes these ISP choices directly.
+  // Smile has a fixed bundle catalogue in that implementation; Alpha, Kirani
+  // and Ratel are amount-based top-ups, so they are provider options, not plans.
+  const internetProviders=[
+    {key:"smile",name:"Smile"},
+    {key:"alpha",name:"Alpha Caller"},
+    {key:"kirani",name:"Kirani Caller"},
+    {key:"ratel",name:"Ratel"}
+  ];
+  for(const item of internetProviders){
+    const {error}=await admin.rpc("sync_provider_service_option",{
+      p_provider_code:"topupmate",p_category_code:"internet",
+      p_option_type:"internet_provider",p_option_code:item.key,
+      p_name:item.name,p_parent_option_code:null,
+      p_metadata:{source_service:item.key,amount_based:item.key!=="smile"}
+    });
+    if(!error)options++;
+  }
+  const smilePlans=[
+    {id:"828",name:"Smile Midi 1.5GB + 3GB Stream",price:1250,days:30},
+    {id:"848",name:"Smile Mini 3.5GB",price:1500,days:7},
+    {id:"845",name:"Smile Mini 3GB",price:1500,days:2},
+    {id:"829",name:"Smile Midi 2GB + 4GB Stream",price:1500,days:30},
+    {id:"804",name:"SmileVoice ONLY 135",price:1850,days:30},
+    {id:"830",name:"Smile Midi 3GB + 5GB Stream",price:2000,days:30},
+    {id:"846",name:"Smile Mini 5GB",price:2200,days:2},
+    {id:"849",name:"Smile Mini 6GB",price:2300,days:7},
+    {id:"831",name:"Smile Midi 6GB + 5GB Stream",price:3000,days:30},
+    {id:"832",name:"Smile Midi 8GB + 5GB Stream",price:3500,days:30},
+    {id:"808",name:"SmileVoice ONLY 175",price:3600,days:90},
+    {id:"833",name:"Smile Midi 10GB + 5GB Stream",price:4000,days:30},
+    {id:"843",name:"Smile Mini 1GB",price:450,days:1},
+    {id:"805",name:"SmileVoice ONLY 430",price:5700,days:30},
+    {id:"807",name:"SmileVoice ONLY 450",price:7200,days:60},
+    {id:"847",name:"Smile Mini 1GB",price:750,days:7},
+    {id:"844",name:"Smile Mini 2.5GB",price:750,days:1},
+    {id:"803",name:"SmileVoice ONLY 65",price:900,days:30},
+    {id:"809",name:"SmileVoice ONLY 500",price:9000,days:90}
+  ];
+  for(const plan of smilePlans){
+    const {error}=await admin.rpc("sync_provider_catalogue_product",{
+      p_provider_code:"topupmate",p_category_code:"internet",
+      p_product_code:"internet:smile:"+plan.id,p_name:plan.name,
+      p_network_or_operator:"smile",p_description:plan.days+" days",
+      p_face_value:null,p_cost_price:plan.price,
+      p_metadata:{source_service:"smile",supplier_plan_id:plan.id,
+        validity_days:plan.days,validity:plan.days+" days",internet_provider:"smile"}
+    });
+    if(!error)products++;
+  }
+  results.push({service:"internet",status:"success",records:internetProviders.length+smilePlans.length});
   try {
     const gift=await fetchEndpoint("/giftcard/available/");
     await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"giftcard:available",payload:gift,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
