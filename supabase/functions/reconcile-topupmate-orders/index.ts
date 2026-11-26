@@ -9,7 +9,7 @@ function classify(body:any):Outcome{
   const raw=str(body?.status??body?.response?.status??body?.data?.status??body?.transaction?.status).toLowerCase();
   if(["success","successful","completed","complete","succeeded","paid"].includes(raw))return "success";
   if(["fail","failed","failure","declined","rejected","cancelled","canceled"].includes(raw))return "fail";
-  if(["processing","pending","queued","initiated","in_progress","in-progress","accepted"].includes(raw))return "processing";
+  if(["processing","pending","queued","order_received","initiated","in_progress","in-progress","accepted","submitted"].includes(raw))return "processing";
   return "unknown";
 }
 
