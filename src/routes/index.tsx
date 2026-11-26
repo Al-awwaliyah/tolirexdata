@@ -959,9 +959,9 @@ function ProviderChoice({name,code,selected,index,onClick}:{name:string;code:str
 }
 
 function ProductChoice({product,selected,onClick}:{product:CatalogueProduct;selected:boolean;onClick:()=>void}) {
-  return <button type="button" aria-pressed={selected} onClick={onClick} className={`flex min-h-[68px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition hover:border-primary/50 ${selected?"border-primary bg-primary/[0.05] ring-2 ring-primary/10":"border-border bg-background"}`}>
-    <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${selected?"bg-primary text-primary-foreground":"bg-secondary text-muted-foreground"}`}>▦</span>
-    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{product.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">Supplier package</span></span>
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={`flex min-h-[76px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition hover:border-primary/50 ${selected?"border-primary bg-primary/[0.05] ring-2 ring-primary/10":"border-border bg-background"}`}>
+    <span className={`grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg ${selected?"bg-primary/10 text-primary":"bg-secondary text-muted-foreground"}`}>{product.logo_url?<img src={product.logo_url} alt="" className="size-full bg-white object-contain p-1"/>:"▦"}</span>
+    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{product.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">{product.country_code||product.description||"Supplier product"}</span></span>
     <span className="whitespace-nowrap text-sm font-bold">{formatNaira(product.selling_price)}</span>
   </button>;
 }
