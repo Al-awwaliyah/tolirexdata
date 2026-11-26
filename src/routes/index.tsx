@@ -453,6 +453,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [airtimePhone,setAirtimePhone]=useState("");
   const [airtimeAmount,setAirtimeAmount]=useState("100");
   const [airtimeCouponCode,setAirtimeCouponCode]=useState("");
+  const [airtimeCustomAmount,setAirtimeCustomAmount]=useState(false);
   const [selectedProductId,setSelectedProductId]=useState("");
   const [selectedOptionCode,setSelectedOptionCode]=useState("");
   const [recipient,setRecipient]=useState("");
@@ -475,7 +476,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const options=catalogueOptions.filter((option)=>option.category_code===categoryCode);
   const products=catalogue.filter((item)=>item.category_code===categoryCode);
   const selectedProduct=products.find((item)=>item.id===selectedProductId);
-  const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":"network";
+  const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":view==="internet"?"internet_provider":"network";
   const supplierOptions=options.filter((option)=>option.option_type===optionType);
   // Match IyanjuPay: keep network selection usable from real supplier plans
   // if a separate network option row is missing from the imported catalogue.
@@ -509,7 +510,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     finally{setServiceBusy(false);}
   };
   const buyExpanded=async()=>{
-    if(!selectedProduct&&view!=="electricity"){setServiceNotice("Choose a published supplier product first.");return;}
+    if(!selectedProduct&&view!=="electricity"&&!(view==="internet"&&selectedOptionCode!=="smile")){setServiceNotice("Choose an available supplier product first.");return;}
     setServiceBusy(true);setServiceNotice("");setFulfilment(null);
     try{
       const category=categoryCode;
@@ -519,7 +520,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         recipient,quantity:Number(quantity)||1,contactPhone:contactPhone||undefined,couponCode:couponCode.trim().toUpperCase()||undefined,idempotencyKey:crypto.randomUUID().replace(/-/g,"")};
       const payload=view==="electricity"?{...base,amount:Number(serviceAmount),meterType}
         :view==="cable"?{...base,subtype:"renew"}
-        :view==="internet"?{...base,accountType:internetAccountType}
+        :view==="internet"?{...base,amount:selectedOptionCode==="smile"?undefined:Number(serviceAmount),accountType:internetAccountType}
         :view==="gift-cards"?{...base}
         :base;
       const result=await runExpanded(payload);
@@ -565,10 +566,10 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     </section>
     {view==="cards" ? <VirtualCardsWorkspace busy={busy}/> : view==="airtime" ? <section className="tr-feature-panel">
       <div className="tr-feature-panel-heading"><div><h3>Buy airtime</h3><p>Networks and their identifiers come from the synchronized Topupmate catalogue.</p></div><span className="tr-catalogue-state"><i/>{serviceOptions.length?"Networks available":"No supplier networks available"}</span></div>
-      {options.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount),couponCode:airtimeCouponCode.trim().toUpperCase()||undefined});}}>
+      {serviceOptions.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount),couponCode:airtimeCouponCode.trim().toUpperCase()||undefined});}}>
         <div className="grid gap-2"><p className="text-sm font-semibold">Choose mobile network</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{options.map((option,index)=><ProviderChoice key={option.id} name={option.name} code={option.option_code} selected={airtimeNetwork===option.option_code} index={index} onClick={()=>setAirtimeNetwork(option.option_code)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Phone number<Input inputMode="numeric" maxLength={11} placeholder="08012345678" value={airtimePhone} onChange={(event)=>setAirtimePhone(event.target.value.replace(/\D/g,""))} required/></label>
-        <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={(event)=>setAirtimeAmount(event.target.value)} required/></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Select amount</p><div className="grid grid-cols-4 gap-2 sm:grid-cols-8">{[50,100,200,500,1000,2000,5000].map(value=><button key={value} type="button" onClick={()=>{setAirtimeAmount(String(value));setAirtimeCustomAmount(false);}} className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${airtimeAmount===String(value)&&!airtimeCustomAmount?"border-primary bg-primary/10 text-primary":"border-border bg-background"}`}>₦{value.toLocaleString("en-NG")}</button>)}<button type="button" onClick={()=>{setAirtimeCustomAmount(true);setAirtimeAmount("");}} className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${airtimeCustomAmount?"border-primary bg-primary/10 text-primary":"border-border bg-background"}`}>Custom</button></div>{airtimeCustomAmount&&<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={event=>setAirtimeAmount(event.target.value)} placeholder="Enter amount" required/>}</div>
         <label className="grid gap-2 text-sm font-medium">Coupon code (optional)<Input value={airtimeCouponCode} onChange={event=>setAirtimeCouponCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/></label>
         <Button type="submit" disabled={busy||!airtimeNetwork||!/^\d{11}$/.test(airtimePhone)||Number(airtimeAmount)<50||Number(airtimeAmount)>200000}>{busy?"Processing…":"Continue to purchase"} <ArrowRight/></Button>
       </form> : <EmptyState icon={<Smartphone/>} title="Airtime networks unavailable" copy="The supplier has not returned any usable mobile networks yet. Synchronize the Topupmate catalogue and check the provider response."/>}
@@ -607,10 +608,11 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         <Button disabled={serviceBusy||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
       </div>}
       {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
-        <div className="grid gap-2"><p className="text-sm font-semibold">Choose internet plan</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
-        <label className="grid gap-2 text-sm font-medium">ISP account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Enter account number or phone"/></label>
-        <label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>
-        <Button disabled={serviceBusy||!selectedProductId||!recipient} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Buy internet plan"} <ArrowRight/></Button>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose internet provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");setVerifiedName("");setRecipient("");}}/>)}</div></div>
+        {selectedOptionCode==="smile"?<div className="grid gap-2"><p className="text-sm font-semibold">Choose Smile bundle</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>:selectedOptionCode&&<label className="grid gap-2 text-sm font-medium">Top-up amount (₦)<Input type="number" min={50} max={200000} value={serviceAmount} onChange={e=>setServiceAmount(e.target.value)}/></label>}
+        <label className="grid gap-2 text-sm font-medium">ISP account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder={selectedOptionCode==="smile"?"Smile account number or registered phone":"Enter phone number"}/></label>
+        {selectedOptionCode==="smile"&&<label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>}
+        <Button disabled={serviceBusy||!selectedOptionCode||!recipient||(selectedOptionCode==="smile"?!selectedProductId:Number(serviceAmount)<=0)} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":selectedOptionCode==="smile"?"Buy Smile bundle":"Buy internet top-up"} <ArrowRight/></Button>
       </div>}
       {view==="gift-cards"&&<div className="mt-5 grid max-w-xl gap-4">
         <div className="grid gap-2"><p className="text-sm font-semibold">Choose gift card</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
