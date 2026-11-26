@@ -311,6 +311,18 @@ function AdminDashboard() {
     } else {
       setError("");
       setCatalogueProducts(data?.products ?? []);
+      const priceRows = data?.productPricing ?? [];
+      const priceDrafts: Record<string,{personal:string;agent:string;business:string}> = {};
+      for (const product of data?.products ?? []) {
+        const rows = priceRows.filter((row:any) => row.product_id === product.id);
+        const getPrice = (account:string) => rows.find((row:any)=>row.account_type===account)?.fixed_selling_price;
+        priceDrafts[product.id] = {
+          personal: String(getPrice("personal") ?? product.selling_price ?? ""),
+          agent: String(getPrice("agent") ?? product.selling_price ?? ""),
+          business: String(getPrice("business") ?? product.selling_price ?? ""),
+        };
+      }
+      setCatalogueDrafts(priceDrafts);
       setCatalogueOptions(data?.options ?? []);
       setCatalogueProviders(data?.providers ?? []);
       setCatalogueRuns(data?.syncRuns ?? []);
@@ -382,26 +394,19 @@ function AdminDashboard() {
     setCatalogueSaving(null);
   };
 
-  const publishCatalogueOption = async (optionId: string, status: "published" | "paused") => {
-    setCatalogueSaving(optionId);
-    const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
-      body: { action: "publish_option", optionId, publicationStatus: status },
-    });
-    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Unable to update supplier option.");
-    else { setError(""); await loadCatalogue(); }
-    setCatalogueSaving(null);
-  };
-
-  const publishCatalogueProduct = async (productId: string, status: "published" | "paused") => {
+  const saveCatalogueProductPrices = async (productId: string) => {
     const draft = catalogueDrafts[productId];
+    if (!draft) return;
     setCatalogueSaving(productId);
     const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
       body: {
-        action: "publish_product", productId, publicationStatus: status,
-        personalPrice: Number(draft?.personal), agentPrice: Number(draft?.agent), businessPrice: Number(draft?.business),
+        action: "price_product", productId,
+        personalPrice: Number(draft.personal),
+        agentPrice: Number(draft.agent),
+        businessPrice: Number(draft.business),
       },
     });
-    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Unable to update catalogue publication.");
+    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Unable to save service selling prices.");
     else { setError(""); await loadCatalogue(); }
     setCatalogueSaving(null);
   };
@@ -463,16 +468,16 @@ function AdminDashboard() {
 
         </section> : active==="catalogue" ? <section className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5">
-            <div><h2 className="text-sm font-semibold">Topupmate supplier catalogue</h2><p className="mt-1 text-xs text-slate-500">Sync supplier records into private review. Products remain unavailable to customers until approved and published.</p></div>
+            <div><h2 className="text-sm font-semibold">Topupmate supplier catalogue</h2><p className="mt-1 text-xs text-slate-500">Sync supplier records into private review. Products and provider options are imported directly from Topupmate. Admin controls selling prices only.</p></div>
             <button disabled={catalogueSyncing} onClick={()=>void syncCatalogue()} className="inline-flex items-center gap-2 rounded-xl bg-[#14366f] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50"><RefreshCw size={14} className={catalogueSyncing?"animate-spin":""}/>{catalogueSyncing?"Synchronizing…":"Sync Topupmate catalogue"}</button>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {catalogueProviders.map(provider=>{const providerPlans=catalogueProducts.filter(product=>product.service_providers?.code===provider.code);const publishedPlans=providerPlans.filter(product=>product.active&&product.publication_status==="published");const categoryCounts=Object.entries(providerPlans.reduce((counts,product)=>{const category=product.service_categories?.name??product.service_categories?.code??"Other";counts[category]=(counts[category]??0)+1;return counts;},{} as Record<string,number>));return <div key={provider.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-slate-800">{provider.name}</p><p className="mt-1 text-[10px] text-slate-500">Priority {provider.priority} · {provider.code}</p><p className={provider.status==="active"?"mt-1 text-[10px] font-semibold text-emerald-700":"mt-1 text-[10px] font-semibold text-amber-700"}>{provider.status}</p></div>{provider.code==="topupmate"&&catalogueCanManageProviders&&<div className="flex gap-2">{provider.status!=="active"?<button disabled={catalogueSaving===provider.id} onClick={()=>void setCatalogueProviderStatus(provider.id,"active")} className="rounded-lg bg-[#14366f] px-3 py-2 text-[10px] font-semibold text-white">Enable provider</button>:<button disabled={catalogueSaving===provider.id} onClick={()=>void setCatalogueProviderStatus(provider.id,"disabled")} className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-600">Disable provider</button>}</div>}</div><div className="mt-3 border-t border-slate-100 pt-3"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500"><span><strong className="text-slate-800">{providerPlans.length}</strong> supplier plans</span><span><strong className="text-emerald-700">{publishedPlans.length}</strong> published and active</span><span><strong className="text-amber-700">{providerPlans.length-publishedPlans.length}</strong> pending/paused</span></div><div className="mt-2 flex flex-wrap gap-1.5">{categoryCounts.length?categoryCounts.map(([category,count])=><span key={category} className="rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-600">{category}: {count}</span>):<span className="text-[10px] text-slate-400">No supplier plans synchronized yet</span>}</div><p className="mt-2 text-[10px] text-slate-400">Each synchronized plan remains linked to this provider. Customer availability requires an active provider, published plan and configured account prices.</p></div></div>})}
+            {catalogueProviders.map(provider=>{const providerPlans=catalogueProducts.filter(product=>product.service_providers?.code===provider.code);const publishedPlans=providerPlans.filter(product=>product.active);const categoryCounts=Object.entries(providerPlans.reduce((counts,product)=>{const category=product.service_categories?.name??product.service_categories?.code??"Other";counts[category]=(counts[category]??0)+1;return counts;},{} as Record<string,number>));return <div key={provider.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-slate-800">{provider.name}</p><p className="mt-1 text-[10px] text-slate-500">Priority {provider.priority} · {provider.code}</p><p className={provider.status==="active"?"mt-1 text-[10px] font-semibold text-emerald-700":"mt-1 text-[10px] font-semibold text-amber-700"}>{provider.status}</p></div>{provider.code==="topupmate"&&catalogueCanManageProviders&&<div className="flex gap-2">{provider.status!=="active"?<button disabled={catalogueSaving===provider.id} onClick={()=>void setCatalogueProviderStatus(provider.id,"active")} className="rounded-lg bg-[#14366f] px-3 py-2 text-[10px] font-semibold text-white">Enable provider</button>:<button disabled={catalogueSaving===provider.id} onClick={()=>void setCatalogueProviderStatus(provider.id,"disabled")} className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-600">Disable provider</button>}</div>}</div><div className="mt-3 border-t border-slate-100 pt-3"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500"><span><strong className="text-slate-800">{providerPlans.length}</strong> supplier plans</span><span><strong className="text-emerald-700">{publishedPlans.length}</strong> active</span><span><strong className="text-amber-700">{providerPlans.length-publishedPlans.length}</strong> inactive</span></div><div className="mt-2 flex flex-wrap gap-1.5">{categoryCounts.length?categoryCounts.map(([category,count])=><span key={category} className="rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-600">{category}: {count}</span>):<span className="text-[10px] text-slate-400">No supplier plans synchronized yet</span>}</div><p className="mt-2 text-[10px] text-slate-400">Each synchronized plan remains linked to this provider. Customer availability follows the active supplier catalogue and configured selling price.</p></div></div>})}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-[11px] text-slate-500">Supplier products</p><p className="mt-2 text-2xl font-bold">{catalogueProducts.length}</p></div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-[11px] text-slate-500">Published products</p><p className="mt-2 text-2xl font-bold">{catalogueProducts.filter(p=>p.publication_status==="published"&&p.active).length}</p></div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-[11px] text-slate-500">Awaiting review</p><p className="mt-2 text-2xl font-bold">{catalogueProducts.filter(p=>p.publication_status==="pending").length}</p></div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-[11px] text-slate-500">Active supplier products</p><p className="mt-2 text-2xl font-bold">{catalogueProducts.filter(p=>p.active).length}</p></div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-[11px] text-slate-500">Inactive supplier products</p><p className="mt-2 text-2xl font-bold">{catalogueProducts.filter(p=>!p.active).length}</p></div>
           </div>
           <div className="space-y-3">
             {catalogueLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-400">Loading supplier catalogue…</div> : catalogueProducts.length===0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><Package className="mx-auto text-slate-400" size={26}/><p className="mt-3 text-sm font-semibold text-slate-700">No Topupmate products imported yet</p><p className="mt-1 text-xs text-slate-500">Run a supplier sync when Topupmate API credentials and catalogue endpoints are configured.</p></div> : catalogueProducts.map((product)=>{
@@ -481,7 +486,7 @@ function AdminDashboard() {
               const provider=product.service_providers?.name??"Supplier";
               return <article key={product.id} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{category}</span><span className={product.publication_status==="published"?"rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700":"rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700"}>{product.publication_status}</span></div><h3 className="mt-2 text-sm font-semibold text-slate-900">{product.name}</h3><p className="mt-1 text-[11px] text-slate-500">{provider}{product.network_or_operator?" · "+product.network_or_operator:""} · Supplier code: {product.provider_product_code}</p></div>
+                  <div><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{category}</span><span className={product.active?"rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700":"rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700"}>{product.active?"Supplier active":"Supplier unavailable"}</span></div><h3 className="mt-2 text-sm font-semibold text-slate-900">{product.name}</h3><p className="mt-1 text-[11px] text-slate-500">{provider}{product.network_or_operator?" · "+product.network_or_operator:""} · Supplier code: {product.provider_product_code}</p></div>
                   <div className="text-right text-xs text-slate-500">{product.face_value?(product.service_categories?.code==="gift_card"?"Denomination "+Number(product.face_value).toLocaleString()+" "+(product.name.split(" ").slice(-1)[0]||""):"Face value ₦"+Number(product.face_value).toLocaleString()):""}{catalogueCanPrice&&product.cost_price!==undefined&&<p className="mt-1 font-semibold text-slate-700">Supplier cost ₦{Number(product.cost_price).toLocaleString()}</p>}</div>
                 </div>
                 {catalogueCanPrice ? <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -489,21 +494,18 @@ function AdminDashboard() {
                 </div> : <p className="mt-4 text-xs text-slate-500">Pricing and publication require the pricing administrator permission.</p>}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                   <p className="text-[10px] text-slate-400">Last supplier update: {product.supplier_last_seen_at?new Date(product.supplier_last_seen_at).toLocaleString():"Not synchronized"}</p>
-                  {catalogueCanPrice&&<div className="flex gap-2">
-                    {product.publication_status==="published"&&<button disabled={catalogueSaving===product.id} onClick={()=>void publishCatalogueProduct(product.id,"paused")} className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-600 disabled:opacity-50">Pause</button>}
-                    <button disabled={catalogueSaving===product.id||![draft.personal,draft.agent,draft.business].every(v=>v.trim()!==""&&Number.isFinite(Number(v))&&Number(v)>=Number(product.cost_price??0))} onClick={()=>void publishCatalogueProduct(product.id,"published")} className="rounded-lg bg-[#14366f] px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-40">{catalogueSaving===product.id?"Saving…":product.publication_status==="published"?"Update prices":"Approve & publish"}</button>
-                  </div>}
+                  {catalogueCanPrice&&<button disabled={catalogueSaving===product.id||![draft.personal,draft.agent,draft.business].every(v=>v.trim()!==""&&Number.isFinite(Number(v))&&Number(v)>=Number(product.cost_price??0))} onClick={()=>void saveCatalogueProductPrices(product.id)} className="rounded-lg bg-[#14366f] px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-40">{catalogueSaving===product.id?"Saving…":"Save selling prices"}</button>}
                 </div>
               </article>;
             })}
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div><h3 className="text-sm font-semibold">Supplier networks and operators</h3><p className="mt-1 text-xs text-slate-500">Publish supplier-derived networks, cable providers and electricity operators for customer selection.</p></div>
-            {catalogueOptions.length===0?<p className="mt-3 text-xs text-slate-500">No supplier options have been imported yet.</p>:<div className="mt-4 grid gap-2 md:grid-cols-2">{catalogueOptions.map(option=>{
+            <div><h3 className="text-sm font-semibold">Supplier networks and operators</h3><p className="mt-1 text-xs text-slate-500">Supplier-discovered networks, cable providers and electricity operators are automatically available when the provider is active.</p></div>
+            {catalogueOptions.length===0?<p className="mt-3 text-xs text-slate-500">No supplier options have been imported yet. Run a catalogue sync to retrieve the current providers.</p>:<div className="mt-4 grid gap-2 md:grid-cols-2">{catalogueOptions.map(option=>{
               const airtime = (option.service_categories?.code==="airtime" || option.service_categories?.name==="Airtime") && option.option_type==="network";
               const draft = airtimePricingDrafts[option.id] ?? {discountFactor:String(option.metadata?.discount_factor??""),minimumAmount:String(option.metadata?.minimum_amount??"50"),maximumAmount:String(option.metadata?.maximum_amount??"200000")};
               return <div key={option.id} className="rounded-xl border border-slate-100 p-3">
-                <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold text-slate-800">{option.name}</p><p className="mt-1 text-[10px] text-slate-500">{option.service_categories?.name??option.service_categories?.code} · {option.option_type} · {option.option_code}</p><p className="mt-1 text-[10px] text-slate-400">{option.publication_status}</p></div><div className="flex shrink-0 gap-2">{option.publication_status==="published"?<button disabled={catalogueSaving===option.id} onClick={()=>void publishCatalogueOption(option.id,"paused")} className="rounded-lg border border-slate-200 px-2.5 py-2 text-[10px] font-semibold text-slate-600">Pause</button>:<button disabled={catalogueSaving===option.id} onClick={()=>void publishCatalogueOption(option.id,"published")} className="rounded-lg bg-[#14366f] px-2.5 py-2 text-[10px] font-semibold text-white">Publish</button>}</div></div>
+                <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold text-slate-800">{option.name}</p><p className="mt-1 text-[10px] text-slate-500">{option.service_categories?.name??option.service_categories?.code} · {option.option_type} · {option.option_code}</p><p className="mt-1 text-[10px] text-slate-400">{option.active?"Active":"Inactive"}</p></div><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">Supplier catalogue</span></div>
                 {airtime&&catalogueCanPrice&&<div className="mt-3 grid gap-2 sm:grid-cols-4"><label className="text-[10px] font-semibold text-slate-600">Supplier cost factor<input type="number" min="0.01" max="1" step="0.0001" value={draft.discountFactor} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,discountFactor:e.target.value}}))} placeholder="e.g. 0.98" className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><label className="text-[10px] font-semibold text-slate-600">Minimum ₦<input type="number" min="50" value={draft.minimumAmount} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,minimumAmount:e.target.value}}))} className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><label className="text-[10px] font-semibold text-slate-600">Maximum ₦<input type="number" min="50" value={draft.maximumAmount} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,maximumAmount:e.target.value}}))} className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><button disabled={catalogueSaving===option.id||!draft.discountFactor||Number(draft.discountFactor)<=0||Number(draft.discountFactor)>1||Number(draft.minimumAmount)<50||Number(draft.maximumAmount)<Number(draft.minimumAmount)} onClick={()=>void saveAirtimePricing(option.id)} className="self-end rounded-lg bg-[#14366f] px-3 py-2 text-[10px] font-semibold text-white disabled:opacity-40">{catalogueSaving===option.id?"Saving…":"Save pricing"}</button></div>}
               </div>;
             })}</div>}
