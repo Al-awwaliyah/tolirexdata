@@ -34,6 +34,7 @@ const services = [
   {key:"cable-provider", category:"cable_tv", kind:"options", optionType:"cable_provider"},
   {key:"cabletv", category:"cable_tv", kind:"products"},
   {key:"electricity", category:"electricity", kind:"options", optionType:"operator"},
+  {key:"exampin", category:"education", kind:"options", optionType:"exam_provider"},
   {key:"exampin", category:"education", kind:"products"},
   {key:"recharge-card", category:"recharge_pin", kind:"products"},
   {key:"datapin", category:"data_pin", kind:"products"},
