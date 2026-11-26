@@ -77,14 +77,12 @@ Deno.serve(async req => {
           : [serviceKey];
       let payload:unknown=null;
       let lastEndpointError:unknown=null;
-      let selectedEndpoint="";
       for(const candidate of endpointCandidates){
         try{
           const candidatePayload=await fetchEndpoint("/services/?service="+encodeURIComponent(candidate));
           if(payload===null)payload=candidatePayload;
           if(rows(candidatePayload).length){
             payload=candidatePayload;
-            selectedEndpoint=candidate;
             break;
           }
         }catch(error){lastEndpointError=error;}
