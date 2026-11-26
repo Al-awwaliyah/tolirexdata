@@ -639,8 +639,10 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       {view==="education"&&<div className="mt-5 grid max-w-2xl gap-4">
         <div className="grid gap-2"><p className="text-sm font-semibold">Select examination provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");}}/>)}</div></div>
         {selectedOptionCode&&<div className="grid gap-2"><p className="text-sm font-semibold">Select PIN package</p><div className="grid gap-2 sm:grid-cols-2">{selectedProducts.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div>{selectedProducts.length===0&&<EmptyState icon={<GraduationCap/>} title="No packages available" copy="The selected exam provider has no available PIN packages at the moment."/ >}</div>}
+        {selectedOptionCode&&<>
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedOptionCode||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
+        </>}
       </div>}
       {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
         <div className="grid gap-2"><p className="text-sm font-semibold">Choose internet provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");setVerifiedName("");setRecipient("");}}/>)}</div></div>
