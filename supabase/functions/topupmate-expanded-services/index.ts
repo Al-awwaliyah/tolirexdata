@@ -108,10 +108,18 @@ Deno.serve(async request=>{
     if(!recipient)return json({error:"Enter the ISP account number or phone number."},400);
     if(!optionCode)return json({error:"Select an internet provider."},400);
     await providerOption("internet","internet_provider",optionCode);
-    if(optionCode!=="smile" && number(body.amount)<=0)return json({error:"Enter a valid internet top-up amount."},400);
-    if(optionCode==="smile" && (!product || text(product.metadata?.source_service)!=="smile"))return json({error:"Select an available Smile bundle."},400);
+    if(optionCode!=="smile"){
+     if(number(body.amount)<50||number(body.amount)>200000)return json({error:"Enter an internet top-up amount between ₦50 and ₦200,000."},400);
+     if(!cleanPhone(recipient))return json({error:"Enter a valid 11-digit Nigerian phone number."},400);
+    }
+    if(optionCode==="smile"){
+     if(!product||text(product.metadata?.source_service)!=="smile")return json({error:"Select an available Smile bundle."},400);
+     const compact=recipient.replace(/[\\s+()-]/g,"");
+     const accountType=/^234\\d{10}$/.test(compact)||/^0\\d{10}$/.test(compact)?"PhoneNumber":text(body.accountType);
+     if(!["PhoneNumber","AccountNumber"].includes(accountType)||(!/^234\\d{10}$/.test(compact)&&!/^0\\d{10}$/.test(compact)&&!/^\\d{10}$/.test(compact)))return json({error:"Enter a valid Smile phone number or 10-digit account number."},400);
+    }
    }
-   if(category==="gift_card"&&(!product||!/^\S+@\S+\.\S+$/.test(recipient)||quantity>20))return json({error:"Select a gift card, enter a valid recipient email and choose a valid quantity."},400);
+   if(category==="gift_card"&&(!product||!/^\S+@\S+\.\S+$/.test(recipient)||quantity>20||!text(product.metadata?.supplier_product_id)||number(product.face_value)<=0))return json({error:"Select a valid gift card denomination, enter a valid recipient email and choose a valid quantity."},400);
    const metadata:Obj={quantity};
    if(body.meterType)metadata.meter_type=text(body.meterType);
    if(body.subtype)metadata.subtype=text(body.subtype);
