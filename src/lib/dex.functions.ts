@@ -20,6 +20,36 @@ const canonicalTopupmateNetworkName = (value: unknown, fallback = ""): string =>
   return raw || fallback;
 };
 
+const planGroupFromSupplier = (name: unknown, validity: unknown): "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER" => {
+  const source = `${String(validity ?? "")} ${String(name ?? "")}`.toLowerCase();
+  const patterns: Array<[RegExp,number]> = [
+    [/(\\d+(?:\\.\\d+)?)\\s*(?:hours?|hrs?|h)\\b/,24],
+    [/(\\d+(?:\\.\\d+)?)\\s*(?:years?|yrs?)\\b/, -365],
+    [/(\\d+(?:\\.\\d+)?)\\s*(?:months?|mths?|mos?)\\b/, -30],
+    [/(\\d+(?:\\.\\d+)?)\\s*(?:weeks?|wks?)\\b/, -7],
+    [/(\\d+(?:\\.\\d+)?)\\s*(?:days?|d)\\b/, 1],
+  ];
+  let days=0;
+  for(const [pattern,multiplier] of patterns){
+    const match=source.match(pattern);
+    if(!match)continue;
+    const amount=Number(match[1]);
+    days=multiplier===24?Math.max(1,Math.ceil(amount/24)):multiplier<0?Math.round(amount*Math.abs(multiplier)):Math.round(amount);
+    break;
+  }
+  if(!days){
+    if(/\\byearly|annual|annually\\b/.test(source))days=365;
+    else if(/\\bmonthly|month\\b/.test(source))days=30;
+    else if(/\\bweekly|week\\b/.test(source))days=7;
+    else if(/\\bdaily|24\\s*hours?\\b/.test(source))days=1;
+  }
+  if(days>=1&&days<=3)return "DAILY";
+  if(days>=7&&days<=14)return "WEEKLY";
+  if(days>=30&&days<=90)return "MONTHLY";
+  if(days===365)return "YEARLY";
+  return "OTHER";
+};
+
 const mapSupplierDataPlans = (catalogue: any[], catalogueOptions: any[]) =>
   catalogue.filter((item: any) => item.category_code === "data").map((item: any) => {
     const networkCode = String(item.network_or_operator ?? "");
@@ -30,7 +60,7 @@ const mapSupplierDataPlans = (catalogue: any[], catalogueOptions: any[]) =>
       id: item.id,
       network: canonicalTopupmateNetworkName(networkOption?.name, networkCode) || item.category_name,
       networkCode,
-      planType: item.plan_type ?? null,
+      planType: planGroupFromSupplier(item.name, item.description),
       data_amount: item.name,
       validity: item.description ?? "",
       price: Number(item.selling_price),
