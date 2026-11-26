@@ -20,37 +20,44 @@ const canonicalTopupmateNetworkName = (value: unknown, fallback = ""): string =>
   return raw || fallback;
 };
 
+const normaliseDataPlanLabel = (value:unknown):string => {
+  let label=String(value??"").replace(/\\s+/g," ").trim();
+  if(!label)return "Data plan";
+  const compact=label.replace(/\\s+/g,"");
+  const codeSize=compact.match(/^m?(\\d+(?:\\.\\d+)?)(kb|kbs|mb|mbs|gb|gbs|tb|tbs)$/i);
+  if(codeSize)return `${codeSize[1]} ${codeSize[2].replace(/s$/i,"").toUpperCase()}`;
+  const embedded=label.match(/(\\d+(?:\\.\\d+)?)\\s*(KB|KBS|MB|MBS|GB|GBS|TB|TBS)\\b/i);
+  if(embedded)return `${embedded[1]} ${embedded[2].replace(/s$/i,"").toUpperCase()}`;
+  label=label.replace(/\\b(sme|awoof|direct|direct\\s+data|gifting|gift|corporate|business|promo|promotion|bonus|hot\\s*deal|hot)\\b/gi,"").replace(/\\s*[-|–—]\\s*/g," ").replace(/\\(\\s*\\)/g,"").replace(/\\s{2,}/g," ").trim();
+  return label||"Data plan";
+};
+
 const planGroupFromSupplier = (name: unknown, validity: unknown): "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER" => {
-  const source = `${String(validity ?? "")} ${String(name ?? "")}`.toLowerCase();
-  const patterns: Array<[RegExp,number]> = [
-    [/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/,24],
-    [/(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b/, -365],
-    [/(\d+(?:\.\d+)?)\s*(?:months?|mths?|mos?)\b/, -30],
-    [/(\d+(?:\.\d+)?)\s*(?:weeks?|wks?)\b/, -7],
-    [/(\d+(?:\.\d+)?)\s*(?:days?|d)\b/, 1],
-  ];
+  const period=String(validity??"").replace(/\\s+/g," ").trim().toLowerCase();
+  const source=`${period} ${String(name??"")}`.toLowerCase();
+  if(/hot|promo|promotion|bonus|awoof|sme|direct|gifting|gift/.test(period))return "OTHER";
   let days=0;
-  for(const [pattern,multiplier] of patterns){
-    const match=source.match(pattern);
-    if(!match)continue;
-    const amount=Number(match[1]);
-    days=multiplier===24?Math.max(1,Math.ceil(amount/24)):multiplier<0?Math.round(amount*Math.abs(multiplier)):Math.round(amount);
-    break;
-  }
-  if(!days){
-    const bare=String(validity??"").trim();
-    if(/^\d+$/.test(bare))days=Number(bare);
-  }
-  if(!days){
-    if(/\byearly|annual|annually\b/.test(source))days=365;
-    else if(/\bmonthly|month\b/.test(source))days=30;
-    else if(/\bweekly|week\b/.test(source))days=7;
-    else if(/\bdaily|24\s*hours?\b/.test(source))days=1;
+  const duration=period.match(/(\\d+(?:\\.\\d+)?)\\s*(day|days|week|weeks|month|months|year|years)|^(daily|weekly|monthly|yearly|annual)$/i);
+  if(duration){
+    const count=Number(duration[1]??1);
+    const unit=String(duration[2]??duration[3]).toLowerCase();
+    if(unit.startsWith("year")||unit==="annual")days=count*365;
+    else if(unit.startsWith("month"))days=count*30;
+    else if(unit.startsWith("week"))days=count*7;
+    else days=count;
+  }else if(/^\\d+$/.test(period))days=Number(period);
+  else{
+    const hour=period.match(/(\\d+(?:\\.\\d+)?)\\s*(?:hours?|hrs?|h)\\b/);
+    if(hour)days=Math.max(1,Math.ceil(Number(hour[1])/24));
   }
   if(days>=1&&days<=3)return "DAILY";
   if(days>=7&&days<=14)return "WEEKLY";
   if(days>=30&&days<=90)return "MONTHLY";
   if(days===365)return "YEARLY";
+  if(/daily|1\\s*day|24\\s*hour/.test(source))return "DAILY";
+  if(/weekly|7\\s*day|1\\s*week/.test(source))return "WEEKLY";
+  if(/monthly|30\\s*day|31\\s*day|1\\s*month/.test(source))return "MONTHLY";
+  if(/yearly|annual|365\\s*day|1\\s*year/.test(source))return "YEARLY";
   return "OTHER";
 };
 
@@ -65,7 +72,7 @@ const mapSupplierDataPlans = (catalogue: any[], catalogueOptions: any[]) =>
       network: canonicalTopupmateNetworkName(networkOption?.name, networkCode) || item.category_name,
       networkCode,
       planType: planGroupFromSupplier(item.name, item.description),
-      data_amount: item.name,
+      data_amount: normaliseDataPlanLabel(item.name),
       validity: item.description ?? "",
       price: Number(item.selling_price),
       active: true,
