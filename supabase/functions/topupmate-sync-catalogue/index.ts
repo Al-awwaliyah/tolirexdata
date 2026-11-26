@@ -70,8 +70,29 @@ Deno.serve(async req => {
       // Topupmate's /services/ catalogue is the source for biller/operator IDs.
       // The same cable catalogue can contain both provider rows and priced plans.
       const serviceKey=spec.key;
-      const payload=await fetchEndpoint("/services/?service="+encodeURIComponent(serviceKey));
-      await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
+      const endpointCandidates=spec.key==="recharge-card"
+        ? ["rechargepin","recharge-pin","recharge-card"]
+        : spec.key==="datapin"
+          ? ["datapin","data-pin","data-card"]
+          : [serviceKey];
+      let payload:unknown=null;
+      let lastEndpointError:unknown=null;
+      let selectedEndpoint="";
+      for(const candidate of endpointCandidates){
+        try{
+          const candidatePayload=await fetchEndpoint("/services/?service="+encodeURIComponent(candidate));
+          if(payload===null)payload=candidatePayload;
+          if(rows(candidatePayload).length){
+            payload=candidatePayload;
+            selectedEndpoint=candidate;
+            break;
+          }
+        }catch(error){lastEndpointError=error;}
+      }
+      if(payload===null){
+        throw lastEndpointError instanceof Error?lastEndpointError:new Error("Topupmate catalogue endpoint returned no response");
+      }
+      await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
       const list=rows(payload);
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
