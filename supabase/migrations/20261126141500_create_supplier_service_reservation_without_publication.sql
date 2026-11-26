@@ -62,7 +62,7 @@ begin
 
   if p_product_id is not null then
     select * into v_product from public.service_products
-     where id=p_product_id and category_id=v_category.id and provider_id=v_provider.idand active for update;
+     where id=p_product_id and category_id=v_category.id and provider_id=v_provider.id and active for update;
     if not found or v_product.cost_price is null or v_product.cost_price<=0 then
       raise exception 'Selected supplier product is not available';
     end if;
@@ -80,7 +80,7 @@ begin
     end if;
     select * into v_option from public.provider_service_options
      where provider_id=v_provider.id and category_id=v_category.id
-       and option_type=p_option_type and option_code=trim(p_option_code)and active for update;
+       and option_type=p_option_type and option_code=trim(p_option_code) and active for update;
     if not found then raise exception 'Selected supplier operator is not available'; end if;
     v_cost:=round(p_face_value*v_quantity,2);
     v_recipient:=coalesce(v_recipient,trim(p_option_code));
