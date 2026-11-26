@@ -20,6 +20,47 @@ const canonicalTopupmateNetworkName = (value: unknown, fallback = ""): string =>
   return raw || fallback;
 };
 
+const normaliseDataPlanLabel = (value:unknown):string => {
+  let label=String(value??"").replace(/\s+/g," ").trim();
+  if(!label)return "Data plan";
+  const compact=label.replace(/\s+/g,"");
+  const codeSize=compact.match(/^m?(\d+(?:\.\d+)?)(kb|kbs|mb|mbs|gb|gbs|tb|tbs)$/i);
+  if(codeSize)return `${codeSize[1]} ${codeSize[2].replace(/s$/i,"").toUpperCase()}`;
+  const embedded=label.match(/(\d+(?:\.\d+)?)\s*(KB|KBS|MB|MBS|GB|GBS|TB|TBS)\b/i);
+  if(embedded)return `${embedded[1]} ${embedded[2].replace(/s$/i,"").toUpperCase()}`;
+  label=label.replace(/\b(sme|awoof|direct|direct\s+data|gifting|gift|corporate|business|promo|promotion|bonus|hot\s*deal|hot)\b/gi,"").replace(/\s*[-|–—]\s*/g," ").replace(/\(\s*\)/g,"").replace(/\s{2,}/g," ").trim();
+  return label||"Data plan";
+};
+
+const planGroupFromSupplier = (name: unknown, validity: unknown): "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER" => {
+  const period=String(validity??"").replace(/\s+/g," ").trim().toLowerCase();
+  const source=`${period} ${String(name??"")}`.toLowerCase();
+  if(/hot|promo|promotion|bonus|awoof|sme|direct|gifting|gift/.test(period))return "OTHER";
+  let days=0;
+  const duration=period.match(/(\d+(?:\.\d+)?)\s*(day|days|week|weeks|month|months|year|years)|^(daily|weekly|monthly|yearly|annual)$/i);
+  if(duration){
+    const count=Number(duration[1]??1);
+    const unit=String(duration[2]??duration[3]).toLowerCase();
+    if(unit.startsWith("year")||unit==="annual")days=count*365;
+    else if(unit.startsWith("month"))days=count*30;
+    else if(unit.startsWith("week"))days=count*7;
+    else days=count;
+  }else if(/^\d+$/.test(period))days=Number(period);
+  else{
+    const hour=period.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/);
+    if(hour)days=Math.max(1,Math.ceil(Number(hour[1])/24));
+  }
+  if(days>=1&&days<=3)return "DAILY";
+  if(days>=7&&days<=14)return "WEEKLY";
+  if(days>=30&&days<=90)return "MONTHLY";
+  if(days===365)return "YEARLY";
+  if(/daily|1\s*day|24\s*hour/.test(source))return "DAILY";
+  if(/weekly|7\s*day|1\s*week/.test(source))return "WEEKLY";
+  if(/monthly|30\s*day|31\s*day|1\s*month/.test(source))return "MONTHLY";
+  if(/yearly|annual|365\s*day|1\s*year/.test(source))return "YEARLY";
+  return "OTHER";
+};
+
 const mapSupplierDataPlans = (catalogue: any[], catalogueOptions: any[]) =>
   catalogue.filter((item: any) => item.category_code === "data").map((item: any) => {
     const networkCode = String(item.network_or_operator ?? "");
@@ -30,8 +71,8 @@ const mapSupplierDataPlans = (catalogue: any[], catalogueOptions: any[]) =>
       id: item.id,
       network: canonicalTopupmateNetworkName(networkOption?.name, networkCode) || item.category_name,
       networkCode,
-      planType: item.plan_type ?? null,
-      data_amount: item.name,
+      planType: planGroupFromSupplier(item.name, item.description),
+      data_amount: normaliseDataPlanLabel(item.name),
       validity: item.description ?? "",
       price: Number(item.selling_price),
       active: true,
@@ -63,7 +104,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
         supabaseAdmin.from("data_orders").select("*").order("created_at", { ascending: false }).limit(500),
         (supabaseAdmin as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,created_at,updated_at").order("created_at", { ascending: false }).limit(500),
         supabaseAdmin.from("wallet_transactions").select("*").order("created_at", { ascending: false }).limit(500),
-        (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,plan_type,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+        (supabaseAdmin as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,plan_type,description,face_value,selling_price,currency,sort_order,country_code,product_category,recipient_currency,logo_url,redeem_instruction").order("sort_order"),
         (supabaseAdmin as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
         // Admins may also use a Personal customer dashboard. Load their own KYC
         // and virtual account records exactly as for non-admin customers.
@@ -99,7 +140,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       supabase.from("data_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       (supabase as any).from("service_orders").select("id,user_id,category_id,product_id,request_id,recipient,amount,currency,status,provider_status,created_at,updated_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(100),
       supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-      (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,plan_type,description,face_value,selling_price,currency,sort_order").order("sort_order"),
+      (supabase as any).from("public_service_catalog").select("id,category_id,category_code,category_name,name,network_or_operator,plan_type,description,face_value,selling_price,currency,sort_order,country_code,product_category,recipient_currency,logo_url,redeem_instruction").order("sort_order"),
       (supabase as any).from("public_service_options").select("id,category_code,option_type,option_code,parent_option_code,name").order("name"),
       (supabaseAdmin as any).from("kyc_records").select("id,status,level,review_note,created_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(1).maybeSingle(),
       (supabaseAdmin as any).from("virtual_accounts").select("id,account_number,bank_name,account_name,currency,status,is_permanent").eq("user_id",userId).eq("provider","flutterwave").eq("status","active").eq("is_permanent",true).maybeSingle(),

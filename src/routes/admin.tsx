@@ -210,7 +210,6 @@ function AdminDashboard() {
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueSyncing, setCatalogueSyncing] = useState(false);
   const [catalogueDrafts, setCatalogueDrafts] = useState<Record<string,{personal:string;agent:string;business:string}>>({});
-  const [airtimePricingDrafts, setAirtimePricingDrafts] = useState<Record<string,{discountFactor:string;minimumAmount:string;maximumAmount:string}>>({});
   const [catalogueSaving, setCatalogueSaving] = useState<string | null>(null);
   const [cardPricing, setCardPricing] = useState({cardCreationEnabled:false,creationFeeUsd:"",minimumInitialFundingUsd:"",creationMarkupUsd:"",topupMinimumUsd:"",topupMarkupPercent:""});
   const [cardPricingLoading, setCardPricingLoading] = useState(false);
@@ -220,6 +219,12 @@ function AdminDashboard() {
   });
   const [electricityPricingLoading,setElectricityPricingLoading]=useState(false);
   const [electricityPricingSaving,setElectricityPricingSaving]=useState<string|null>(null);
+  const [serviceCategoryPricing,setServiceCategoryPricing]=useState<Record<"airtime"|"internet",Record<"personal"|"agent"|"business",{markupType:"fixed"|"percentage";markupValue:string}>>>({
+    airtime:{personal:{markupType:"fixed",markupValue:"0"},agent:{markupType:"fixed",markupValue:"0"},business:{markupType:"fixed",markupValue:"0"}},
+    internet:{personal:{markupType:"fixed",markupValue:"0"},agent:{markupType:"fixed",markupValue:"0"},business:{markupType:"fixed",markupValue:"0"}}
+  });
+  const [serviceCategoryPricingLoading,setServiceCategoryPricingLoading]=useState<Record<"airtime"|"internet",boolean>>({airtime:false,internet:false});
+  const [serviceCategoryPricingSaving,setServiceCategoryPricingSaving]=useState<string|null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const current = modules.find((item) => item.id === active) ?? modules[0];
@@ -236,6 +241,27 @@ function AdminDashboard() {
     });
     return () => { alive = false; };
   }, [user?.id, loading]);
+
+  const loadServiceCategoryPricing = async (categoryCode:"airtime"|"internet") => {
+    setServiceCategoryPricingLoading(prev=>({...prev,[categoryCode]:true}));
+    const {data,error:invokeError}=await supabase.functions.invoke("admin-console",{body:{action:"service_category_pricing",categoryCode}});
+    if(invokeError||data?.error){setError(data?.error||invokeError?.message||"Unable to load service selling prices.");}
+    else{
+      const next:any={personal:{markupType:"fixed",markupValue:"0"},agent:{markupType:"fixed",markupValue:"0"},business:{markupType:"fixed",markupValue:"0"}};
+      for(const row of data?.pricing??[])if(["personal","agent","business"].includes(row.account_type))next[row.account_type]={markupType:row.markup_type,markupValue:String(row.markup_value??0)};
+      setServiceCategoryPricing(prev=>({...prev,[categoryCode]:next}));
+    }
+    setServiceCategoryPricingLoading(prev=>({...prev,[categoryCode]:false}));
+  };
+  const saveServiceCategoryPricing = async(categoryCode:"airtime"|"internet",accountType:"personal"|"agent"|"business") => {
+    const draft=serviceCategoryPricing[categoryCode][accountType];
+    const key=categoryCode+":"+accountType;
+    setServiceCategoryPricingSaving(key);setError("");
+    const {data,error:invokeError}=await supabase.functions.invoke("admin-console",{body:{action:"service_category_pricing",save:true,categoryCode,accountType,markupType:draft.markupType,markupValue:Number(draft.markupValue)}});
+    if(invokeError||data?.error)setError(data?.error||invokeError?.message||"Unable to save service selling price.");
+    else await loadServiceCategoryPricing(categoryCode);
+    setServiceCategoryPricingSaving(null);
+  };
 
   const loadElectricityPricing = async () => {
     setElectricityPricingLoading(true);
@@ -372,18 +398,6 @@ function AdminDashboard() {
     setCatalogueSyncing(false);
   };
 
-  const saveAirtimePricing = async (optionId: string) => {
-    const draft = airtimePricingDrafts[optionId];
-    if (!draft) return;
-    setCatalogueSaving(optionId);
-    const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
-      body: { action: "airtime_pricing", optionId, discountFactor: Number(draft.discountFactor), minimumAmount: Number(draft.minimumAmount), maximumAmount: Number(draft.maximumAmount) },
-    });
-    if (invokeError || data?.error) setError(data?.error || invokeError?.message || "Unable to save Airtime supplier pricing.");
-    else { setError(""); await loadCatalogue(); }
-    setCatalogueSaving(null);
-  };
-
   const setCatalogueProviderStatus = async (providerId: string, status: "active" | "degraded" | "disabled") => {
     setCatalogueSaving(providerId);
     const { data, error: invokeError } = await supabase.functions.invoke("admin-console", {
@@ -413,7 +427,7 @@ function AdminDashboard() {
 
   useEffect(() => { if (authorized) void loadOverview(); }, [authorized]);
   useEffect(() => { if (authorized && active === "virtual-cards") void loadCardPricing(); }, [authorized, active]);
-  useEffect(() => { if (authorized && active === "pricing") void loadElectricityPricing(); }, [authorized, active]);
+  useEffect(() => { if (authorized && active === "pricing") { void loadElectricityPricing(); void loadServiceCategoryPricing("airtime"); void loadServiceCategoryPricing("internet"); } }, [authorized, active]);
   useEffect(() => {
     if (authorized && active === "customers") void loadCustomers(customerPage, customerSearch);
   }, [authorized, active, customerPage]);
@@ -502,23 +516,32 @@ function AdminDashboard() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div><h3 className="text-sm font-semibold">Supplier networks and operators</h3><p className="mt-1 text-xs text-slate-500">Supplier-discovered networks, cable providers and electricity operators are automatically available when the provider is active.</p></div>
             {catalogueOptions.length===0?<p className="mt-3 text-xs text-slate-500">No supplier options have been imported yet. Run a catalogue sync to retrieve the current providers.</p>:<div className="mt-4 grid gap-2 md:grid-cols-2">{catalogueOptions.map(option=>{
-              const airtime = (option.service_categories?.code==="airtime" || option.service_categories?.name==="Airtime") && option.option_type==="network";
-              const draft = airtimePricingDrafts[option.id] ?? {discountFactor:String(option.metadata?.discount_factor??""),minimumAmount:String(option.metadata?.minimum_amount??"50"),maximumAmount:String(option.metadata?.maximum_amount??"200000")};
               return <div key={option.id} className="rounded-xl border border-slate-100 p-3">
                 <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold text-slate-800">{option.name}</p><p className="mt-1 text-[10px] text-slate-500">{option.service_categories?.name??option.service_categories?.code} · {option.option_type} · {option.option_code}</p><p className="mt-1 text-[10px] text-slate-400">{option.active?"Active":"Inactive"}</p></div><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">Supplier catalogue</span></div>
-                {airtime&&catalogueCanPrice&&<div className="mt-3 grid gap-2 sm:grid-cols-4"><label className="text-[10px] font-semibold text-slate-600">Supplier cost factor<input type="number" min="0.01" max="1" step="0.0001" value={draft.discountFactor} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,discountFactor:e.target.value}}))} placeholder="e.g. 0.98" className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><label className="text-[10px] font-semibold text-slate-600">Minimum ₦<input type="number" min="50" value={draft.minimumAmount} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,minimumAmount:e.target.value}}))} className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><label className="text-[10px] font-semibold text-slate-600">Maximum ₦<input type="number" min="50" value={draft.maximumAmount} onChange={e=>setAirtimePricingDrafts(prev=>({...prev,[option.id]:{...draft,maximumAmount:e.target.value}}))} className="mt-1 w-full rounded-lg border px-2 py-2 text-xs"/></label><button disabled={catalogueSaving===option.id||!draft.discountFactor||Number(draft.discountFactor)<=0||Number(draft.discountFactor)>1||Number(draft.minimumAmount)<50||Number(draft.maximumAmount)<Number(draft.minimumAmount)} onClick={()=>void saveAirtimePricing(option.id)} className="self-end rounded-lg bg-[#14366f] px-3 py-2 text-[10px] font-semibold text-white disabled:opacity-40">{catalogueSaving===option.id?"Saving…":"Save pricing"}</button></div>}
+
               </div>;
             })}</div>}
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm font-semibold">Recent catalogue synchronization</h3>{catalogueRuns.length===0?<p className="mt-2 text-xs text-slate-500">No synchronization history yet.</p>:<div className="mt-3 space-y-2">{catalogueRuns.map(run=><div key={run.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs"><span className="font-medium text-slate-700">{new Date(run.started_at).toLocaleString()}</span><span className="text-slate-500">{run.discovered_products} products · {run.discovered_options} options</span><span className={run.status==="success"?"font-semibold text-emerald-700":run.status==="partial"?"font-semibold text-amber-700":"font-semibold text-rose-700"}>{run.status}</span></div>)}</div>}</div>
         </section> : active==="pricing" ? <section className="space-y-5">
+          {(["airtime","internet"] as const).map(category=><div key={category} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+            <div><h2 className="text-base font-semibold capitalize">{category==="airtime"?"Airtime selling prices":"Amount-based internet selling prices"}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{category==="airtime"?"Set the retail fee or markup added to the airtime face value. Topupmate's network and the entered amount remain supplier-driven.":"Set the retail fee or markup for Alpha, Kirani and Ratel amount-based internet top-ups. Smile bundle prices are configured per supplier product in Service Catalogue."}</p></div>
+            {serviceCategoryPricingLoading[category]?<p className="mt-6 text-sm text-slate-500">Loading {category} pricing…</p>:<div className="mt-5 grid gap-4 lg:grid-cols-3">
+              {(["personal","agent","business"] as const).map(account=><div key={account} className="rounded-xl border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold capitalize">{account} account</h3>
+                <label className="mt-4 block text-xs font-medium text-slate-600">Price adjustment<select value={serviceCategoryPricing[category][account].markupType} onChange={e=>setServiceCategoryPricing(prev=>({...prev,[category]:{...prev[category],[account]:{...prev[category][account],markupType:e.target.value as "fixed"|"percentage"}}}))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3"><option value="fixed">Fixed fee (₦)</option><option value="percentage">Percentage markup (%)</option></select></label>
+                <label className="mt-3 block text-xs font-medium text-slate-600">{serviceCategoryPricing[category][account].markupType==="fixed"?"Fixed fee (₦)":"Markup (%)"}<input type="number" min="0" max={serviceCategoryPricing[category][account].markupType==="percentage"?100:undefined} step="0.01" value={serviceCategoryPricing[category][account].markupValue} onChange={e=>setServiceCategoryPricing(prev=>({...prev,[category]:{...prev[category],[account]:{...prev[category][account],markupValue:e.target.value}}}))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 px-3"/></label>
+                <button onClick={()=>void saveServiceCategoryPricing(category,account)} disabled={serviceCategoryPricingSaving===category+":"+account||!serviceCategoryPricing[category][account].markupValue.trim()||!Number.isFinite(Number(serviceCategoryPricing[category][account].markupValue))||Number(serviceCategoryPricing[category][account].markupValue)<0||(serviceCategoryPricing[category][account].markupType==="percentage"&&Number(serviceCategoryPricing[category][account].markupValue)>100)} className="mt-4 w-full rounded-lg bg-[#14366f] px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{serviceCategoryPricingSaving===category+":"+account?"Saving…":"Save "+account+" pricing"}</button>
+              </div>)}
+            </div>}
+          </div>)}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
             <div><h2 className="text-base font-semibold">Electricity fees and markups</h2><p className="mt-1 text-xs leading-5 text-slate-500">Set a fixed convenience fee or percentage markup on the meter amount, separately for Personal, Agent and Business accounts. Supplier meter amounts remain dynamic and are verified before payment.</p></div>
             {electricityPricingLoading?<p className="mt-6 text-sm text-slate-500">Loading electricity pricing…</p>:<div className="mt-5 grid gap-4 lg:grid-cols-3">
               {(["personal","agent","business"] as const).map(account=><div key={account} className="rounded-xl border border-slate-200 p-4"><h3 className="text-sm font-semibold capitalize">{account} account</h3><label className="mt-4 block text-xs font-medium text-slate-600">Fee type<select value={electricityPricing[account].markupType} onChange={e=>setElectricityPricing(p=>({...p,[account]:{...p[account],markupType:e.target.value as "fixed"|"percentage"}}))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3"><option value="fixed">Fixed fee (₦)</option><option value="percentage">Percentage (%)</option></select></label><label className="mt-3 block text-xs font-medium text-slate-600">{electricityPricing[account].markupType==="fixed"?"Convenience fee (₦)":"Markup (%)"}<input type="number" min="0" max={electricityPricing[account].markupType==="percentage"?100:undefined} step="0.01" value={electricityPricing[account].markupValue} onChange={e=>setElectricityPricing(p=>({...p,[account]:{...p[account],markupValue:e.target.value}}))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 px-3"/></label><button onClick={()=>void saveElectricityPricing(account)} disabled={electricityPricingSaving===account||!electricityPricing[account].markupValue.trim()||!Number.isFinite(Number(electricityPricing[account].markupValue))||Number(electricityPricing[account].markupValue)<0||(electricityPricing[account].markupType==="percentage"&&Number(electricityPricing[account].markupValue)>100)} className="mt-4 w-full rounded-lg bg-[#14366f] px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{electricityPricingSaving===account?"Saving…":"Save "+account+" pricing"}</button></div>)}
             </div>}
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm font-semibold">Catalogue product pricing</h3><p className="mt-1 text-xs leading-5 text-slate-500">Airtime discounts and supplier-product selling prices are managed from Service Catalogue. Prices are checked against supplier cost before saving. No fixed plans or retail prices are embedded in the customer application.</p></div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm font-semibold">Catalogue product pricing</h3><p className="mt-1 text-xs leading-5 text-slate-500">Airtime and amount-based internet fees are configured above. Supplier-product selling prices are managed from Service Catalogue for Personal, Agent and Business accounts and checked against supplier cost before saving.</p></div>
         </section> : active==="virtual-cards" ? <section className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Topupmate card pricing controls</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Manage card creation fees, minimum funding and platform markups here. Changes are audited and apply to new card operations. API credentials remain protected as server secrets.</p></div><button onClick={()=>void loadCardPricing()} disabled={cardPricingLoading} className="rounded-xl border px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"><RefreshCw size={13} className="mr-1 inline"/> Refresh</button></div>

@@ -42,7 +42,7 @@ Deno.serve(async (request) => {
     : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
     : action === "price_product" ? "pricing.manage"
     : action === "provider_status" || action === "topupmate_balance" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "wallet_adjustment" || action === "wallet_status" ? "wallets.adjust" : action === "funding_reconcile" ? "fundings.manage" : action === "airtime_pricing" ? "pricing.manage"
-    : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
+    : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" || action === "service_category_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
 
   const { data: permitted, error: permissionError } = await caller.rpc("has_admin_permission", { p_permission: permission });
@@ -149,6 +149,24 @@ Deno.serve(async (request) => {
       .order("started_at", { ascending: false }).limit(10);
     if (productError || optionsError || runError || providersError || pricingError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
     return json({ products: products ?? [], options: options ?? [], providers: providers ?? [], productPricing: productPricing ?? [], syncRuns: runs ?? [], canManagePricing: canManagePricing === true, canManageProviders: canManageProviders === true });
+  }
+
+  if (action === "service_category_pricing") {
+    const categoryCode=String(body.categoryCode??"");
+    if(!["airtime","internet"].includes(categoryCode))return json({error:"Unsupported amount-based service pricing category"},400);
+    if(body.save===true){
+      const {data,error}=await caller.rpc("admin_set_service_category_markup",{
+        p_category_code:categoryCode,p_account_type:String(body.accountType),
+        p_markup_type:String(body.markupType),p_markup_value:Number(body.markupValue)
+      });
+      if(error)return json({error:error.message},400);
+      return json({pricing:data});
+    }
+    const {data:category,error:categoryError}=await admin.from("service_categories").select("id").eq("code",categoryCode).maybeSingle();
+    if(categoryError||!category)return json({error:"Service category is not registered"},404);
+    const {data,error}=await admin.from("pricing_rules").select("account_type,markup_type,markup_value,active,updated_at").eq("category_id",category.id).is("product_id",null);
+    if(error)return json({error:"Unable to load service category pricing"},500);
+    return json({pricing:data??[]});
   }
 
   if (action === "electricity_pricing") {

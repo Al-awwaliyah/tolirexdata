@@ -11,7 +11,7 @@ const classify=(body:Obj):"success"|"fail"|"processing"|"unknown"=>{
  const s=text(body?.status??body?.response?.status??body?.data?.status).toLowerCase();
  if(["success","successful","completed","complete","succeeded"].includes(s))return "success";
  if(["fail","failed","error","rejected","declined"].includes(s))return "fail";
- if(["processing","pending","queued","initiated","in_progress","in-progress"].includes(s))return "processing";
+ if(["processing","pending","queued","order_received","initiated","in_progress","in-progress","submitted"].includes(s))return "processing";
  return "unknown";
 };
 const cleanPhone=(v:string)=>{let x=v.replace(/[\s()+-]/g,"");if(/^234\d{10}$/.test(x))x="0"+x.slice(3);if(/^\d{10}$/.test(x))x="0"+x;return /^0\d{10}$/.test(x)?x:"";};
@@ -96,7 +96,7 @@ Deno.serve(async request=>{
     const cableData=resultPayload(verify.body);
     const cableOwner=text(cableData?.Customer_Name??cableData?.customer_name??cableData?.customername??cableData?.name);
     if(!verify.ok||classify(verify.body)==="fail"||!cableOwner)return json({error:"SmartCard/IUC verification must return a verified customer before payment."},409);
-   } else if(!product){
+   } else if(!product && !(category==="internet" && ["alpha","kirani","ratel"].includes(optionCode))){
     return json({error:"Select an active supplier product."},400);
    }
    if(category==="recharge_pin"||category==="data_pin"){
@@ -104,14 +104,28 @@ Deno.serve(async request=>{
     await providerOption(category,"network",optionCode);
    }
    if(category==="education"&&quantity>20)return json({error:"Exam PIN quantity cannot exceed 20."},400);
-   if(category==="internet"&&!recipient)return json({error:"Enter the ISP account number or phone number."},400);
-   if(category==="gift_card"&&(!product||!/^\S+@\S+\.\S+$/.test(recipient)||quantity>20))return json({error:"Select a gift card, enter a valid recipient email and choose a valid quantity."},400);
+   if(category==="internet"){
+    if(!recipient)return json({error:"Enter the ISP account number or phone number."},400);
+    if(!optionCode)return json({error:"Select an internet provider."},400);
+    await providerOption("internet","internet_provider",optionCode);
+    if(optionCode!=="smile"){
+     if(number(body.amount)<50||number(body.amount)>200000)return json({error:"Enter an internet top-up amount between ₦50 and ₦200,000."},400);
+     if(!cleanPhone(recipient))return json({error:"Enter a valid 11-digit Nigerian phone number."},400);
+    }
+    if(optionCode==="smile"){
+     if(!product||text(product.metadata?.source_service)!=="smile")return json({error:"Select an available Smile bundle."},400);
+     const compact=recipient.replace(/[\s+()-]/g,"");
+     const accountType=/^234\d{10}$/.test(compact)||/^0\d{10}$/.test(compact)?"PhoneNumber":text(body.accountType);
+     if(!["PhoneNumber","AccountNumber"].includes(accountType)||(!/^234\d{10}$/.test(compact)&&!/^0\d{10}$/.test(compact)&&!/^\d{10}$/.test(compact)))return json({error:"Enter a valid Smile phone number or 10-digit account number."},400);
+    }
+   }
+   if(category==="gift_card"&&(!product||!/^\S+@\S+\.\S+$/.test(recipient)||quantity>20||!text(product.metadata?.supplier_product_id)||number(product.face_value)<=0))return json({error:"Select a valid gift card denomination, enter a valid recipient email and choose a valid quantity."},400);
    const metadata:Obj={quantity};
    if(body.meterType)metadata.meter_type=text(body.meterType);
    if(body.subtype)metadata.subtype=text(body.subtype);
    if(body.accountType)metadata.account_type=text(body.accountType);
    if(body.contactPhone){const phone=cleanPhone(text(body.contactPhone));if(!phone)return json({error:"Enter a valid contact phone number."},400);metadata.contact_phone=phone;}
-   if(category==="internet")metadata.internet_provider=text(product?.metadata?.source_service||"smile");
+   if(category==="internet"){metadata.internet_provider=optionCode;metadata.amount_based=optionCode!=="smile";}
    if(category==="gift_card"){
     metadata.supplier_product_id=text(product?.metadata?.supplier_product_id);
     metadata.recipient_denomination=number(product?.face_value);
@@ -119,9 +133,9 @@ Deno.serve(async request=>{
    }
    const {data:order,error:reserveError}=await admin.rpc("reserve_topupmate_service_order",{
     p_user_id:auth.user.id,p_category_code:category,p_product_id:product?.id??null,
-    p_option_type:category==="cable_tv"?"cable_provider":category==="electricity"?"operator":"network",
+    p_option_type:category==="cable_tv"?"cable_provider":category==="electricity"?"operator":category==="internet"?"internet_provider":category==="education"?"exam_provider":"network",
     p_option_code:optionCode||null,p_recipient:recipient||productCode(product??{}),
-    p_face_value:category==="electricity"?faceValue:null,p_quantity:quantity,
+    p_face_value:category==="electricity"||category==="internet"&&optionCode!=="smile"?faceValue:null,p_quantity:quantity,
     p_idempotency_key:idempotency,p_service_metadata:metadata,
     p_coupon_code:text(body.couponCode).toUpperCase()||null
    });
@@ -147,7 +161,7 @@ Deno.serve(async request=>{
     if(!supplierProductId||denomination<=0)throw new Error("Gift card product mapping is incomplete.");
     path="/giftcard/";payload={product:supplierProductId,amount:denomination,email:recipient,sender:"TolirexData Customer",units:quantity,ref};
    }else if(category==="internet"){
-    const isp=text(product?.metadata?.source_service||"smile");
+    const isp=text(product?.metadata?.source_service||optionCode||"smile");
     if(isp==="smile"){
      const compact=recipient.replace(/[\s+()-]/g,"");
      const actype=/^234\d{10}$/.test(compact)||/^0\d{10}$/.test(compact)?"PhoneNumber":text(body.accountType);
@@ -155,7 +169,7 @@ Deno.serve(async request=>{
      if(!["PhoneNumber","AccountNumber"].includes(actype))return json({error:"Select a valid Smile phone number or 10-digit account number type."},400);
      path="/smile-data/";payload={PhoneNumber:phone,BundleTypeCode:Number(supplierPlan),actype,ref};
     }else{
-     const amount=number(product?.cost_price),phone=cleanPhone(recipient);
+     const amount=number(body.amount),phone=cleanPhone(recipient);
      if(amount<=0)return json({error:"The selected ISP supplier price is unavailable."},409);
      if(!phone)return json({error:"Enter a valid 11-digit Nigerian ISP phone number."},400);
      path=isp==="alpha"?"/alphatopup/":isp==="kirani"?"/kirani/":"/ratel/";
@@ -217,7 +231,7 @@ Deno.serve(async request=>{
    const {data:order,error}=await admin.from("service_orders").select("id,status,request_id,service_metadata").eq("request_id",reference).eq("user_id",auth.user.id).maybeSingle();
    if(error||!order)return json({error:"Transaction not found."},404);
    // Topupmate status lookup uses the confirmed endpoint and original supplier reference.
-   const q=await topupmateGet("/transaction/",{ref:reference});
+   const q=await topupmateGet("/transaction/status/",{reference});
    if(!q.ok)return json({orderId:order.id,status:order.status,reference,message:"Supplier status is temporarily unavailable."},202);
    const state=classify(q.body);
    if(state==="success"){

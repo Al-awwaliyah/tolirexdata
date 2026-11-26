@@ -62,8 +62,8 @@ import { formatNaira, isValidNigerianPhone } from "@/lib/dex-rules";
 import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
-type DataPlan = { id: string; network: string; networkCode: string; planType: "sme"|"gifting"|"corporate"|null; data_amount: string; validity: string; price: number; active: boolean };
-type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; plan_type?: "sme"|"gifting"|"corporate"|null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
+type DataPlan = { id: string; network: string; networkCode: string; planType: "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"; data_amount: string; validity: string; price: number; active: boolean };
+type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; plan_type?: "sme"|"gifting"|"corporate"|null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number; country_code?:string|null; product_category?:string|null; recipient_currency?:string|null; logo_url?:string|null; redeem_instruction?:any };
 type CatalogueOption = { id: string; category_code: string; option_type: string; option_code: string; parent_option_code: string | null; name: string };
 type DataOrder = TableRows<"data_orders">;
 type WalletTransaction = TableRows<"wallet_transactions">;
@@ -143,7 +143,7 @@ function Index() {
   const [busy, setBusy] = useState(false);
   const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
-  const [selectedPlanType,setSelectedPlanType]=useState<"sme"|"gifting"|"corporate"|"">("");
+  const [selectedPlanType,setSelectedPlanType]=useState<"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"">("DAILY");
   const [phone, setPhone] = useState("");
   const [dataCouponCode,setDataCouponCode] = useState("");
   const virtualAccountIssuanceStarted = useRef(false);
@@ -181,13 +181,21 @@ function Index() {
   const availablePlans = useMemo(() => {
     const allPlans = (dashboard?.plans ?? []).filter((plan) => plan.active || dashboard?.isAdmin);
     // A remembered network selection can become stale after a supplier catalogue
-    // refresh (renamed/removed network). Never let that hide every newly published plan.
+    // refresh (renamed/removed network). Never let that hide supplier plans after a catalogue refresh.
     const selectedNetworkStillExists = !network || allPlans.some((plan) => plan.network === network);
     return allPlans.filter((plan) => !selectedNetworkStillExists || !network || plan.network === network);
   }, [dashboard?.isAdmin, dashboard?.plans, network]);
   const typedPlans=availablePlans.filter(plan=>plan.network===network&&plan.planType===selectedPlanType);
   const selectedPlan = typedPlans.find((plan) => plan.id === selectedPlanId) ?? typedPlans[0];
-  const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
+  useEffect(() => {
+    if(!network)return;
+    const groups=["DAILY","WEEKLY","MONTHLY","YEARLY","OTHER"] as const;
+    if(availablePlans.some(plan=>plan.network===network&&plan.planType===selectedPlanType))return;
+    const first=groups.find(group=>availablePlans.some(plan=>plan.network===network&&plan.planType===group));
+    if(first)setSelectedPlanType(first);
+  },[network,availablePlans,selectedPlanType]);
+
+  const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.catalogueOptions ?? []).filter(option=>option.category_code==="data"&&option.option_type==="network").map(option=>canonicalNetworkLabel(option.name,option.option_code)).filter(Boolean))), [dashboard?.catalogueOptions]);
 
   const clearNotice = () => setNotice("");
   const action = async (work: () => Promise<void>) => {
@@ -322,7 +330,7 @@ function DashboardShell(props: {
   onSignOut: () => void; notice: string; onDismissNotice: () => void; busy: boolean;
   loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
   network: Network; setNetwork: (network: Network) => void; networkChoices: string[];
-  selectedPlanType: "sme"|"gifting"|"corporate"|""; setSelectedPlanType:(value:"sme"|"gifting"|"corporate"|"")=>void;
+  selectedPlanType: "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|""; setSelectedPlanType:(value:"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"")=>void;
   plans: DataPlan[]; selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; dataCouponCode:string; setDataCouponCode:(code:string)=>void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   onAirtimePurchase: (payload: { networkCode: string; recipient: string; amount: number }) => Promise<void>;
@@ -396,7 +404,7 @@ function Overview({ dashboard, accountType, onNavigate }: { dashboard: Dashboard
       {view:"loyalty" as ViewKey,title:"Loyalty",sub:"Points, tiers and redemption activity",icon:<Award/>,tone:"blue"},
     ].map((item)=><button key={item.view} className="tr-service-card" onClick={()=>onNavigate(item.view)}><span className={`tr-service-icon ${item.tone}`}>{item.icon}</span><span className="tr-service-title">{item.title}</span><span className="tr-service-sub">{item.sub}</span><span className="tr-service-status">View details</span></button>)}</div></section>
     <section className="tr-lower-grid"><div className="tr-widget-card"><div className="tr-widget-heading"><div><h2>{accountType === "business" ? "Business activity" : accountType === "agent" ? "Reseller activity" : "Recent transactions"}</h2><p>{accountType === "business" ? "Recent activity on your business wallet" : accountType === "agent" ? "Recent wallet and service activity" : "Your latest account activity"}</p></div><button onClick={()=>onNavigate("activity")}>View all <ArrowRight/></button></div>{recent.length?recent.map(entry=><TransactionRow key={entry.id} transaction={entry}/>):<EmptyState icon={<FileClock/>} title="No transactions yet" copy="Your wallet activity will appear here."/>}</div>
-      {(dashboard?.plans?.length ?? 0) > 0 && <div className="tr-widget-card tr-network-card"><div className="tr-widget-heading"><div><h2>Mobile networks</h2><p>Networks available in the published supplier catalogue</p></div></div>{Array.from(new Set(dashboard?.plans.map((plan) => plan.network) ?? [])).map((choice,index)=><button className="tr-network-row" key={choice} onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><span>{choice}</span><ArrowRight/></button>)}</div>}</section>
+      {(dashboard?.plans?.length ?? 0) > 0 && <div className="tr-widget-card tr-network-card"><div className="tr-widget-heading"><div><h2>Mobile networks</h2><p>Networks returned by Topupmate</p></div></div>{Array.from(new Set(dashboard?.plans.map((plan) => plan.network) ?? [])).map((choice,index)=><button className="tr-network-row" key={choice} onClick={()=>onNavigate("buy")}><NetworkMark network={choice} index={index}/><span>{choice}</span><ArrowRight/></button>)}</div>}</section>
   </div>;
 }
 
@@ -431,14 +439,14 @@ function AccountServiceTile({
 type FeatureView = Exclude<ViewKey, "overview" | "buy" | "fund" | "activity">;
 
 const featureDetails: Record<FeatureView, {title:string;eyebrow:string;description:string;icon:ReactNode;group:"service"|"growth";emptyTitle:string;emptyCopy:string}> = {
-  airtime:{title:"Buy airtime",eyebrow:"DIGITAL SERVICES",description:"Top up a mobile number using live supplier availability and your account's applicable price.",icon:<Smartphone/>,group:"service",emptyTitle:"Airtime catalogue unavailable",emptyCopy:"Airtime networks and denominations will appear when a supplier catalogue is successfully synchronized and published."},
-  cable:{title:"Cable TV",eyebrow:"DIGITAL SERVICES",description:"Verify a decoder or smart-card number, choose an available package and review the price before payment.",icon:<Tv/>,group:"service",emptyTitle:"TV packages not available yet",emptyCopy:"Only packages returned by a connected supplier and published by the platform will be shown here."},
+  airtime:{title:"Buy airtime",eyebrow:"DIGITAL SERVICES",description:"Top up a mobile number using live supplier availability and your account's applicable price.",icon:<Smartphone/>,group:"service",emptyTitle:"Airtime catalogue unavailable",emptyCopy:"Airtime networks and denominations appear automatically from the live Topupmate catalogue."},
+  cable:{title:"Cable TV",eyebrow:"DIGITAL SERVICES",description:"Verify a decoder or smart-card number, choose an available package and review the price before payment.",icon:<Tv/>,group:"service",emptyTitle:"TV packages not available yet",emptyCopy:"Packages returned by the active supplier are shown automatically with Admin-configured selling prices."},
   electricity:{title:"Electricity",eyebrow:"DIGITAL SERVICES",description:"Choose a supported distribution company, verify the meter and review the payable amount before purchase.",icon:<Lightbulb/>,group:"service",emptyTitle:"Electricity providers unavailable",emptyCopy:"Supported discos and meter-payment options will appear after the live provider catalogue is connected."},
   epin:{title:"Recharge PINs",eyebrow:"DIGITAL SERVICES",description:"Browse Topupmate recharge vouchers and denominations, with secure PIN delivery after confirmed fulfilment.",icon:<Pin/>,group:"service",emptyTitle:"Recharge PIN catalogue unavailable",emptyCopy:"Only supplier-confirmed PIN products and prices will be listed here."},
-  "data-pin":{title:"Data PINs",eyebrow:"DIGITAL SERVICES",description:"Generate and manage supplier-backed mobile data vouchers for distribution.",icon:<PackageCheck/>,group:"service",emptyTitle:"Data PIN catalogue unavailable",emptyCopy:"Available data PIN plans will appear after Topupmate catalogue sync and admin publication."},
-  education:{title:"Education PINs",eyebrow:"DIGITAL SERVICES",description:"Purchase supported WAEC, NECO and other examination PINs.",icon:<ShieldCheck/>,group:"service",emptyTitle:"Education PINs unavailable",emptyCopy:"Exam providers and current prices will load from Topupmate when published."},
+  "data-pin":{title:"Data PINs",eyebrow:"DIGITAL SERVICES",description:"Generate and manage supplier-backed mobile data vouchers for distribution.",icon:<PackageCheck/>,group:"service",emptyTitle:"Data PIN catalogue unavailable",emptyCopy:"Available data PIN plans appear automatically when Topupmate returns the catalogue."},
+  education:{title:"Education PINs",eyebrow:"DIGITAL SERVICES",description:"Purchase supported WAEC, NECO and other examination PINs.",icon:<ShieldCheck/>,group:"service",emptyTitle:"Education PINs unavailable",emptyCopy:"Exam providers and current prices load from the Topupmate service catalogue."},
   internet:{title:"Internet services",eyebrow:"DIGITAL SERVICES",description:"Explore supported broadband and specialist data services from Topupmate.",icon:<RadioTower/>,group:"service",emptyTitle:"Internet services unavailable",emptyCopy:"Only supplier-returned plans will appear here."},
-  "gift-cards":{title:"Gift Cards",eyebrow:"DIGITAL SERVICES",description:"Browse digital gift-card products and purchase eligible denominations.",icon:<Gift/>,group:"service",emptyTitle:"Gift-card catalogue is being connected",emptyCopy:"Topupmate gift cards require a dedicated catalogue normalizer and verified purchase/redeem flow before publication."},
+  "gift-cards":{title:"Gift Cards",eyebrow:"DIGITAL SERVICES",description:"Browse digital gift-card products and purchase eligible denominations.",icon:<Gift/>,group:"service",emptyTitle:"Gift-card catalogue is being connected",emptyCopy:"Topupmate gift cards use the supplier catalogue, denomination mapping and verified purchase/redeem flow."},
   cards:{title:"Virtual Cards",eyebrow:"CARDS & PAYMENTS",description:"Create and manage virtual payment cards, fund cards, review transactions and control card security.",icon:<CreditCard/>,group:"service",emptyTitle:"No virtual cards yet",emptyCopy:"Complete your cardholder details and approved KYC to request your first virtual card."},
   fx:{title:"FX Exchange",eyebrow:"CURRENCY",description:"Get a live provider quote and convert currencies using a time-limited rate.",icon:<Globe2/>,group:"service",emptyTitle:"FX conversion is not enabled yet",emptyCopy:"Live quotes and execution will be connected after quote expiry, wallet currency and settlement controls are implemented."},
   referrals:{title:"Refer and earn",eyebrow:"REWARDS & GROWTH",description:"Invite people to TolirexData and follow referral qualification and reward settlement.",icon:<Users/>,group:"growth",emptyTitle:"Your referral programme is not active yet",emptyCopy:"Your referral code and reward history will appear here when the programme is enabled by the platform."},
@@ -453,6 +461,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [airtimePhone,setAirtimePhone]=useState("");
   const [airtimeAmount,setAirtimeAmount]=useState("100");
   const [airtimeCouponCode,setAirtimeCouponCode]=useState("");
+  const [airtimeCustomAmount,setAirtimeCustomAmount]=useState(false);
   const [selectedProductId,setSelectedProductId]=useState("");
   const [selectedOptionCode,setSelectedOptionCode]=useState("");
   const [recipient,setRecipient]=useState("");
@@ -460,6 +469,9 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const [meterType,setMeterType]=useState<"prepaid"|"postpaid">("prepaid");
   const [serviceAmount,setServiceAmount]=useState("1000");
   const [quantity,setQuantity]=useState("1");
+  const [giftCountry,setGiftCountry]=useState("ALL");
+  const [giftCategory,setGiftCategory]=useState("ALL");
+  const [giftSearch,setGiftSearch]=useState("");
   const [couponCode,setCouponCode]=useState("");
   const [internetAccountType,setInternetAccountType]=useState<"PhoneNumber"|"AccountNumber">("PhoneNumber");
   const [verifiedName,setVerifiedName]=useState("");
@@ -475,7 +487,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const options=catalogueOptions.filter((option)=>option.category_code===categoryCode);
   const products=catalogue.filter((item)=>item.category_code===categoryCode);
   const selectedProduct=products.find((item)=>item.id===selectedProductId);
-  const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":"network";
+  const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":view==="internet"?"internet_provider":view==="education"?"exam_provider":"network";
   const supplierOptions=options.filter((option)=>option.option_type===optionType);
   // Match IyanjuPay: keep network selection usable from real supplier plans
   // if a separate network option row is missing from the imported catalogue.
@@ -509,7 +521,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     finally{setServiceBusy(false);}
   };
   const buyExpanded=async()=>{
-    if(!selectedProduct&&view!=="electricity"){setServiceNotice("Choose a published supplier product first.");return;}
+    if(!selectedProduct&&view!=="electricity"&&!(view==="internet"&&selectedOptionCode!=="smile")){setServiceNotice("Choose an available supplier product first.");return;}
     setServiceBusy(true);setServiceNotice("");setFulfilment(null);
     try{
       const category=categoryCode;
@@ -519,7 +531,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         recipient,quantity:Number(quantity)||1,contactPhone:contactPhone||undefined,couponCode:couponCode.trim().toUpperCase()||undefined,idempotencyKey:crypto.randomUUID().replace(/-/g,"")};
       const payload=view==="electricity"?{...base,amount:Number(serviceAmount),meterType}
         :view==="cable"?{...base,subtype:"renew"}
-        :view==="internet"?{...base,accountType:internetAccountType}
+        :view==="internet"?{...base,amount:selectedOptionCode==="smile"?undefined:Number(serviceAmount),accountType:internetAccountType}
         :view==="gift-cards"?{...base}
         :base;
       const result=await runExpanded(payload);
@@ -534,7 +546,14 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     }catch(error){setServiceNotice(messageOf(error,"The purchase could not be completed."));}
     finally{setServiceBusy(false);}
   };
-  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode||({"1":"MTN","2":"Airtel","3":"Glo","4":"9mobile"}[String(item.network_or_operator)]===serviceOptions.find(o=>o.option_code===selectedOptionCode)?.name));
+  const giftCountries=Array.from(new Set(products.map(item=>item.country_code).filter((value):value is string=>!!value)));
+  const giftCategories=Array.from(new Set(products.map(item=>item.product_category).filter((value):value is string=>!!value)));
+  const visibleGiftProducts=products.filter(item=>
+    (giftCountry==="ALL"||item.country_code===giftCountry)&&
+    (giftCategory==="ALL"||item.product_category===giftCategory)&&
+    (!giftSearch.trim()||item.name.toLowerCase().includes(giftSearch.trim().toLowerCase()))
+  );
+  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin","education"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode||({"1":"MTN","2":"Airtel","3":"Glo","4":"9mobile"}[String(item.network_or_operator)]===serviceOptions.find(o=>o.option_code===selectedOptionCode)?.name));
   const checkExpandedStatus=async()=>{
     if(!lastServiceReference)return;
     setServiceBusy(true);setServiceNotice("");
@@ -565,10 +584,10 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     </section>
     {view==="cards" ? <VirtualCardsWorkspace busy={busy}/> : view==="airtime" ? <section className="tr-feature-panel">
       <div className="tr-feature-panel-heading"><div><h3>Buy airtime</h3><p>Networks and their identifiers come from the synchronized Topupmate catalogue.</p></div><span className="tr-catalogue-state"><i/>{serviceOptions.length?"Networks available":"No supplier networks available"}</span></div>
-      {options.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount),couponCode:airtimeCouponCode.trim().toUpperCase()||undefined});}}>
+      {serviceOptions.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount),couponCode:airtimeCouponCode.trim().toUpperCase()||undefined});}}>
         <div className="grid gap-2"><p className="text-sm font-semibold">Choose mobile network</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{options.map((option,index)=><ProviderChoice key={option.id} name={option.name} code={option.option_code} selected={airtimeNetwork===option.option_code} index={index} onClick={()=>setAirtimeNetwork(option.option_code)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Phone number<Input inputMode="numeric" maxLength={11} placeholder="08012345678" value={airtimePhone} onChange={(event)=>setAirtimePhone(event.target.value.replace(/\D/g,""))} required/></label>
-        <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={(event)=>setAirtimeAmount(event.target.value)} required/></label>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Select amount</p><div className="grid grid-cols-4 gap-2 sm:grid-cols-8">{[50,100,200,500,1000,2000,5000].map(value=><button key={value} type="button" onClick={()=>{setAirtimeAmount(String(value));setAirtimeCustomAmount(false);}} className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${airtimeAmount===String(value)&&!airtimeCustomAmount?"border-primary bg-primary/10 text-primary":"border-border bg-background"}`}>₦{value.toLocaleString("en-NG")}</button>)}<button type="button" onClick={()=>{setAirtimeCustomAmount(true);setAirtimeAmount("");}} className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${airtimeCustomAmount?"border-primary bg-primary/10 text-primary":"border-border bg-background"}`}>Custom</button></div>{airtimeCustomAmount&&<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={event=>setAirtimeAmount(event.target.value)} placeholder="Enter amount" required/>}</div>
         <label className="grid gap-2 text-sm font-medium">Coupon code (optional)<Input value={airtimeCouponCode} onChange={event=>setAirtimeCouponCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/></label>
         <Button type="submit" disabled={busy||!airtimeNetwork||!/^\d{11}$/.test(airtimePhone)||Number(airtimeAmount)<50||Number(airtimeAmount)>200000}>{busy?"Processing…":"Continue to purchase"} <ArrowRight/></Button>
       </form> : <EmptyState icon={<Smartphone/>} title="Airtime networks unavailable" copy="The supplier has not returned any usable mobile networks yet. Synchronize the Topupmate catalogue and check the provider response."/>}
@@ -601,29 +620,36 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={100} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||!selectedOptionCode||Number(quantity)<1||Number(quantity)>100} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase PINs"} <ArrowRight/></Button>
       </div>}
-      {view==="education"&&<div className="mt-5 grid max-w-xl gap-4">
-        <div className="grid gap-2"><p className="text-sm font-semibold">Choose examination PIN</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
+      {view==="education"&&<div className="mt-5 grid max-w-2xl gap-4">
+        <div className="grid gap-2"><p className="text-sm font-semibold">Select examination provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");}}/>)}</div></div>
+        {selectedOptionCode&&<div className="grid gap-2"><p className="text-sm font-semibold">Select PIN package</p><div className="grid gap-2 sm:grid-cols-2">{selectedProducts.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div>{selectedProducts.length===0&&<EmptyState icon={<GraduationCap/>} title="No packages available" copy="The selected exam provider has no available PIN packages at the moment."/ >}</div>}
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
-        <Button disabled={serviceBusy||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
+        <Button disabled={serviceBusy||!selectedOptionCode||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
       </div>}
       {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
-        <div className="grid gap-2"><p className="text-sm font-semibold">Choose internet plan</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
-        <label className="grid gap-2 text-sm font-medium">ISP account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Enter account number or phone"/></label>
-        <label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>
-        <Button disabled={serviceBusy||!selectedProductId||!recipient} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Buy internet plan"} <ArrowRight/></Button>
+        <div className="grid gap-2"><p className="text-sm font-semibold">Choose internet provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");setVerifiedName("");setRecipient("");}}/>)}</div></div>
+        {selectedOptionCode==="smile"?<div className="grid gap-2"><p className="text-sm font-semibold">Choose Smile bundle</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>:selectedOptionCode&&<label className="grid gap-2 text-sm font-medium">Top-up amount (₦)<Input type="number" min={50} max={200000} value={serviceAmount} onChange={e=>setServiceAmount(e.target.value)}/></label>}
+        <label className="grid gap-2 text-sm font-medium">ISP account / phone number<Input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder={selectedOptionCode==="smile"?"Smile account number or registered phone":"Enter phone number"}/></label>
+        {selectedOptionCode==="smile"&&<label className="grid gap-2 text-sm font-medium">Account identifier type<select className="h-11 border bg-background px-3" value={internetAccountType} onChange={e=>setInternetAccountType(e.target.value as "PhoneNumber"|"AccountNumber")}><option value="PhoneNumber">Phone number</option><option value="AccountNumber">Account number</option></select></label>}
+        <Button disabled={serviceBusy||!selectedOptionCode||!recipient||(selectedOptionCode==="smile"?!selectedProductId:Number(serviceAmount)<=0)} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":selectedOptionCode==="smile"?"Buy Smile bundle":"Buy internet top-up"} <ArrowRight/></Button>
       </div>}
-      {view==="gift-cards"&&<div className="mt-5 grid max-w-xl gap-4">
-        <div className="grid gap-2"><p className="text-sm font-semibold">Choose gift card</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
+      {view==="gift-cards"&&<div className="mt-5 grid max-w-3xl gap-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_180px_180px]">
+          <label className="grid gap-2 text-sm font-medium">Search gift cards<Input value={giftSearch} onChange={e=>setGiftSearch(e.target.value)} placeholder="Search gift card brands"/></label>
+          <label className="grid gap-2 text-sm font-medium">Country<select className="h-10 rounded-lg border bg-background px-3 text-sm" value={giftCountry} onChange={e=>setGiftCountry(e.target.value)}><option value="ALL">All countries</option>{giftCountries.map(country=><option key={country} value={country}>{country}</option>)}</select></label>
+          <label className="grid gap-2 text-sm font-medium">Category<select className="h-10 rounded-lg border bg-background px-3 text-sm" value={giftCategory} onChange={e=>setGiftCategory(e.target.value)}><option value="ALL">All categories</option>{giftCategories.map(category=><option key={category} value={category}>{category}</option>)}</select></label>
+        </div>
+        <div className="grid gap-2"><div className="flex items-center justify-between"><p className="text-sm font-semibold">Choose gift card denomination</p><span className="text-xs text-muted-foreground">{visibleGiftProducts.length} available</span></div><div className="grid gap-2 sm:grid-cols-2">{visibleGiftProducts.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div>{visibleGiftProducts.length===0&&<EmptyState icon={<Gift/>} title="No matching gift cards" copy="Try another country, category or search term."/ >}</div>
         <label className="grid gap-2 text-sm font-medium">Recipient email<Input type="email" value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="recipient@example.com"/></label>
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||!/^\S+@\S+\.\S+$/.test(recipient)||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase gift card"} <ArrowRight/></Button>
       </div>}
-      {products.length===0&&view!=="electricity"&&<EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}
+      {products.length===0&&view!=="electricity"&&!(view==="internet"&&serviceOptions.length>0)&&<EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}
       {serviceNotice&&<div className="mt-4 text-sm text-muted-foreground">{serviceNotice}</div>}
       {lastServiceReference&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><p className="text-xs font-semibold">Supplier reference</p><p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{lastServiceReference}</p></div>{servicePending&&<Button type="button" variant="outline" size="sm" disabled={serviceBusy} onClick={()=>void checkExpandedStatus()}>{serviceBusy?"Checking…":"Check transaction status"}</Button>}</div>}
       {view==="gift-cards"&&lastGiftCardReference&&giftCardRetrievalPending&&<Button type="button" variant="outline" className="mt-4" disabled={serviceBusy} onClick={()=>void retrieveGiftCard()}>{serviceBusy?"Retrieving…":"Retrieve gift-card code"}</Button>}
       {fulfilment&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h4 className="text-sm font-semibold text-emerald-900">Supplier fulfilment details</h4><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs text-emerald-950">{JSON.stringify(fulfilment,null,2)}</pre></div>}
-    </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Supplier-sourced catalogue · published platform prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Published catalogue":"Not yet published"}</span></div>{products.length ? <div className="tr-catalogue-products">{products.map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/ >}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
+    </section> : feature.group==="service" ? <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Available products</h3><p>Live supplier catalogue · Admin-controlled selling prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Products available":"No supplier products available"}</span></div>{products.length ? <div className="tr-catalogue-products">{products.map((item)=><div className="tr-catalogue-product" key={item.id}><div><strong>{item.name}</strong><span>{item.network_or_operator ?? item.description ?? item.category_name}</span></div><b>{formatNaira(item.selling_price)}</b></div>)}</div> : <EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/ >}{options.length>0&&<div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold text-foreground">Available networks and operators</h4><div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option.id} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground">{option.name}</span>)}</div></div>}</section> : <section className="tr-feature-panel"><div className="tr-feature-panel-heading"><div><h3>Your programme</h3><p>Offers and rewards are controlled by TolirexData</p></div><span className="tr-catalogue-state"><i/>Programme status</span></div><EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/></section>}
     <p className="tr-feature-footnote"><ShieldCheck/> Prices, eligibility and rewards are validated by the platform. This page does not invent offers, balances or successful transactions.</p>
   </div>;
 }
@@ -702,8 +728,8 @@ function BuyDataView(props: {
   network: Network;
   setNetwork: (network: Network) => void;
   networkChoices: string[];
-  selectedPlanType:"sme"|"gifting"|"corporate"|"";
-  setSelectedPlanType:(value:"sme"|"gifting"|"corporate"|"")=>void;
+  selectedPlanType:"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"";
+  setSelectedPlanType:(value:"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"")=>void;
   plans: DataPlan[];
   selectedPlan: DataPlan | undefined;
   selectedPlanId: string;
@@ -716,9 +742,11 @@ function BuyDataView(props: {
 }) {
   const filteredPlans = props.plans.filter(plan => plan.network === props.network && plan.planType === props.selectedPlanType);
   const typeCounts = {
-    sme: props.plans.filter(plan => plan.network === props.network && plan.planType === "sme").length,
-    gifting: props.plans.filter(plan => plan.network === props.network && plan.planType === "gifting").length,
-    corporate: props.plans.filter(plan => plan.network === props.network && plan.planType === "corporate").length,
+    DAILY: props.plans.filter(plan => plan.network === props.network && plan.planType === "DAILY").length,
+    WEEKLY: props.plans.filter(plan => plan.network === props.network && plan.planType === "WEEKLY").length,
+    MONTHLY: props.plans.filter(plan => plan.network === props.network && plan.planType === "MONTHLY").length,
+    YEARLY: props.plans.filter(plan => plan.network === props.network && plan.planType === "YEARLY").length,
+    OTHER: props.plans.filter(plan => plan.network === props.network && plan.planType === "OTHER").length,
   };
   const networkInitials = (name: string) => name === "9mobile" ? "9M" : name.slice(0,3).toUpperCase();
   return (
@@ -734,23 +762,18 @@ function BuyDataView(props: {
           <div>
             <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">1. Select network</h3><span className="text-xs text-slate-400">{props.networkChoices.length} available</span></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {props.networkChoices.map(choice => {
-                const label = networkDisplayName(choice);
-                const active = props.network === choice;
-                return <button key={choice} type="button" onClick={() => {props.setNetwork(choice);props.setSelectedPlanId("");props.setSelectedPlanType("");}} aria-pressed={active} className={`group flex min-h-[76px] items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all ${active ? "border-primary bg-primary/[.06] ring-2 ring-primary/10" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}>
-                  <span className={`grid size-10 shrink-0 place-items-center rounded-full text-xs font-bold ${active ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>{networkInitials(label)}</span>
-                  <span className="min-w-0"><strong className="block text-sm font-semibold text-slate-900">{label}</strong><small className="mt-0.5 block text-xs text-slate-500">Mobile network</small></span>
-                  {active && <CheckCircle2 className="ml-auto size-4 shrink-0 text-primary"/>}
-                </button>;
+              {props.networkChoices.map((choice,index) => {
+                const label=networkDisplayName(choice);
+                return <ProviderChoice key={choice} name={label} code={choice} selected={props.network===choice} index={index} onClick={()=>{props.setNetwork(choice);props.setSelectedPlanId("");props.setSelectedPlanType("DAILY");}}/>;
               })}
             </div>
           </div>
           <div>
-            <div className="mb-3"><h3 className="text-sm font-semibold text-slate-800">2. Choose bundle type</h3><p className="mt-1 text-xs text-slate-500">Plans are grouped using the classification supplied by Topupmate.</p></div>
-            <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1.5">
-              {(["sme","gifting","corporate"] as const).map(type => {
+            <div className="mb-3"><h3 className="text-sm font-semibold text-slate-800">2. Choose duration</h3><p className="mt-1 text-xs text-slate-500">Browse Daily, Weekly, Monthly, Yearly and other bundles.</p></div>
+            <div className="grid grid-cols-5 gap-1 rounded-xl bg-slate-100 p-1.5">
+              {(["DAILY","WEEKLY","MONTHLY","YEARLY","OTHER"] as const).map(type => {
                 const active=props.selectedPlanType===type;
-                const label=type==="sme"?"SME":type==="gifting"?"Gifting":"Corporate";
+                const label=type==="OTHER"?"Others":type.charAt(0)+type.slice(1).toLowerCase();
                 return <button key={type} type="button" onClick={()=>{props.setSelectedPlanType(type);props.setSelectedPlanId("");}} aria-pressed={active} className={`rounded-lg px-2 py-3 text-sm font-semibold transition-all ${active ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
                   {label}<span className={`ml-1.5 text-[10px] ${active?"text-primary/70":"text-slate-400"}`}>{props.network ? typeCounts[type] : ""}</span>
                 </button>;
@@ -760,8 +783,8 @@ function BuyDataView(props: {
           <div>
             <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">3. Select a plan</h3>{props.selectedPlanType && <span className="text-xs text-slate-400">{filteredPlans.length} plans</span>}</div>
             {!props.network ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><Database className="mx-auto size-7 text-slate-300"/><p className="mt-2 text-sm font-medium text-slate-700">Choose your network</p><p className="mt-1 text-xs text-slate-500">Available data bundles will appear here.</p></div>
-            : !props.selectedPlanType ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">Choose a bundle type</p><p className="mt-1 text-xs text-slate-500">Select SME, Gifting or Corporate to see available plans.</p></div>
-            : filteredPlans.length === 0 ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">No {props.selectedPlanType} plans published for {networkDisplayName(props.network)}</p><p className="mt-1 text-xs text-slate-500">Try another bundle type or check back after the supplier catalogue is refreshed.</p></div>
+            : !props.selectedPlanType ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">Choose a bundle type</p><p className="mt-1 text-xs text-slate-500">Choose a duration tab to see available data bundles.</p></div>
+            : filteredPlans.length === 0 ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-9 text-center"><p className="text-sm font-medium text-slate-700">No {props.selectedPlanType.toLowerCase()} plans available for {networkDisplayName(props.network)}</p><p className="mt-1 text-xs text-slate-500">Try another bundle type or check back after the supplier catalogue is refreshed.</p></div>
             : <div className="grid gap-3 sm:grid-cols-2">
               {filteredPlans.map(plan => {
                 const chosen=props.selectedPlan?.id===plan.id || props.selectedPlanId===plan.id;
@@ -772,7 +795,7 @@ function BuyDataView(props: {
               })}
             </div>}
           </div>
-          <p className="flex items-center gap-2 border-t border-slate-100 pt-4 text-[11px] text-slate-400"><ShieldCheck className="size-4"/> Only published supplier plans and configured selling prices are displayed.</p>
+          <p className="flex items-center gap-2 border-t border-slate-100 pt-4 text-[11px] text-slate-400"><ShieldCheck className="size-4"/> Live Topupmate bundles are displayed with the selling price configured by TolirexData.</p>
         </div>
       </section>
       <form onSubmit={props.onBuy} className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -910,22 +933,47 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
   );
 }
 
+function providerLogoKey(name:string,code=""):string {
+  const value=(name+" "+code).toLowerCase().replace(/[^a-z0-9]+/g," ");
+  const entries:[RegExp,string][]=[
+    [/\\bmtn\\b/,"mtn"],[/airtel/,"airtel"],[/\\bglo\\b|globacom/,"glo"],[/9 mobile|9mobile|etisalat/,"9mobile"],
+    [/smile/,"smile"],[/alpha/,"alpha"],[/kirani/,"kirani"],[/ratel/,"ratel"],
+    [/dstv/,"dstv"],[/gotv|go tv/,"gotv"],[/startime/,"startimes"],
+    [/abuja|aedc/,"aedc"],[/benin|bedc/,"bedc"],[/enugu|eedc/,"eedc"],[/eko|ekedc/,"ekedc"],
+    [/ibadan|ibedc/,"ibedc"],[/ikeja|ikedc/,"ikedc"],[/jos|jedc?/,"jed"],[/kaduna|kaedco/,"kaedco"],
+    [/kano|kedco/,"kedco"],[/port harcourt|phedc/,"phed"],[/yola|yedc/,"yedc"],
+    [/\\bwaec\\b/,"waec"],[/\\bneco\\b/,"neco"],[/\\bjamb\\b/,"jamb"],[/nabteb/,"nabteb"]
+  ];
+  return entries.find(([pattern])=>pattern.test(value))?.[1]??"";
+}
 function ProviderChoice({name,code,selected,index,onClick}:{name:string;code:string;selected:boolean;index:number;onClick:()=>void}) {
   const tones=["bg-emerald-50 text-emerald-700","bg-blue-50 text-blue-700","bg-amber-50 text-amber-700","bg-violet-50 text-violet-700"];
   const initials=name.trim().split(/\\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();
-  return <button type="button" aria-pressed={selected} onClick={onClick} className={`group flex min-h-[82px] items-center gap-3 rounded-2xl border bg-background p-3 text-left transition hover:border-primary/50 hover:bg-primary/[0.03] ${selected?"border-primary bg-primary/[0.06] ring-2 ring-primary/10":"border-border"}`}>
-    <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold ${tones[index%tones.length]}`}>{initials||name.slice(0,1).toUpperCase()}</span>
-    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{name}</span><span className="mt-0.5 block text-xs text-muted-foreground">{selected?"Selected":"Choose provider"}</span></span>
-    <span className={`grid size-5 shrink-0 place-items-center rounded-full border text-[11px] ${selected?"border-primary bg-primary text-primary-foreground":"border-muted-foreground/30 text-transparent"}`}>✓</span>
+  const logo=providerLogoKey(name,code);
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={`group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-2xl border bg-background p-2 text-center transition hover:border-primary/50 hover:bg-primary/[0.03] ${selected?"border-primary bg-primary/[0.06] ring-2 ring-primary/10":"border-border"}`}>
+    <span className={`relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl text-sm font-extrabold ${tones[index%tones.length]}`}>
+      {initials||name.slice(0,1).toUpperCase()}
+      {logo&&<img src={`https://raw.githubusercontent.com/Al-awwaliyah/iyanjupay/main/public/providers/${logo}.svg`} alt="" className="absolute inset-0 size-full bg-white object-contain p-1.5" loading="lazy"/>}
+    </span>
+    <span className="block max-w-full truncate text-xs font-semibold">{name}</span>
   </button>;
 }
 
 function ProductChoice({product,selected,onClick}:{product:CatalogueProduct;selected:boolean;onClick:()=>void}) {
-  return <button type="button" aria-pressed={selected} onClick={onClick} className={`flex min-h-[68px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition hover:border-primary/50 ${selected?"border-primary bg-primary/[0.05] ring-2 ring-primary/10":"border-border bg-background"}`}>
-    <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${selected?"bg-primary text-primary-foreground":"bg-secondary text-muted-foreground"}`}>▦</span>
-    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{product.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">Published package</span></span>
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={`flex min-h-[76px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition hover:border-primary/50 ${selected?"border-primary bg-primary/[0.05] ring-2 ring-primary/10":"border-border bg-background"}`}>
+    <span className={`grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg ${selected?"bg-primary/10 text-primary":"bg-secondary text-muted-foreground"}`}>{product.logo_url?<img src={product.logo_url} alt="" className="size-full bg-white object-contain p-1"/>:"▦"}</span>
+    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{product.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">{product.country_code||product.description||"Supplier product"}</span></span>
     <span className="whitespace-nowrap text-sm font-bold">{formatNaira(product.selling_price)}</span>
   </button>;
+}
+
+function canonicalNetworkLabel(name:string,code:string):string {
+  const value=(name+" "+code).toLowerCase().replace(/[^a-z0-9]/g,"");
+  if(value.includes("mtn")||value==="1"||value==="01")return "MTN";
+  if(value.includes("airtel")||value==="2"||value==="02")return "Airtel";
+  if(value.includes("glo")||value==="3"||value==="03")return "Glo";
+  if(value.includes("9mobile")||value.includes("etisalat")||value==="4"||value==="04")return "9mobile";
+  return name||code;
 }
 
 function NetworkMark({ network, index }: { network: string; index: number }) {

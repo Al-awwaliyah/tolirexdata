@@ -34,6 +34,7 @@ const services = [
   {key:"cable-provider", category:"cable_tv", kind:"options", optionType:"cable_provider"},
   {key:"cabletv", category:"cable_tv", kind:"products"},
   {key:"electricity", category:"electricity", kind:"options", optionType:"operator"},
+  {key:"exampin", category:"education", kind:"options", optionType:"exam_provider"},
   {key:"exampin", category:"education", kind:"products"},
   {key:"recharge-card", category:"recharge_pin", kind:"products"},
   {key:"datapin", category:"data_pin", kind:"products"},
@@ -71,7 +72,7 @@ Deno.serve(async req => {
       // The same cable catalogue can contain both provider rows and priced plans.
       const serviceKey=spec.key;
       const endpointCandidates=spec.key==="recharge-card"
-        ? ["rechargepin","recharge-pin","recharge-card"]
+        ? ["rechargepin","recharge-pin","recharge-card","airtimepin","airtime-pin"]
         : spec.key==="datapin"
           ? ["datapin","data-pin","data-card"]
           : [serviceKey];
@@ -88,25 +89,34 @@ Deno.serve(async req => {
         }catch(error){lastEndpointError=error;}
       }
       if(payload===null){
+        // IyanjuPay tries the same aliases and leaves the PIN service empty when
+        // none of the live catalogue keys is accepted. Do not fail the entire
+        // provider sync because an optional PIN catalogue is unavailable.
+        if(spec.key==="recharge-card"||spec.key==="datapin"){
+          results.push({service:spec.key,status:"skipped",reason:"No supported Topupmate catalogue key returned products"});
+          continue;
+        }
         throw lastEndpointError instanceof Error?lastEndpointError:new Error("Topupmate catalogue endpoint returned no response");
       }
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
       let list=rows(payload);
       // IyanjuPay also checks /status/ for live Cable TV and electricity
       // provider lists; some Topupmate accounts expose the operators there.
-      if((spec.key==="cable-provider"||spec.key==="electricity")&&!list.length){
+      if(spec.key==="cable-provider"||spec.key==="electricity"){
         try{
           const statusPayload=await fetchEndpoint("/status/");
           const statusRoot=statusPayload as Obj;
           const statusRows=spec.key==="cable-provider"
             ? statusRoot.cable
             : statusRoot.electricity;
+          // IyanjuPay always prefers the provider/operator list from /status/
+          // when the live account returns it, even if /services/ had rows.
           if(Array.isArray(statusRows)&&statusRows.length){
             payload={response:statusRows};
             list=rows(payload);
             await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
           }
-        }catch{/* Keep the original /services/ response; the endpoint failure is non-fatal. */}
+        }catch{/* Keep the successful /services/ response when /status/ is unavailable. */}
       }
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
@@ -121,6 +131,8 @@ Deno.serve(async req => {
               ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
               : spec.key==="datapin"
                 ? ["data_plan","dataplan","planid","plan_id","planId","item_code","id","code"]
+              : spec.key==="exampin"
+                ? ["id","provider_id","providerId","provider","code"]
                 : ["plan_id","planid","planId","id","provider_id","providerId","code","product_id","productId"];
         const code=first(item,codeKeys);
         const label=spec.kind==="options"
@@ -139,9 +151,9 @@ Deno.serve(async req => {
         } else {
           const cost=num(item.price??item.amount??item.cost??item.provider_price??item.providerPrice??item.selling_price);
           if(!cost) continue;
-          let network=networkCode(first(item,["networkid","network_id","networkId","network_code","networkCode","network","network_name","networkName","provider_id","provider","provider_name"]));
+          let network=spec.category==="education"?first(item,["id","provider_id","providerId","provider","provider_name"]):networkCode(first(item,["networkid","network_id","networkId","network_code","networkCode","network","network_name","networkName","provider_id","provider","provider_name"]));
           if(network&&!/^\d+$/.test(network)){
-            const optionType=spec.key==="cabletv"?"cable_provider":"network";
+            const optionType=spec.key==="cabletv"?"cable_provider":spec.category==="education"?"exam_provider":"network";
             const {data:matchedNetwork}=await admin.from("provider_service_options")
               .select("option_code").eq("provider_id",provider.id).eq("option_type",optionType)
               .ilike("name",network).limit(1).maybeSingle();
@@ -163,6 +175,57 @@ Deno.serve(async req => {
       results.push({service:spec.key,status:"failed",error:message});
     }
   }
+  // IyanjuPay's live service integration exposes these ISP choices directly.
+  // Smile has a fixed bundle catalogue in that implementation; Alpha, Kirani
+  // and Ratel are amount-based top-ups, so they are provider options, not plans.
+  const internetProviders=[
+    {key:"smile",name:"Smile"},
+    {key:"alpha",name:"Alpha Caller"},
+    {key:"kirani",name:"Kirani Caller"},
+    {key:"ratel",name:"Ratel"}
+  ];
+  for(const item of internetProviders){
+    const {error}=await admin.rpc("sync_provider_service_option",{
+      p_provider_code:"topupmate",p_category_code:"internet",
+      p_option_type:"internet_provider",p_option_code:item.key,
+      p_name:item.name,p_parent_option_code:null,
+      p_metadata:{source_service:item.key,amount_based:item.key!=="smile"}
+    });
+    if(!error)options++;
+  }
+  const smilePlans=[
+    {id:"828",name:"Smile Midi 1.5GB + 3GB Stream",price:1250,days:30},
+    {id:"848",name:"Smile Mini 3.5GB",price:1500,days:7},
+    {id:"845",name:"Smile Mini 3GB",price:1500,days:2},
+    {id:"829",name:"Smile Midi 2GB + 4GB Stream",price:1500,days:30},
+    {id:"804",name:"SmileVoice ONLY 135",price:1850,days:30},
+    {id:"830",name:"Smile Midi 3GB + 5GB Stream",price:2000,days:30},
+    {id:"846",name:"Smile Mini 5GB",price:2200,days:2},
+    {id:"849",name:"Smile Mini 6GB",price:2300,days:7},
+    {id:"831",name:"Smile Midi 6GB + 5GB Stream",price:3000,days:30},
+    {id:"832",name:"Smile Midi 8GB + 5GB Stream",price:3500,days:30},
+    {id:"808",name:"SmileVoice ONLY 175",price:3600,days:90},
+    {id:"833",name:"Smile Midi 10GB + 5GB Stream",price:4000,days:30},
+    {id:"843",name:"Smile Mini 1GB",price:450,days:1},
+    {id:"805",name:"SmileVoice ONLY 430",price:5700,days:30},
+    {id:"807",name:"SmileVoice ONLY 450",price:7200,days:60},
+    {id:"847",name:"Smile Mini 1GB",price:750,days:7},
+    {id:"844",name:"Smile Mini 2.5GB",price:750,days:1},
+    {id:"803",name:"SmileVoice ONLY 65",price:900,days:30},
+    {id:"809",name:"SmileVoice ONLY 500",price:9000,days:90}
+  ];
+  for(const plan of smilePlans){
+    const {error}=await admin.rpc("sync_provider_catalogue_product",{
+      p_provider_code:"topupmate",p_category_code:"internet",
+      p_product_code:"internet:smile:"+plan.id,p_name:plan.name,
+      p_network_or_operator:"smile",p_description:plan.days+" days",
+      p_face_value:null,p_cost_price:plan.price,
+      p_metadata:{source_service:"smile",supplier_plan_id:plan.id,
+        validity_days:plan.days,validity:plan.days+" days",internet_provider:"smile"}
+    });
+    if(!error)products++;
+  }
+  results.push({service:"internet",status:"success",records:internetProviders.length+smilePlans.length});
   try {
     const gift=await fetchEndpoint("/giftcard/available/");
     await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"giftcard:available",payload:gift,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
@@ -196,6 +259,10 @@ Deno.serve(async req => {
       const country=typeof countryValue==="object"&&countryValue?first(countryValue as Obj,["isoname","code"]):text(pick(item,["countrycode","country_code"])??countryValue);
       const currency=text(pick(item,["recipientcurrencycode","recipient_currency_code"]));
       const senderCurrency=text(pick(item,["sendercurrencycode","sender_currency_code"]));
+      const categoryValue=pick(item,["category","productcategory","product_category"]);
+      const productCategory=typeof categoryValue==="object"&&categoryValue
+        ? first(categoryValue as Obj,["name","label","code"])
+        : text(categoryValue);
       if(!currency||senderCurrency!=="NGN")continue;
       const logoValue=pick(item,["logourls","logo_urls","logourl","logo_url","logo","image"]);
       const logo=Array.isArray(logoValue)?text(logoValue[0]):text(logoValue);
@@ -211,7 +278,7 @@ Deno.serve(async req => {
           p_name:name+" "+denomination+" "+currency,p_network_or_operator:country||null,
           p_description:"Gift card · "+currency,p_face_value:denomination,p_cost_price:sender,
           p_metadata:{source_service:"giftcard",supplier_product_id:id,recipient_denomination:denomination,
-            recipient_currency:currency,sender_currency:senderCurrency,country_code:country,logo_url:logo,
+            recipient_currency:currency,sender_currency:senderCurrency,country_code:country,product_category:productCategory,logo_url:logo,
             redeem_instruction:redeem}
         });
         if(!error)giftProducts++;
@@ -240,7 +307,8 @@ Deno.serve(async req => {
     results.push({service:"giftcard",status:"success",records:gifts.length,normalizedProducts:giftProducts});
   } catch(error) { results.push({service:"giftcard",status:"failed",error:error instanceof Error?error.message:"Gift card catalogue failed"}); }
   const failed=results.filter(x=>x.status==="failed");
+  const skipped=results.filter(x=>x.status==="skipped");
   const status=failed.length===0?"success":failed.length===results.length?"failed":"partial";
-  await admin.from("provider_catalogue_sync_runs").update({status,discovered_products:products,discovered_options:options,failed_endpoints:failed,summary:{provider:"topupmate",results},completed_at:new Date().toISOString()}).eq("id",run.id);
-  return json({success:failed.length<results.length,status,provider:"topupmate",discoveredProducts:products,discoveredOptions:options,results},failed.length===results.length?502:200);
+  await admin.from("provider_catalogue_sync_runs").update({status,discovered_products:products,discovered_options:options,failed_endpoints:failed,summary:{provider:"topupmate",results,skipped},completed_at:new Date().toISOString()}).eq("id",run.id);
+  return json({success:failed.length<results.length,status,provider:"topupmate",discoveredProducts:products,discoveredOptions:options,results,skipped:skipped.length},failed.length===results.length?502:200);
 });
