@@ -38,6 +38,10 @@ const planGroupFromSupplier = (name: unknown, validity: unknown): "DAILY"|"WEEKL
     break;
   }
   if(!days){
+    const bare=String(validity??"").trim();
+    if(/^\\d+$/.test(bare))days=Number(bare);
+  }
+  if(!days){
     if(/\\byearly|annual|annually\\b/.test(source))days=365;
     else if(/\\bmonthly|month\\b/.test(source))days=30;
     else if(/\\bweekly|week\\b/.test(source))days=7;
