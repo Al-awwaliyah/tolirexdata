@@ -487,7 +487,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const options=catalogueOptions.filter((option)=>option.category_code===categoryCode);
   const products=catalogue.filter((item)=>item.category_code===categoryCode);
   const selectedProduct=products.find((item)=>item.id===selectedProductId);
-  const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":view==="internet"?"internet_provider":"network";
+  const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":view==="internet"?"internet_provider":view==="education"?"exam_provider":"network";
   const supplierOptions=options.filter((option)=>option.option_type===optionType);
   // Match IyanjuPay: keep network selection usable from real supplier plans
   // if a separate network option row is missing from the imported catalogue.
@@ -553,7 +553,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     (giftCategory==="ALL"||item.product_category===giftCategory)&&
     (!giftSearch.trim()||item.name.toLowerCase().includes(giftSearch.trim().toLowerCase()))
   );
-  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode||({"1":"MTN","2":"Airtel","3":"Glo","4":"9mobile"}[String(item.network_or_operator)]===serviceOptions.find(o=>o.option_code===selectedOptionCode)?.name));
+  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin","education"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode||({"1":"MTN","2":"Airtel","3":"Glo","4":"9mobile"}[String(item.network_or_operator)]===serviceOptions.find(o=>o.option_code===selectedOptionCode)?.name));
   const checkExpandedStatus=async()=>{
     if(!lastServiceReference)return;
     setServiceBusy(true);setServiceNotice("");
@@ -620,10 +620,11 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={100} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||!selectedOptionCode||Number(quantity)<1||Number(quantity)>100} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase PINs"} <ArrowRight/></Button>
       </div>}
-      {view==="education"&&<div className="mt-5 grid max-w-xl gap-4">
-        <div className="grid gap-2"><p className="text-sm font-semibold">Choose examination PIN</p><div className="grid gap-2 sm:grid-cols-2">{products.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div></div>
+      {view==="education"&&<div className="mt-5 grid max-w-2xl gap-4">
+        <div className="grid gap-2"><p className="text-sm font-semibold">Select examination provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");}}/>)}</div></div>
+        {selectedOptionCode&&<div className="grid gap-2"><p className="text-sm font-semibold">Select PIN package</p><div className="grid gap-2 sm:grid-cols-2">{selectedProducts.map(p=><ProductChoice key={p.id} product={p} selected={selectedProductId===p.id} onClick={()=>setSelectedProductId(p.id)}/>)}</div>{selectedProducts.length===0&&<EmptyState icon={<GraduationCap/>} title="No packages available" copy="The selected exam provider has no available PIN packages at the moment."/ >}</div>}
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
-        <Button disabled={serviceBusy||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
+        <Button disabled={serviceBusy||!selectedOptionCode||!selectedProductId||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase examination PIN"} <ArrowRight/></Button>
       </div>}
       {view==="internet"&&<div className="mt-5 grid max-w-xl gap-4">
         <div className="grid gap-2"><p className="text-sm font-semibold">Choose internet provider</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{serviceOptions.map((o,index)=><ProviderChoice key={o.id} name={o.name} code={o.option_code} selected={selectedOptionCode===o.option_code} index={index} onClick={()=>{setSelectedOptionCode(o.option_code);setSelectedProductId("");setVerifiedName("");setRecipient("");}}/>)}</div></div>
