@@ -23,11 +23,11 @@ const canonicalTopupmateNetworkName = (value: unknown, fallback = ""): string =>
 const planGroupFromSupplier = (name: unknown, validity: unknown): "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER" => {
   const source = `${String(validity ?? "")} ${String(name ?? "")}`.toLowerCase();
   const patterns: Array<[RegExp,number]> = [
-    [/(\\d+(?:\\.\\d+)?)\\s*(?:hours?|hrs?|h)\\b/,24],
-    [/(\\d+(?:\\.\\d+)?)\\s*(?:years?|yrs?)\\b/, -365],
-    [/(\\d+(?:\\.\\d+)?)\\s*(?:months?|mths?|mos?)\\b/, -30],
-    [/(\\d+(?:\\.\\d+)?)\\s*(?:weeks?|wks?)\\b/, -7],
-    [/(\\d+(?:\\.\\d+)?)\\s*(?:days?|d)\\b/, 1],
+    [/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/,24],
+    [/(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b/, -365],
+    [/(\d+(?:\.\d+)?)\s*(?:months?|mths?|mos?)\b/, -30],
+    [/(\d+(?:\.\d+)?)\s*(?:weeks?|wks?)\b/, -7],
+    [/(\d+(?:\.\d+)?)\s*(?:days?|d)\b/, 1],
   ];
   let days=0;
   for(const [pattern,multiplier] of patterns){
@@ -39,13 +39,13 @@ const planGroupFromSupplier = (name: unknown, validity: unknown): "DAILY"|"WEEKL
   }
   if(!days){
     const bare=String(validity??"").trim();
-    if(/^\\d+$/.test(bare))days=Number(bare);
+    if(/^\d+$/.test(bare))days=Number(bare);
   }
   if(!days){
-    if(/\\byearly|annual|annually\\b/.test(source))days=365;
-    else if(/\\bmonthly|month\\b/.test(source))days=30;
-    else if(/\\bweekly|week\\b/.test(source))days=7;
-    else if(/\\bdaily|24\\s*hours?\\b/.test(source))days=1;
+    if(/\byearly|annual|annually\b/.test(source))days=365;
+    else if(/\bmonthly|month\b/.test(source))days=30;
+    else if(/\bweekly|week\b/.test(source))days=7;
+    else if(/\bdaily|24\s*hours?\b/.test(source))days=1;
   }
   if(days>=1&&days<=3)return "DAILY";
   if(days>=7&&days<=14)return "WEEKLY";
