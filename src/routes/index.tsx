@@ -322,7 +322,7 @@ function DashboardShell(props: {
   onSignOut: () => void; notice: string; onDismissNotice: () => void; busy: boolean;
   loading: boolean; dashboard: DashboardData | null; onRefresh: () => void;
   network: Network; setNetwork: (network: Network) => void; networkChoices: string[];
-  selectedPlanType: "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|""; setSelectedPlanType:(value:"sme"|"gifting"|"corporate"|"")=>void;
+  selectedPlanType: "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|""; setSelectedPlanType:(value:"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"")=>void;
   plans: DataPlan[]; selectedPlan: DataPlan | undefined; selectedPlanId: string; setSelectedPlanId: (id: string) => void;
   phone: string; setPhone: (phone: string) => void; dataCouponCode:string; setDataCouponCode:(code:string)=>void; onBuy: (event: FormEvent<HTMLFormElement>) => void;
   onAirtimePurchase: (payload: { networkCode: string; recipient: string; amount: number }) => Promise<void>;
@@ -704,8 +704,8 @@ function BuyDataView(props: {
   network: Network;
   setNetwork: (network: Network) => void;
   networkChoices: string[];
-  selectedPlanType:"sme"|"gifting"|"corporate"|"";
-  setSelectedPlanType:(value:"sme"|"gifting"|"corporate"|"")=>void;
+  selectedPlanType:"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"";
+  setSelectedPlanType:(value:"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"")=>void;
   plans: DataPlan[];
   selectedPlan: DataPlan | undefined;
   selectedPlanId: string;
