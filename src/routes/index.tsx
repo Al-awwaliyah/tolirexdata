@@ -477,17 +477,20 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const selectedProduct=products.find((item)=>item.id===selectedProductId);
   const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":"network";
   const supplierOptions=options.filter((option)=>option.option_type===optionType);
-  // Match IyanjuPay's resilient provider-card behaviour: when a network option
-  // row is absent, derive the card from the supplier's imported data catalogue.
-  // These are supplier-backed identifiers, not arbitrary purchase plan IDs.
-  const serviceOptions=supplierOptions.length||view!=="airtime"
-    ? supplierOptions
-    : Array.from(new Map(catalogue.filter(item=>item.category_code==="data"&&item.network_or_operator)
-      .map(item=>{
-        const code=String(item.network_or_operator);
-        const names:Record<string,string>={"1":"MTN","01":"MTN","2":"Airtel","02":"Airtel","3":"Glo","03":"Glo","4":"9mobile","04":"9mobile"};
-        return [code,{id:"derived-network-"+code,category_code:"airtime",option_type:"network",option_code:code,parent_option_code:null,name:names[code]||code}];
-      })).values());
+  // Match IyanjuPay: keep network selection usable from real supplier plans
+  // if a separate network option row is missing from the imported catalogue.
+  const derivedAirtimeOptions: CatalogueOption[] = [];
+  if(view==="airtime"&&!supplierOptions.length){
+    const seenNetworks=new Set<string>();
+    const networkNames:Record<string,string>={"1":"MTN","01":"MTN","2":"Airtel","02":"Airtel","3":"Glo","03":"Glo","4":"9mobile","04":"9mobile"};
+    for(const item of catalogue.filter(item=>item.category_code==="data"&&item.network_or_operator)){
+      const code=String(item.network_or_operator);
+      if(seenNetworks.has(code))continue;
+      seenNetworks.add(code);
+      derivedAirtimeOptions.push({id:"derived-network-"+code,category_code:"airtime",option_type:"network",option_code:code,parent_option_code:null,name:networkNames[code]||code});
+    }
+  }
+  const serviceOptions=supplierOptions.length?supplierOptions:derivedAirtimeOptions;
   const runExpanded=async(payload:any)=>{
     const result=await manageTopupmateExpandedService({data:payload});
     if(result?.error)throw new Error(String(result.error));
