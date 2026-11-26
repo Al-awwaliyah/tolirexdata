@@ -11,7 +11,7 @@ const classify=(body:Obj):"success"|"fail"|"processing"|"unknown"=>{
  const s=text(body?.status??body?.response?.status??body?.data?.status).toLowerCase();
  if(["success","successful","completed","complete","succeeded"].includes(s))return "success";
  if(["fail","failed","error","rejected","declined"].includes(s))return "fail";
- if(["processing","pending","queued","initiated","in_progress","in-progress"].includes(s))return "processing";
+ if(["processing","pending","queued","order_received","initiated","in_progress","in-progress","submitted"].includes(s))return "processing";
  return "unknown";
 };
 const cleanPhone=(v:string)=>{let x=v.replace(/[\s()+-]/g,"");if(/^234\d{10}$/.test(x))x="0"+x.slice(3);if(/^\d{10}$/.test(x))x="0"+x;return /^0\d{10}$/.test(x)?x:"";};
