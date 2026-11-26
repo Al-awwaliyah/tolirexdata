@@ -91,7 +91,23 @@ Deno.serve(async req => {
         throw lastEndpointError instanceof Error?lastEndpointError:new Error("Topupmate catalogue endpoint returned no response");
       }
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
-      const list=rows(payload);
+      let list=rows(payload);
+      // IyanjuPay also checks /status/ for live Cable TV and electricity
+      // provider lists; some Topupmate accounts expose the operators there.
+      if((spec.key==="cable-provider"||spec.key==="electricity")&&!list.length){
+        try{
+          const statusPayload=await fetchEndpoint("/status/");
+          const statusRoot=statusPayload as Obj;
+          const statusRows=spec.key==="cable-provider"
+            ? statusRoot.cable
+            : statusRoot.electricity;
+          if(Array.isArray(statusRows)&&statusRows.length){
+            payload={response:statusRows};
+            list=rows(payload);
+            await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
+          }
+        }catch{/* Keep the original /services/ response; the endpoint failure is non-fatal. */}
+      }
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
           ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","networkid","network_id","networkId","id","code"]
