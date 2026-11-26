@@ -133,7 +133,7 @@ Deno.serve(async request=>{
    }
    const {data:order,error:reserveError}=await admin.rpc("reserve_topupmate_service_order",{
     p_user_id:auth.user.id,p_category_code:category,p_product_id:product?.id??null,
-    p_option_type:category==="cable_tv"?"cable_provider":category==="electricity"?"operator":category==="internet"?"internet_provider":"network",
+    p_option_type:category==="cable_tv"?"cable_provider":category==="electricity"?"operator":category==="internet"?"internet_provider":category==="education"?"exam_provider":"network",
     p_option_code:optionCode||null,p_recipient:recipient||productCode(product??{}),
     p_face_value:category==="electricity"||category==="internet"&&optionCode!=="smile"?faceValue:null,p_quantity:quantity,
     p_idempotency_key:idempotency,p_service_metadata:metadata,
