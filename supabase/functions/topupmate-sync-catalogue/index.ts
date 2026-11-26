@@ -256,6 +256,10 @@ Deno.serve(async req => {
       const country=typeof countryValue==="object"&&countryValue?first(countryValue as Obj,["isoname","code"]):text(pick(item,["countrycode","country_code"])??countryValue);
       const currency=text(pick(item,["recipientcurrencycode","recipient_currency_code"]));
       const senderCurrency=text(pick(item,["sendercurrencycode","sender_currency_code"]));
+      const categoryValue=pick(item,["category","productcategory","product_category"]);
+      const productCategory=typeof categoryValue==="object"&&categoryValue
+        ? first(categoryValue as Obj,["name","label","code"])
+        : text(categoryValue);
       if(!currency||senderCurrency!=="NGN")continue;
       const logoValue=pick(item,["logourls","logo_urls","logourl","logo_url","logo","image"]);
       const logo=Array.isArray(logoValue)?text(logoValue[0]):text(logoValue);
@@ -271,7 +275,7 @@ Deno.serve(async req => {
           p_name:name+" "+denomination+" "+currency,p_network_or_operator:country||null,
           p_description:"Gift card · "+currency,p_face_value:denomination,p_cost_price:sender,
           p_metadata:{source_service:"giftcard",supplier_product_id:id,recipient_denomination:denomination,
-            recipient_currency:currency,sender_currency:senderCurrency,country_code:country,logo_url:logo,
+            recipient_currency:currency,sender_currency:senderCurrency,country_code:country,product_category:productCategory,logo_url:logo,
             redeem_instruction:redeem}
         });
         if(!error)giftProducts++;
