@@ -628,7 +628,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
         <label className="grid gap-2 text-sm font-medium">Quantity<Input type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
         <Button disabled={serviceBusy||!selectedProductId||!/^\S+@\S+\.\S+$/.test(recipient)||Number(quantity)<1||Number(quantity)>20} onClick={()=>void buyExpanded()}>{serviceBusy?"Processing…":"Purchase gift card"} <ArrowRight/></Button>
       </div>}
-      {products.length===0&&view!=="electricity"&&<EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}
+      {products.length===0&&view!=="electricity"&&!(view==="internet"&&serviceOptions.length>0)&&<EmptyState icon={feature.icon} title={feature.emptyTitle} copy={feature.emptyCopy}/>}
       {serviceNotice&&<div className="mt-4 text-sm text-muted-foreground">{serviceNotice}</div>}
       {lastServiceReference&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><p className="text-xs font-semibold">Supplier reference</p><p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{lastServiceReference}</p></div>{servicePending&&<Button type="button" variant="outline" size="sm" disabled={serviceBusy} onClick={()=>void checkExpandedStatus()}>{serviceBusy?"Checking…":"Check transaction status"}</Button>}</div>}
       {view==="gift-cards"&&lastGiftCardReference&&giftCardRetrievalPending&&<Button type="button" variant="outline" className="mt-4" disabled={serviceBusy} onClick={()=>void retrieveGiftCard()}>{serviceBusy?"Retrieving…":"Retrieve gift-card code"}</Button>}
