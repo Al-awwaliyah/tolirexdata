@@ -143,7 +143,7 @@ function Index() {
   const [busy, setBusy] = useState(false);
   const [network, setNetwork] = useState<Network>("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
-  const [selectedPlanType,setSelectedPlanType]=useState<"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"">("");
+  const [selectedPlanType,setSelectedPlanType]=useState<"DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"|"">("DAILY");
   const [phone, setPhone] = useState("");
   const [dataCouponCode,setDataCouponCode] = useState("");
   const virtualAccountIssuanceStarted = useRef(false);
@@ -187,6 +187,14 @@ function Index() {
   }, [dashboard?.isAdmin, dashboard?.plans, network]);
   const typedPlans=availablePlans.filter(plan=>plan.network===network&&plan.planType===selectedPlanType);
   const selectedPlan = typedPlans.find((plan) => plan.id === selectedPlanId) ?? typedPlans[0];
+  useEffect(() => {
+    if(!network)return;
+    const groups=["DAILY","WEEKLY","MONTHLY","YEARLY","OTHER"] as const;
+    if(availablePlans.some(plan=>plan.network===network&&plan.planType===selectedPlanType))return;
+    const first=groups.find(group=>availablePlans.some(plan=>plan.network===network&&plan.planType===group));
+    if(first)setSelectedPlanType(first);
+  },[network,availablePlans,selectedPlanType]);
+
   const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.catalogueOptions ?? []).filter(option=>option.category_code==="data"&&option.option_type==="network").map(option=>canonicalNetworkLabel(option.name,option.option_code)).filter(Boolean))), [dashboard?.catalogueOptions]);
 
   const clearNotice = () => setNotice("");
@@ -740,7 +748,7 @@ function BuyDataView(props: {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {props.networkChoices.map((choice,index) => {
                 const label=networkDisplayName(choice);
-                return <ProviderChoice key={choice} name={label} code={choice} selected={props.network===choice} index={index} onClick={()=>{props.setNetwork(choice);props.setSelectedPlanId("");props.setSelectedPlanType("");}}/>;
+                return <ProviderChoice key={choice} name={label} code={choice} selected={props.network===choice} index={index} onClick={()=>{props.setNetwork(choice);props.setSelectedPlanId("");props.setSelectedPlanType("DAILY");}}/>;
               })}
             </div>
           </div>
