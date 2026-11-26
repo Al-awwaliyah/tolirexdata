@@ -738,14 +738,9 @@ function BuyDataView(props: {
           <div>
             <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">1. Select network</h3><span className="text-xs text-slate-400">{props.networkChoices.length} available</span></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {props.networkChoices.map(choice => {
-                const label = networkDisplayName(choice);
-                const active = props.network === choice;
-                return <button key={choice} type="button" onClick={() => {props.setNetwork(choice);props.setSelectedPlanId("");props.setSelectedPlanType("");}} aria-pressed={active} className={`group flex min-h-[76px] items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all ${active ? "border-primary bg-primary/[.06] ring-2 ring-primary/10" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}>
-                  <span className={`grid size-10 shrink-0 place-items-center rounded-full text-xs font-bold ${active ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>{networkInitials(label)}</span>
-                  <span className="min-w-0"><strong className="block text-sm font-semibold text-slate-900">{label}</strong><small className="mt-0.5 block text-xs text-slate-500">Mobile network</small></span>
-                  {active && <CheckCircle2 className="ml-auto size-4 shrink-0 text-primary"/>}
-                </button>;
+              {props.networkChoices.map((choice,index) => {
+                const label=networkDisplayName(choice);
+                return <ProviderChoice key={choice} name={label} code={choice} selected={props.network===choice} index={index} onClick={()=>{props.setNetwork(choice);props.setSelectedPlanId("");props.setSelectedPlanType("");}}/>;
               })}
             </div>
           </div>
@@ -914,13 +909,29 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
   );
 }
 
+function providerLogoKey(name:string,code=""):string {
+  const value=(name+" "+code).toLowerCase().replace(/[^a-z0-9]+/g," ");
+  const entries:[RegExp,string][]=[
+    [/\\bmtn\\b/,"mtn"],[/airtel/,"airtel"],[/\\bglo\\b|globacom/,"glo"],[/9 mobile|9mobile|etisalat/,"9mobile"],
+    [/smile/,"smile"],[/alpha/,"alpha"],[/kirani/,"kirani"],[/ratel/,"ratel"],
+    [/dstv/,"dstv"],[/gotv|go tv/,"gotv"],[/startime/,"startimes"],
+    [/abuja|aedc/,"aedc"],[/benin|bedc/,"bedc"],[/enugu|eedc/,"eedc"],[/eko|ekedc/,"ekedc"],
+    [/ibadan|ibedc/,"ibedc"],[/ikeja|ikedc/,"ikedc"],[/jos|jedc?/,"jed"],[/kaduna|kaedco/,"kaedco"],
+    [/kano|kedco/,"kedco"],[/port harcourt|phedc/,"phed"],[/yola|yedc/,"yedc"],
+    [/\\bwaec\\b/,"waec"],[/\\bneco\\b/,"neco"],[/\\bjamb\\b/,"jamb"],[/nabteb/,"nabteb"]
+  ];
+  return entries.find(([pattern])=>pattern.test(value))?.[1]??"";
+}
 function ProviderChoice({name,code,selected,index,onClick}:{name:string;code:string;selected:boolean;index:number;onClick:()=>void}) {
   const tones=["bg-emerald-50 text-emerald-700","bg-blue-50 text-blue-700","bg-amber-50 text-amber-700","bg-violet-50 text-violet-700"];
   const initials=name.trim().split(/\\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();
-  return <button type="button" aria-pressed={selected} onClick={onClick} className={`group flex min-h-[82px] items-center gap-3 rounded-2xl border bg-background p-3 text-left transition hover:border-primary/50 hover:bg-primary/[0.03] ${selected?"border-primary bg-primary/[0.06] ring-2 ring-primary/10":"border-border"}`}>
-    <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold ${tones[index%tones.length]}`}>{initials||name.slice(0,1).toUpperCase()}</span>
-    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{name}</span><span className="mt-0.5 block text-xs text-muted-foreground">{selected?"Selected":"Choose provider"}</span></span>
-    <span className={`grid size-5 shrink-0 place-items-center rounded-full border text-[11px] ${selected?"border-primary bg-primary text-primary-foreground":"border-muted-foreground/30 text-transparent"}`}>✓</span>
+  const logo=providerLogoKey(name,code);
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={`group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-2xl border bg-background p-2 text-center transition hover:border-primary/50 hover:bg-primary/[0.03] ${selected?"border-primary bg-primary/[0.06] ring-2 ring-primary/10":"border-border"}`}>
+    <span className={`relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl text-sm font-extrabold ${tones[index%tones.length]}`}>
+      {initials||name.slice(0,1).toUpperCase()}
+      {logo&&<img src={`https://raw.githubusercontent.com/Al-awwaliyah/iyanjupay/main/public/providers/${logo}.svg`} alt="" className="absolute inset-0 size-full bg-white object-contain p-1.5" loading="lazy"/>}
+    </span>
+    <span className="block max-w-full truncate text-xs font-semibold">{name}</span>
   </button>;
 }
 
