@@ -63,7 +63,7 @@ import tolirexMobile from "@/assets/tolirex-mobile.jpg";
 
 type TableRows<K extends keyof SupabaseDatabase["public"]["Tables"]> = SupabaseDatabase["public"]["Tables"][K]["Row"];
 type DataPlan = { id: string; network: string; networkCode: string; planType: "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|"OTHER"; data_amount: string; validity: string; price: number; active: boolean };
-type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; plan_type?: "sme"|"gifting"|"corporate"|null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number };
+type CatalogueProduct = { id: string; category_id: string; category_code: string; category_name: string; name: string; network_or_operator: string | null; plan_type?: "sme"|"gifting"|"corporate"|null; description: string | null; face_value: number | null; selling_price: number; currency: string; sort_order: number; country_code?:string|null; product_category?:string|null; recipient_currency?:string|null; logo_url?:string|null; redeem_instruction?:any };
 type CatalogueOption = { id: string; category_code: string; option_type: string; option_code: string; parent_option_code: string | null; name: string };
 type DataOrder = TableRows<"data_orders">;
 type WalletTransaction = TableRows<"wallet_transactions">;
