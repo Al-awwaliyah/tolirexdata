@@ -40,7 +40,7 @@ Deno.serve(async (request) => {
   const permission = action === "workspace" ? workspacePermissions[workspaceModule] ?? ""
     : action === "customers" ? "customers.read" : action === "overview" ? "dashboard.read"
     : action === "transactions" ? "orders.read" : action === "catalogue" ? "services.manage"
-    : action === "publish_product" ? "services.manage" : action === "publish_option" ? "services.manage"
+    : action === "price_product" ? "pricing.manage"
     : action === "provider_status" || action === "topupmate_balance" ? "providers.manage" : action === "account_application" ? "customers.manage" : action === "platform_setting" ? "settings.manage" : action === "coupon_save" || action === "coupon_status" ? "growth.manage" : action === "wallet_adjustment" || action === "wallet_status" ? "wallets.adjust" : action === "funding_reconcile" ? "fundings.manage" : action === "airtime_pricing" ? "pricing.manage"
     : action === "card_pricing" ? "cards.pricing.manage" : action === "electricity_pricing" ? "pricing.manage" : "";
   if (!permission) return json({ error: "Unsupported admin console action" }, 400);
@@ -141,11 +141,14 @@ Deno.serve(async (request) => {
     const { data: options, error: optionsError } = await admin.from("provider_service_options")
       .select("id,category_id,option_type,option_code,parent_option_code,name,metadata,active,publication_status,supplier_last_seen_at,service_categories(code,name)")
       .order("name").limit(500);
+    const { data: productPricing, error: pricingError } = await admin.from("pricing_rules")
+      .select("product_id,account_type,fixed_selling_price,markup_type,markup_value,active")
+      .not("product_id","is",null).eq("active",true).limit(2000);
     const { data: runs, error: runError } = await admin.from("provider_catalogue_sync_runs")
       .select("id,status,discovered_products,discovered_options,failed_endpoints,summary,started_at,completed_at")
       .order("started_at", { ascending: false }).limit(10);
-    if (productError || optionsError || runError || providersError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
-    return json({ products: products ?? [], options: options ?? [], providers: providers ?? [], syncRuns: runs ?? [], canManagePricing: canManagePricing === true, canManageProviders: canManageProviders === true });
+    if (productError || optionsError || runError || providersError || pricingError) return json({ error: "Unable to load supplier catalogue workspace" }, 500);
+    return json({ products: products ?? [], options: options ?? [], providers: providers ?? [], productPricing: productPricing ?? [], syncRuns: runs ?? [], canManagePricing: canManagePricing === true, canManageProviders: canManageProviders === true });
   }
 
   if (action === "electricity_pricing") {
@@ -219,32 +222,20 @@ Deno.serve(async (request) => {
     return json({ option: data });
   }
 
-  if (action === "publish_option") {
-    const optionId = String(body.optionId ?? "");
-    const status = String(body.publicationStatus ?? "");
-    if (!optionId || !["published","paused","rejected"].includes(status)) return json({ error: "Invalid option publication request" }, 400);
-    const { data, error } = await caller.rpc("admin_set_service_option_publication", {
-      p_option_id: optionId, p_publication_status: status,
-    });
-    if (error) return json({ error: error.message }, 400);
-    return json({ option: data });
-  }
-
-  if (action === "publish_product") {
+  if (action === "price_product") {
     const productId = String(body.productId ?? "");
-    const status = String(body.publicationStatus ?? "");
     const personalPrice = Number(body.personalPrice);
     const agentPrice = Number(body.agentPrice);
     const businessPrice = Number(body.businessPrice);
-    if (!productId || !["published","paused","rejected"].includes(status)) {
-      return json({ error: "Invalid product publication request" }, 400);
+    if (!/^[0-9a-f-]{36}$/i.test(productId) ||
+      ![personalPrice,agentPrice,businessPrice].every(Number.isFinite)) {
+      return json({ error: "Enter valid selling prices for all account types" }, 400);
     }
-    const { data, error } = await caller.rpc("admin_set_service_product_publication", {
+    const { data, error } = await caller.rpc("admin_set_service_product_prices", {
       p_product_id: productId,
-      p_publication_status: status,
-      p_personal_price: status === "published" ? personalPrice : null,
-      p_agent_price: status === "published" ? agentPrice : null,
-      p_business_price: status === "published" ? businessPrice : null,
+      p_personal_price: personalPrice,
+      p_agent_price: agentPrice,
+      p_business_price: businessPrice,
     });
     if (error) return json({ error: error.message }, 400);
     return json({ product: data });
