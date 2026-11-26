@@ -187,7 +187,7 @@ function Index() {
   }, [dashboard?.isAdmin, dashboard?.plans, network]);
   const typedPlans=availablePlans.filter(plan=>plan.network===network&&plan.planType===selectedPlanType);
   const selectedPlan = typedPlans.find((plan) => plan.id === selectedPlanId) ?? typedPlans[0];
-  const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.plans ?? []).map((plan) => plan.network).filter(Boolean))), [dashboard?.plans]);
+  const availableNetworks = useMemo(() => Array.from(new Set((dashboard?.catalogueOptions ?? []).filter(option=>option.category_code==="data"&&option.option_type==="network").map(option=>canonicalNetworkLabel(option.name,option.option_code)).filter(Boolean))), [dashboard?.catalogueOptions]);
 
   const clearNotice = () => setNotice("");
   const action = async (work: () => Promise<void>) => {
@@ -930,6 +930,15 @@ function ProductChoice({product,selected,onClick}:{product:CatalogueProduct;sele
     <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{product.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">Published package</span></span>
     <span className="whitespace-nowrap text-sm font-bold">{formatNaira(product.selling_price)}</span>
   </button>;
+}
+
+function canonicalNetworkLabel(name:string,code:string):string {
+  const value=(name+" "+code).toLowerCase().replace(/[^a-z0-9]/g,"");
+  if(value.includes("mtn")||value==="1"||value==="01")return "MTN";
+  if(value.includes("airtel")||value==="2"||value==="02")return "Airtel";
+  if(value.includes("glo")||value==="3"||value==="03")return "Glo";
+  if(value.includes("9mobile")||value.includes("etisalat")||value==="4"||value==="04")return "9mobile";
+  return name||code;
 }
 
 function NetworkMark({ network, index }: { network: string; index: number }) {
