@@ -204,7 +204,7 @@ function Index() {
 
   const handleBuy = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedPlan || !selectedPlan.networkCode || !isValidNigerianPhone(phone)) { setNotice("Choose a published data plan with a valid supplier network and enter a valid Nigerian phone number."); return; }
+    if (!selectedPlan || !selectedPlan.networkCode || !isValidNigerianPhone(phone)) { setNotice("Choose an available data plan with a valid supplier network and enter a valid Nigerian phone number."); return; }
     await action(async () => {
       const result = await purchaseAirtimeOrData({ data: { service:"data", productId:selectedPlan.id, networkCode:selectedPlan.networkCode, recipient:phone, couponCode:dataCouponCode.trim().toUpperCase()||undefined, idempotencyKey:crypto.randomUUID().replace(/-/g,"") } });
       const saved=result.discountAmount>0?` ${result.couponCode} saved ${formatNaira(Number(result.discountAmount))}; you paid ${formatNaira(Number(result.chargedAmount))}.`:"";
@@ -476,7 +476,21 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
   const products=catalogue.filter((item)=>item.category_code===categoryCode);
   const selectedProduct=products.find((item)=>item.id===selectedProductId);
   const optionType=view==="cable"?"cable_provider":view==="electricity"?"operator":"network";
-  const serviceOptions=options.filter((option)=>option.option_type===optionType);
+  const supplierOptions=options.filter((option)=>option.option_type===optionType);
+  // Match IyanjuPay: keep network selection usable from real supplier plans
+  // if a separate network option row is missing from the imported catalogue.
+  const derivedAirtimeOptions: CatalogueOption[] = [];
+  if(view==="airtime"&&!supplierOptions.length){
+    const seenNetworks=new Set<string>();
+    const networkNames:Record<string,string>={"1":"MTN","01":"MTN","2":"Airtel","02":"Airtel","3":"Glo","03":"Glo","4":"9mobile","04":"9mobile"};
+    for(const item of catalogue.filter(item=>item.category_code==="data"&&item.network_or_operator)){
+      const code=String(item.network_or_operator);
+      if(seenNetworks.has(code))continue;
+      seenNetworks.add(code);
+      derivedAirtimeOptions.push({id:"derived-network-"+code,category_code:"airtime",option_type:"network",option_code:code,parent_option_code:null,name:networkNames[code]||code});
+    }
+  }
+  const serviceOptions=supplierOptions.length?supplierOptions:derivedAirtimeOptions;
   const runExpanded=async(payload:any)=>{
     const result=await manageTopupmateExpandedService({data:payload});
     if(result?.error)throw new Error(String(result.error));
@@ -520,7 +534,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     }catch(error){setServiceNotice(messageOf(error,"The purchase could not be completed."));}
     finally{setServiceBusy(false);}
   };
-  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode);
+  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode||({"1":"MTN","2":"Airtel","3":"Glo","4":"9mobile"}[String(item.network_or_operator)]===serviceOptions.find(o=>o.option_code===selectedOptionCode)?.name));
   const checkExpandedStatus=async()=>{
     if(!lastServiceReference)return;
     setServiceBusy(true);setServiceNotice("");
@@ -550,16 +564,16 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
       <span className="tr-feature-account">{accountType.replace(/[_-]/g," ")}</span>
     </section>
     {view==="cards" ? <VirtualCardsWorkspace busy={busy}/> : view==="airtime" ? <section className="tr-feature-panel">
-      <div className="tr-feature-panel-heading"><div><h3>Buy airtime</h3><p>Networks come from the supplier catalogue; rates must be configured by an administrator.</p></div><span className="tr-catalogue-state"><i/>{options.length?"Networks synced":"No networks published"}</span></div>
+      <div className="tr-feature-panel-heading"><div><h3>Buy airtime</h3><p>Networks and their identifiers come from the synchronized Topupmate catalogue.</p></div><span className="tr-catalogue-state"><i/>{serviceOptions.length?"Networks available":"No supplier networks available"}</span></div>
       {options.length ? <form className="mt-5 grid max-w-xl gap-4" onSubmit={(event)=>{event.preventDefault();if(!/^\d{11}$/.test(airtimePhone)||!airtimeNetwork)return;void onAirtimePurchase({networkCode:airtimeNetwork,recipient:airtimePhone,amount:Number(airtimeAmount),couponCode:airtimeCouponCode.trim().toUpperCase()||undefined});}}>
         <div className="grid gap-2"><p className="text-sm font-semibold">Choose mobile network</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{options.map((option,index)=><ProviderChoice key={option.id} name={option.name} code={option.option_code} selected={airtimeNetwork===option.option_code} index={index} onClick={()=>setAirtimeNetwork(option.option_code)}/>)}</div></div>
         <label className="grid gap-2 text-sm font-medium">Phone number<Input inputMode="numeric" maxLength={11} placeholder="08012345678" value={airtimePhone} onChange={(event)=>setAirtimePhone(event.target.value.replace(/\D/g,""))} required/></label>
         <label className="grid gap-2 text-sm font-medium">Amount (₦)<Input type="number" min={50} max={200000} step={1} value={airtimeAmount} onChange={(event)=>setAirtimeAmount(event.target.value)} required/></label>
         <label className="grid gap-2 text-sm font-medium">Coupon code (optional)<Input value={airtimeCouponCode} onChange={event=>setAirtimeCouponCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/></label>
         <Button type="submit" disabled={busy||!airtimeNetwork||!/^\d{11}$/.test(airtimePhone)||Number(airtimeAmount)<50||Number(airtimeAmount)>200000}>{busy?"Processing…":"Continue to purchase"} <ArrowRight/></Button>
-      </form> : <EmptyState icon={<Smartphone/>} title="Airtime networks are not published" copy="Networks become selectable after the supplier catalogue is synchronized and published."/>}
+      </form> : <EmptyState icon={<Smartphone/>} title="Airtime networks unavailable" copy="The supplier has not returned any usable mobile networks yet. Synchronize the Topupmate catalogue and check the provider response."/>}
     </section> : ["cable","electricity","epin","data-pin","education","internet","gift-cards"].includes(view) ? <section className="tr-feature-panel">
-      <div className="tr-feature-panel-heading"><div><h3>{view==="cable"?"Cable TV subscription":view==="electricity"?"Electricity payment":view==="epin"?"Recharge PINs":view==="data-pin"?"Data PINs":view==="education"?"Education PINs":view==="internet"?"Internet bundle":"Gift card purchase"}</h3><p>Live Topupmate catalogue · published products and admin-approved prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Products available":"No published products"}</span></div>
+      <div className="tr-feature-panel-heading"><div><h3>{view==="cable"?"Cable TV subscription":view==="electricity"?"Electricity payment":view==="epin"?"Recharge PINs":view==="data-pin"?"Data PINs":view==="education"?"Education PINs":view==="internet"?"Internet bundle":"Gift card purchase"}</h3><p>Live Topupmate catalogue · Admin-managed selling prices</p></div><span className="tr-catalogue-state"><i/>{products.length?"Products available":"No supplier products available"}</span></div>
       {serviceNotice&&<div role="status" className="my-4 rounded-xl border bg-secondary/50 p-3 text-sm">{serviceNotice}</div>}
       <label className="mt-4 grid max-w-xl gap-2 text-sm font-medium">Coupon code (optional)<Input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32))} placeholder="Enter promotion code"/><span className="text-xs font-normal text-muted-foreground">The coupon is checked against the final server-calculated price before your wallet is charged.</span></label>
       {view==="cable"&&<div className="mt-5 grid max-w-xl gap-4">

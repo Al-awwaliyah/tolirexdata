@@ -33,7 +33,7 @@ Deno.serve(async request=>{
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const providerOption=async(category:string,type:string,code:string)=>{
   const {data,error}=await admin.from("provider_service_options").select("id,option_code,name,metadata,service_categories!inner(code),service_providers!inner(code)")
-   .eq("option_code",code).eq("option_type",type).eq("active",true).eq("publication_status","published")
+   .eq("option_code",code).eq("option_type",type).eq("active",true)
    .eq("service_categories.code",category).eq("service_providers.code","topupmate").maybeSingle();
   if(error||!data)throw new Error("The selected provider is not currently available.");
   return data as Obj;
@@ -75,7 +75,7 @@ Deno.serve(async request=>{
    if(productId){
     const {data,error}=await admin.from("service_products")
      .select("id,provider_product_code,name,network_or_operator,metadata,face_value,cost_price,service_categories!inner(code),service_providers!inner(code)")
-     .eq("id",productId).eq("active",true).eq("publication_status","published")
+     .eq("id",productId).eq("active",true)
      .eq("service_categories.code",category).eq("service_providers.code","topupmate").maybeSingle();
     if(error||!data)return json({error:"The selected supplier product is no longer available."},409);
     product=data as Obj;
@@ -97,7 +97,7 @@ Deno.serve(async request=>{
     const cableOwner=text(cableData?.Customer_Name??cableData?.customer_name??cableData?.customername??cableData?.name);
     if(!verify.ok||classify(verify.body)==="fail"||!cableOwner)return json({error:"SmartCard/IUC verification must return a verified customer before payment."},409);
    } else if(!product){
-    return json({error:"Select a currently published supplier product."},400);
+    return json({error:"Select an active supplier product."},400);
    }
    if(category==="recharge_pin"||category==="data_pin"){
     if(!optionCode||quantity<1||quantity>100)return json({error:"Select a network and a valid PIN quantity."},400);

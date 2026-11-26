@@ -10,6 +10,34 @@ type AuthContext = {
   userId: string;
 };
 
+const canonicalTopupmateNetworkName = (value: unknown, fallback = ""): string => {
+  const raw = String(value ?? "").trim();
+  const normalized = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (normalized.includes("mtn") || normalized === "1" || normalized === "01") return "MTN";
+  if (normalized.includes("airtel") || normalized === "2" || normalized === "02") return "Airtel";
+  if (normalized === "glo" || normalized.includes("globacom") || normalized === "3" || normalized === "03") return "Glo";
+  if (normalized.includes("9mobile") || normalized.includes("etisalat") || normalized === "4" || normalized === "04") return "9mobile";
+  return raw || fallback;
+};
+
+const mapSupplierDataPlans = (catalogue: any[], catalogueOptions: any[]) =>
+  catalogue.filter((item: any) => item.category_code === "data").map((item: any) => {
+    const networkCode = String(item.network_or_operator ?? "");
+    const networkOption = catalogueOptions.find((option: any) =>
+      option.category_code === "data" && option.option_type === "network" && option.option_code === networkCode
+    );
+    return {
+      id: item.id,
+      network: canonicalTopupmateNetworkName(networkOption?.name, networkCode) || item.category_name,
+      networkCode,
+      planType: item.plan_type ?? null,
+      data_amount: item.name,
+      validity: item.description ?? "",
+      price: Number(item.selling_price),
+      active: true,
+    };
+  });
+
 async function isAdmin(context: AuthContext): Promise<boolean> {
   const { data, error } = await context.supabase.rpc("is_platform_admin");
   if (error) throw new Error("Unable to verify administrator membership");
@@ -48,11 +76,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
       return {
         profile: profiles.data?.find((profile) => profile.id === userId) ?? null,
         wallet: wallets.data?.find((wallet) => wallet.user_id === userId) ?? null,
-        plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => {
-          const networkCode = String(item.network_or_operator ?? "");
-          const networkOption = (catalogueOptions.data ?? []).find((option: any) => option.category_code === "data" && option.option_type === "network" && option.option_code === networkCode);
-          return { id: item.id, network: (networkOption?.name ?? networkCode) || item.category_name, networkCode, planType: item.plan_type ?? null, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
-        }),
+        plans: mapSupplierDataPlans(catalogue.data ?? [], catalogueOptions.data ?? []),
         catalogue: catalogue.data ?? [],
         catalogueOptions: catalogueOptions.data ?? [],
         orders: orders.data ?? [],
@@ -86,11 +110,7 @@ export const getDexDashboard = createServerFn({ method: "GET" })
     return {
       profile: profile.data,
       wallet: wallet.data,
-      plans: (catalogue.data ?? []).filter((item: any) => item.category_code === "data").map((item: any) => {
-          const networkCode = String(item.network_or_operator ?? "");
-          const networkOption = (catalogueOptions.data ?? []).find((option: any) => option.category_code === "data" && option.option_type === "network" && option.option_code === networkCode);
-          return { id: item.id, network: (networkOption?.name ?? networkCode) || item.category_name, networkCode, planType: item.plan_type ?? null, data_amount: item.name, validity: item.description ?? "", price: Number(item.selling_price), active: true };
-        }),
+      plans: mapSupplierDataPlans(catalogue.data ?? [], catalogueOptions.data ?? []),
       catalogue: catalogue.data ?? [],
       catalogueOptions: catalogueOptions.data ?? [],
       orders: orders.data ?? [],

@@ -25,20 +25,18 @@ function rows(value:unknown): Obj[] {
   }
   return [];
 }
+// Use the exact catalogue keys and lookup sequence used by IyanjuPay.
+// Internet provider cards are handled by the service flow; Topupmate does not
+// expose smile/alpha/kirani/ratel as /services/?service= catalogue keys.
 const services = [
   {key:"network", category:"airtime", kind:"options", optionType:"network"},
-  {key:"airtime", category:"airtime", kind:"options", optionType:"network"},
   {key:"data", category:"data", kind:"products"},
   {key:"cable-provider", category:"cable_tv", kind:"options", optionType:"cable_provider"},
   {key:"cabletv", category:"cable_tv", kind:"products"},
   {key:"electricity", category:"electricity", kind:"options", optionType:"operator"},
   {key:"exampin", category:"education", kind:"products"},
-  {key:"rechargepin", category:"recharge_pin", kind:"products"},
+  {key:"recharge-card", category:"recharge_pin", kind:"products"},
   {key:"datapin", category:"data_pin", kind:"products"},
-  {key:"smile", category:"internet", kind:"products"},
-  {key:"alpha", category:"internet", kind:"products"},
-  {key:"kirani", category:"internet", kind:"products"},
-  {key:"ratel", category:"internet", kind:"products"},
 ] as const;
 
 Deno.serve(async req => {
@@ -71,26 +69,59 @@ Deno.serve(async req => {
     try {
       // Topupmate's /services/ catalogue is the source for biller/operator IDs.
       // The same cable catalogue can contain both provider rows and priced plans.
-      const serviceKey=spec.key==="cable-provider"?"cabletv":spec.key;
-      const payload=await fetchEndpoint("/services/?service="+encodeURIComponent(serviceKey));
-      await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString()},{onConflict:"provider_code,catalogue_key"});
-      const list=rows(payload);
+      const serviceKey=spec.key;
+      const endpointCandidates=spec.key==="recharge-card"
+        ? ["rechargepin","recharge-pin","recharge-card"]
+        : spec.key==="datapin"
+          ? ["datapin","data-pin","data-card"]
+          : [serviceKey];
+      let payload:unknown=null;
+      let lastEndpointError:unknown=null;
+      for(const candidate of endpointCandidates){
+        try{
+          const candidatePayload=await fetchEndpoint("/services/?service="+encodeURIComponent(candidate));
+          if(payload===null)payload=candidatePayload;
+          if(rows(candidatePayload).length){
+            payload=candidatePayload;
+            break;
+          }
+        }catch(error){lastEndpointError=error;}
+      }
+      if(payload===null){
+        throw lastEndpointError instanceof Error?lastEndpointError:new Error("Topupmate catalogue endpoint returned no response");
+      }
+      await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
+      let list=rows(payload);
+      // IyanjuPay also checks /status/ for live Cable TV and electricity
+      // provider lists; some Topupmate accounts expose the operators there.
+      if((spec.key==="cable-provider"||spec.key==="electricity")&&!list.length){
+        try{
+          const statusPayload=await fetchEndpoint("/status/");
+          const statusRoot=statusPayload as Obj;
+          const statusRows=spec.key==="cable-provider"
+            ? statusRoot.cable
+            : statusRoot.electricity;
+          if(Array.isArray(statusRows)&&statusRows.length){
+            payload={response:statusRows};
+            list=rows(payload);
+            await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
+          }
+        }catch{/* Keep the original /services/ response; the endpoint failure is non-fatal. */}
+      }
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
-          ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","id","code"]
-          : spec.key==="network"||spec.key==="airtime"
-            ? ["network_id","networkId","network","id","code","provider_id","providerId"]
+          ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","networkid","network_id","networkId","id","code"]
+          : spec.key==="network"
+            ? ["networkid","network_id","networkId","network","id","code","provider_id","providerId"]
             : spec.key==="cabletv"
               ? ["item_code","itemCode","plan_code","planCode","plan_id","planid","planId","id","code"]
               : spec.key==="data"
                 ? ["planid","plan_id","planId","data_plan","dataplan","id","code"]
-            : spec.key==="rechargepin"
+            : spec.key==="recharge-card"
               ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
               : spec.key==="datapin"
                 ? ["data_plan","dataplan","planid","plan_id","planId","item_code","id","code"]
-                : spec.key==="smile"
-                  ? ["BundleTypeCode","bundle_type_code","planid","plan_id","planId","id","code"]
-                  : ["plan_id","planid","planId","id","provider_id","providerId","code","product_id","productId"];
+                : ["plan_id","planid","planId","id","provider_id","providerId","code","product_id","productId"];
         const code=first(item,codeKeys);
         const label=spec.kind==="options"
           ? first(item,["provider_name","providerName","name","display_name","biller_name","provider","description"])
@@ -99,7 +130,7 @@ Deno.serve(async req => {
         if(spec.kind==="options") {
           const {error}=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:spec.category,p_option_type:spec.optionType,p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:spec.key,supplier_discount:item.discount??item.discount_percent??item.discountPercentage??null}});
           if(!error) options++;
-          if(spec.key==="network"||spec.key==="airtime") {
+          if(spec.key==="network") {
             for(const category of ["data","recharge_pin","data_pin"]) {
               const mirrored=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:category,p_option_type:"network",p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:"network"}});
               if(!mirrored.error) options++;
