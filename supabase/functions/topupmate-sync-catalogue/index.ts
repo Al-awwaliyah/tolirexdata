@@ -72,7 +72,7 @@ Deno.serve(async req => {
       // The same cable catalogue can contain both provider rows and priced plans.
       const serviceKey=spec.key;
       const endpointCandidates=spec.key==="recharge-card"
-        ? ["rechargepin","recharge-pin","recharge-card"]
+        ? ["rechargepin","recharge-pin","recharge-card","airtimepin","airtime-pin"]
         : spec.key==="datapin"
           ? ["datapin","data-pin","data-card"]
           : [serviceKey];
