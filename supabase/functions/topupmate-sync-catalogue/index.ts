@@ -131,6 +131,8 @@ Deno.serve(async req => {
               ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
               : spec.key==="datapin"
                 ? ["data_plan","dataplan","planid","plan_id","planId","item_code","id","code"]
+              : spec.key==="exampin"
+                ? ["id","provider_id","providerId","provider","code"]
                 : ["plan_id","planid","planId","id","provider_id","providerId","code","product_id","productId"];
         const code=first(item,codeKeys);
         const label=spec.kind==="options"
