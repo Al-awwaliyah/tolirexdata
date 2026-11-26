@@ -217,7 +217,7 @@ Deno.serve(async request=>{
    const {data:order,error}=await admin.from("service_orders").select("id,status,request_id,service_metadata").eq("request_id",reference).eq("user_id",auth.user.id).maybeSingle();
    if(error||!order)return json({error:"Transaction not found."},404);
    // Topupmate status lookup uses the confirmed endpoint and original supplier reference.
-   const q=await topupmateGet("/transaction/",{ref:reference});
+   const q=await topupmateGet("/transaction/status/",{reference});
    if(!q.ok)return json({orderId:order.id,status:order.status,reference,message:"Supplier status is temporarily unavailable."},202);
    const state=classify(q.body);
    if(state==="success"){
