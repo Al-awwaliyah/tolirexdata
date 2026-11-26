@@ -76,7 +76,7 @@ Deno.serve(async req => {
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
           ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","networkid","network_id","networkId","id","code"]
-          : spec.key==="network"||spec.key==="airtime"
+          : spec.key==="network"
             ? ["networkid","network_id","networkId","network","id","code","provider_id","providerId"]
             : spec.key==="cabletv"
               ? ["item_code","itemCode","plan_code","planCode","plan_id","planid","planId","id","code"]
@@ -86,9 +86,7 @@ Deno.serve(async req => {
               ? ["plan","airtime_pin_id_code","airtimePinIdCode","airtime_pin_id","item_code","itemCode","plan_id","planid","id","code"]
               : spec.key==="datapin"
                 ? ["data_plan","dataplan","planid","plan_id","planId","item_code","id","code"]
-                : spec.key==="smile"
-                  ? ["BundleTypeCode","bundle_type_code","planid","plan_id","planId","id","code"]
-                  : ["plan_id","planid","planId","id","provider_id","providerId","code","product_id","productId"];
+                : ["plan_id","planid","planId","id","provider_id","providerId","code","product_id","productId"];
         const code=first(item,codeKeys);
         const label=spec.kind==="options"
           ? first(item,["provider_name","providerName","name","display_name","biller_name","provider","description"])
