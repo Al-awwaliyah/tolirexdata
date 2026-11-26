@@ -786,6 +786,7 @@ function BuyDataView(props: {
               })}
             </div>
           </div>
+          {props.network&&<>
           <div>
             <div className="mb-3"><h3 className="text-sm font-semibold text-slate-800">2. Choose duration</h3><p className="mt-1 text-xs text-slate-500">Browse Daily, Weekly, Monthly, Yearly and other bundles.</p></div>
             <div className="grid grid-cols-5 gap-1 rounded-xl bg-slate-100 p-1.5">
@@ -813,6 +814,7 @@ function BuyDataView(props: {
               })}
             </div>}
           </div>
+          </>}
           <p className="flex items-center gap-2 border-t border-slate-100 pt-4 text-[11px] text-slate-400"><ShieldCheck className="size-4"/> Live Topupmate bundles are displayed with the selling price configured by TolirexData.</p>
         </div>
       </section>
@@ -954,20 +956,20 @@ function AuthDialog({ open, onOpenChange, mode, setMode }: { open: boolean; onOp
 function providerLogoKey(name:string,code=""):string {
   const value=(name+" "+code).toLowerCase().replace(/[^a-z0-9]+/g," ");
   const entries:[RegExp,string][]=[
-    [/\\bmtn\\b/,"mtn"],[/airtel/,"airtel"],[/\\bglo\\b|globacom/,"glo"],[/9\\s*mobile|etisalat/,"9mobile"],
+    [/\bmtn\b/,"mtn"],[/airtel/,"airtel"],[/\bglo\b|globacom/,"glo"],[/9\s*mobile|etisalat/,"9mobile"],
     [/smile/,"smile"],[/alpha/,"alpha"],[/kirani/,"kirani"],[/ratel/,"ratel"],
     [/dstv/,"dstv"],[/gotv|go tv/,"gotv"],[/startime/,"startimes"],
     [/abuja|aedc/,"aedc"],[/benin|bedc/,"bedc"],[/enugu|eedc/,"eedc"],[/eko|ekedc/,"ekedc"],
     [/ibadan|ibedc/,"ibedc"],[/ikeja|ikedc/,"ikedc"],[/jos|jedc?/,"jed"],[/kaduna|kaedco|knedc/,"kaedco"],
-    [/kano|kedco/,"kedco"],[/port\\s*harcourt|phedc/,"phed"],[/yola|yedc/,"yedc"],
+    [/kano|kedco/,"kedco"],[/port\s*harcourt|phedc/,"phed"],[/yola|yedc/,"yedc"],
     [/waec/,"waec"],[/neco/,"neco"],[/jamb/,"jamb"],[/nabteb/,"nabteb"],
-    [/amazon/,"amazon"],[/apple|itunes/,"apple"],[/google\\s*play/,"google-play"],[/steam/,"steam"],[/playstation|psn/,"playstation"],[/xbox/,"xbox"],[/netflix/,"netflix"],[/spotify/,"spotify"]
+    [/amazon/,"amazon"],[/apple|itunes/,"apple"],[/google\s*play/,"google-play"],[/steam/,"steam"],[/playstation|psn/,"playstation"],[/xbox/,"xbox"],[/netflix/,"netflix"],[/spotify/,"spotify"]
   ];
   return entries.find(([pattern])=>pattern.test(value))?.[1]??"";
 }
 function ProviderChoice({name,code,selected,index,onClick}:{name:string;code:string;selected:boolean;index:number;onClick:()=>void}) {
   const tones=["bg-emerald-50 text-emerald-700","bg-blue-50 text-blue-700","bg-amber-50 text-amber-700","bg-violet-50 text-violet-700"];
-  const initials=name.trim().split(/\\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();
+  const initials=name.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();
   const logo=providerLogoKey(name,code);
   return <button type="button" aria-pressed={selected} onClick={onClick} className={`group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-2xl border bg-background p-2 text-center transition hover:border-primary/50 hover:bg-primary/[0.03] ${selected?"border-primary bg-primary/[0.06] ring-2 ring-primary/10":"border-border"}`}>
     <span className={`relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl text-sm font-extrabold ${tones[index%tones.length]}`}>
