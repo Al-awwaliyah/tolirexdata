@@ -16,14 +16,45 @@ const pick = (o:Obj, keys:string[]):unknown => {
 const numberOrZero=(v:unknown)=>Number.isFinite(Number(v))?Number(v):0;
 const num = (v:unknown) => { const n=Number(String(v??"").replace(/[₦,$,\s]/g,"")); return Number.isFinite(n) && n>0 ? n : null; };
 const networkCode = (value:unknown) => text(value);
-function rows(value:unknown): Obj[] {
-  if (Array.isArray(value)) return value.filter(x=>x && typeof x==="object" && !Array.isArray(x)) as Obj[];
-  if (!value || typeof value!=="object") return [];
+function rows(value:unknown, depth=0, seen=new Set<unknown>()): Obj[] {
+  if(depth>9||value===null||value===undefined)return [];
+  if(Array.isArray(value)){
+    return value.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)) as Obj[];
+  }
+  if(typeof value!=="object"||seen.has(value))return [];
+  seen.add(value);
   const o=value as Obj;
-  for (const k of ["response","data","results","services","plans","content","items","products","msg"]) {
-    const found=rows(o[k]); if(found.length) return found;
+  // Match IyanjuPay's Topupmate response envelopes, including provider lists
+  // nested under billers and operator-specific catalogue keys.
+  const keys=["response","data","results","services","billers","biller","providers","networks","operators",
+    "plans","content","items","products","packages","catalogue","catalog","variations","records","list","available","msg","result"];
+  for(const key of keys){
+    if(o[key]===undefined)continue;
+    const found=rows(o[key],depth+1,seen);
+    if(found.length)return found;
   }
   return [];
+}
+const networkId=(value:unknown):string=>{
+  const raw=text(value).toLowerCase().replace(/[^a-z0-9]/g,"");
+  if(["1","01","mtn"].includes(raw)||raw.includes("mtn"))return "1";
+  if(["2","02","airtel"].includes(raw)||raw.includes("airtel"))return "2";
+  if(["3","03","glo"].includes(raw)||raw.includes("glo")||raw.includes("globacom"))return "3";
+  if(["4","04","9mobile","etisalat"].includes(raw)||raw.includes("9mobile")||raw.includes("etisalat"))return "4";
+  return "";
+};
+function dataPlanMatchesNetwork(item:Obj,wanted:string):boolean{
+  const values=[
+    item.networkid,item.network_id,item.networkId,item.network_code,item.networkCode,
+    item.network,item.network_name,item.networkName,item.provider,item.provider_id,
+    item.provider_name,item.providerName,item.operator,item.operator_name,item.telco,
+    item.telco_name,item.plan_network,item.planNetwork,
+    (item.plan as Obj|undefined)?.networkid,(item.plan as Obj|undefined)?.network_id,
+    (item.plan as Obj|undefined)?.networkId,(item.plan as Obj|undefined)?.network,
+    (item.data as Obj|undefined)?.networkid,(item.data as Obj|undefined)?.network_id,
+    (item.data as Obj|undefined)?.networkId,(item.data as Obj|undefined)?.network
+  ];
+  return values.some(value=>networkId(value)===wanted);
 }
 // Use the exact catalogue keys and lookup sequence used by IyanjuPay.
 // Internet provider cards are handled by the service flow; Topupmate does not
