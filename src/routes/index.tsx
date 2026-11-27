@@ -561,7 +561,20 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     (giftCategory==="ALL"||item.product_category===giftCategory)&&
     (!giftSearch.trim()||item.name.toLowerCase().includes(giftSearch.trim().toLowerCase()))
   );
-  const selectedProducts=products.filter((item)=>!selectedOptionCode||!["cable","epin","data-pin","education"].includes(view)||!item.network_or_operator||item.network_or_operator===selectedOptionCode||({"1":"MTN","2":"Airtel","3":"Glo","4":"9mobile"}[String(item.network_or_operator)]===serviceOptions.find(o=>o.option_code===selectedOptionCode)?.name));
+  const selectedProvider=serviceOptions.find(option=>option.option_code===selectedOptionCode);
+  const providerScopedViews=["cable","epin","data-pin","education"].includes(view);
+  const selectedProducts=products.filter(item=>{
+    if(!providerScopedViews)return true;
+    if(!selectedOptionCode||!selectedProvider)return false;
+    const raw=String(item.network_or_operator??"").trim();
+    if(!raw)return false;
+    const normalize=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]/g,"");
+    if(raw===selectedOptionCode||normalize(raw)===normalize(selectedProvider.name))return true;
+    if(["epin","data-pin"].includes(view)){
+      return canonicalNetworkLabel(raw,raw)===canonicalNetworkLabel(selectedProvider.name,selectedOptionCode);
+    }
+    return false;
+  });
   const checkExpandedStatus=async()=>{
     if(!lastServiceReference)return;
     setServiceBusy(true);setServiceNotice("");
