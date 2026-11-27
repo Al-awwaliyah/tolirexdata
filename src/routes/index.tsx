@@ -562,7 +562,7 @@ function FeatureWorkspace({view,accountType,catalogue,catalogueOptions,busy,onAi
     (!giftSearch.trim()||item.name.toLowerCase().includes(giftSearch.trim().toLowerCase()))
   );
   const selectedProvider=serviceOptions.find(option=>option.option_code===selectedOptionCode);
-  const providerScopedViews=["cable","epin","data-pin","education"].includes(view);
+  const providerScopedViews=["cable","epin","data-pin","education","internet"].includes(view);
   const selectedProducts=products.filter(item=>{
     if(!providerScopedViews)return true;
     if(!selectedOptionCode||!selectedProvider)return false;
