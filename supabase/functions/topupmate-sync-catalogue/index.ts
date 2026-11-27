@@ -67,6 +67,7 @@ Deno.serve(async req => {
   if(runError||!run) return json({error:"Unable to start catalogue sync"},500);
   const results:Obj[]=[]; let products=0,options=0;
   for(const spec of services) {
+    const syncErrors:string[]=[];
     try {
       // Topupmate's /services/ catalogue is the source for biller/operator IDs.
       // The same cable catalogue can contain both provider rows and priced plans.
@@ -141,11 +142,11 @@ Deno.serve(async req => {
         if(!code||!label) continue;
         if(spec.kind==="options") {
           const {error}=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:spec.category,p_option_type:spec.optionType,p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:spec.key,supplier_discount:item.discount??item.discount_percent??item.discountPercentage??null}});
-          if(!error) options++;
+          if(!error) options++; else syncErrors.push("option "+code+": "+error.message);
           if(spec.key==="network") {
             for(const category of ["data","recharge_pin","data_pin"]) {
               const mirrored=await admin.rpc("sync_provider_service_option",{p_provider_code:"topupmate",p_category_code:category,p_option_type:"network",p_option_code:code,p_name:label,p_parent_option_code:null,p_metadata:{source_service:"network"}});
-              if(!mirrored.error) options++;
+              if(!mirrored.error) options++; else syncErrors.push("mirrored "+category+" network "+code+": "+mirrored.error.message);
             }
           }
         } else {
@@ -165,10 +166,10 @@ Deno.serve(async req => {
           const normalizedPlanType=rawPlanType.toLowerCase().replace(/[^a-z]/g,"");
           const planType=normalizedPlanType.includes("sme")?"sme":normalizedPlanType.includes("gift")?"gifting":normalizedPlanType.includes("corporate")?"corporate":null;
           const {error}=await admin.rpc("sync_provider_catalogue_product",{p_provider_code:"topupmate",p_category_code:spec.category,p_product_code:spec.key+":"+code,p_name:label,p_network_or_operator:network||null,p_description:validity||null,p_face_value:num(item.face_value??item.denomination),p_cost_price:cost,p_metadata:{source_service:spec.key,supplier_plan_id:code,plan_type:planType,topupmate_plan_type:rawPlanType||null,topupmate_network_id:first(item,["networkid","network_id","networkId","network_code","networkCode"])||null,topupmate_raw_network:first(item,["network","network_name","networkName","provider","provider_name","providerName"])||null}});
-          if(!error) products++;
+          if(!error) products++; else syncErrors.push("product "+code+": "+error.message);
         }
       }
-      results.push({service:spec.key,status:"success",records:list.length});
+      results.push({service:spec.key,status:syncErrors.length?"failed":"success",records:list.length,...(syncErrors.length?{errors:syncErrors}: {})});
     } catch(error) {
       const message=error instanceof Error?error.message:"Catalogue endpoint failed";
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload:{},fetch_status:"failed",error_summary:message},{onConflict:"provider_code,catalogue_key"});
