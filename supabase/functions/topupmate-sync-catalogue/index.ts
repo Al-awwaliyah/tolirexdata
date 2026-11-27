@@ -110,15 +110,35 @@ Deno.serve(async req => {
           : [serviceKey];
       let payload:unknown=null;
       let lastEndpointError:unknown=null;
-      for(const candidate of endpointCandidates){
-        try{
-          const candidatePayload=await fetchEndpoint("/services/?service="+encodeURIComponent(candidate));
-          if(payload===null)payload=candidatePayload;
-          if(rows(candidatePayload).length){
-            payload=candidatePayload;
-            break;
+      let list:Obj[]=[];
+      if(spec.key==="data"){
+        // IyanjuPay fetches Topupmate data plans per network, trying each
+        // supported query parameter. Do not use one unscoped data catalogue.
+        const combined=new Map<string,Obj>();
+        for(const network of ["1","2","3","4"]){
+          for(const parameter of ["network","networkid","network_id","provider","provider_id"]){
+            try{
+              const candidatePayload=await fetchEndpoint("/services/?service=data&"+encodeURIComponent(parameter)+"="+encodeURIComponent(network));
+              const matching=rows(candidatePayload).filter(item=>dataPlanMatchesNetwork(item,network));
+              for(const item of matching){
+                const planCode=first(item,["planid","plan_id","planId","data_plan","dataplan","id","code"]);
+                if(planCode)combined.set(network+":"+planCode,{...item,__tolirex_network_id:network});
+              }
+              if(matching.length)break;
+            }catch(error){lastEndpointError=error;}
           }
-        }catch(error){lastEndpointError=error;}
+        }
+        list=[...combined.values()];
+        if(list.length)payload={response:list,source:"network-scoped-data-catalogue"};
+      }else{
+        for(const candidate of endpointCandidates){
+          try{
+            const candidatePayload=await fetchEndpoint("/services/?service="+encodeURIComponent(candidate));
+            if(payload===null)payload=candidatePayload;
+            const candidateRows=rows(candidatePayload);
+            if(candidateRows.length){payload=candidatePayload;list=candidateRows;break;}
+          }catch(error){lastEndpointError=error;}
+        }
       }
       if(payload===null){
         // IyanjuPay tries the same aliases and leaves the PIN service empty when
@@ -131,7 +151,7 @@ Deno.serve(async req => {
         throw lastEndpointError instanceof Error?lastEndpointError:new Error("Topupmate catalogue endpoint returned no response");
       }
       await admin.from("provider_catalogue_snapshots").upsert({provider_code:"topupmate",catalogue_key:"services:"+spec.key,payload,fetch_status:"success",fetched_at:new Date().toISOString(),error_summary:null},{onConflict:"provider_code,catalogue_key"});
-      let list=rows(payload);
+      if(!list.length)list=rows(payload);
       // IyanjuPay also checks /status/ for live Cable TV and electricity
       // provider lists; some Topupmate accounts expose the operators there.
       if(spec.key==="cable-provider"||spec.key==="electricity"){
@@ -152,7 +172,7 @@ Deno.serve(async req => {
       }
       for(const item of list) {
         const codeKeys=spec.key==="cable-provider"||spec.key==="electricity"
-          ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","networkid","network_id","networkId","id","code"]
+          ? ["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","CableTVCode","cable_tv_code","cableTvCode","CableTVID","cable_tv_id","cableTvId","networkid","network_id","networkId","id","code"]
           : spec.key==="network"
             ? ["networkid","network_id","networkId","network","id","code","provider_id","providerId"]
             : spec.key==="cabletv"
@@ -168,7 +188,7 @@ Deno.serve(async req => {
                 : ["plan_id","planid","planId","id","provider_id","providerId","code","product_id","productId"];
         const code=first(item,codeKeys);
         const label=spec.kind==="options"
-          ? first(item,["provider_name","providerName","name","display_name","biller_name","provider","description"])
+          ? first(item,["provider_name","providerName","name","display_name","biller_name","billerName","CableTVName","cable_tv_name","cableTvName","CableTV","cable_tv","disco_name","discoName","disco","operator_name","operatorName","provider","description"])
           : first(item,["name","plan_name","planName","product_name","productName","package_name","packageName","provider","provider_name","description"]);
         if(!code||!label) continue;
         if(spec.kind==="options") {
@@ -183,7 +203,14 @@ Deno.serve(async req => {
         } else {
           const cost=num(item.price??item.amount??item.cost??item.provider_price??item.providerPrice??item.selling_price);
           if(!cost) continue;
-          let network=spec.category==="education"?first(item,["id","provider_id","providerId","provider","provider_name"]):networkCode(first(item,["networkid","network_id","networkId","network_code","networkCode","network","network_name","networkName","provider_id","provider","provider_name"]));
+          let network="";
+          if(spec.key==="cabletv"){
+            network=first(item,["provider_id","providerId","provider_code","providerCode","biller_code","billerCode","CableTVCode","cable_tv_code","cableTvCode","CableTVID","cable_tv_id","cableTvId","cable_code","cableCode","CableTV","cable_tv","provider","provider_name","providerName"]);
+          }else if(spec.category==="education"){
+            network=first(item,["provider_id","providerId","provider_code","providerCode","provider","provider_name","providerName","exam","exam_type","id"]);
+          }else{
+            network=networkCode(first(item,["__tolirex_network_id","networkid","network_id","networkId","network_code","networkCode","network","network_name","networkName","provider_id","provider","provider_name"]));
+          }
           if(network&&!/^\d+$/.test(network)){
             const optionType=spec.key==="cabletv"?"cable_provider":spec.category==="education"?"exam_provider":"network";
             const {data:matchedNetwork}=await admin.from("provider_service_options")
@@ -210,6 +237,49 @@ Deno.serve(async req => {
   // IyanjuPay's live service integration exposes these ISP choices directly.
   // Smile has a fixed bundle catalogue in that implementation; Alpha, Kirani
   // and Ratel are amount-based top-ups, so they are provider options, not plans.
+  // The IyanjuPay PIN flow uses the four fixed Topupmate network IDs.
+  // Register these selectors independently of PIN catalogue availability.
+  const pinNetworks=[{code:"1",name:"MTN"},{code:"2",name:"Airtel"},{code:"3",name:"Glo"},{code:"4",name:"9mobile"}];
+  for(const category of ["recharge_pin","data_pin"]){
+    for(const network of pinNetworks){
+      const {error}=await admin.rpc("sync_provider_service_option",{
+        p_provider_code:"topupmate",p_category_code:category,p_option_type:"network",
+        p_option_code:network.code,p_name:network.name,p_parent_option_code:null,
+        p_metadata:{source_service:"iyanjupay-mobile-networks",network_id:network.code}
+      });
+      if(!error)options++;
+      else results.push({service:category,status:"failed",error:"network "+network.code+": "+error.message});
+    }
+  }
+  // Supplier-confirmed Recharge PIN IDs and provider costs copied from the
+  // working IyanjuPay integration. The denomination is not the plan ID.
+  const rechargePins=[
+    {id:"1",network:"1",name:"MTN",value:100,cost:98},
+    {id:"2",network:"1",name:"MTN",value:200,cost:196},
+    {id:"3",network:"1",name:"MTN",value:500,cost:499.5},
+    {id:"11",network:"1",name:"MTN",value:1000,cost:980},
+    {id:"4",network:"2",name:"Airtel",value:100,cost:98},
+    {id:"5",network:"2",name:"Airtel",value:200,cost:196},
+    {id:"6",network:"2",name:"Airtel",value:500,cost:490},
+    {id:"12",network:"2",name:"Airtel",value:1000,cost:980},
+    {id:"7",network:"3",name:"Glo",value:100,cost:98},
+    {id:"8",network:"3",name:"Glo",value:200,cost:198},
+    {id:"9",network:"3",name:"Glo",value:500,cost:485},
+    {id:"13",network:"3",name:"Glo",value:1000,cost:970},
+    {id:"14",network:"4",name:"9mobile",value:100,cost:97.5},
+    {id:"15",network:"4",name:"9mobile",value:200,cost:195.5}
+  ];
+  for(const plan of rechargePins){
+    const {error}=await admin.rpc("sync_provider_catalogue_product",{
+      p_provider_code:"topupmate",p_category_code:"recharge_pin",
+      p_product_code:"rechargepin:"+plan.id,p_name:plan.name+" ₦"+plan.value,
+      p_network_or_operator:plan.network,p_description:"Recharge PIN",
+      p_face_value:plan.value,p_cost_price:plan.cost,
+      p_metadata:{source_service:"rechargepin",supplier_plan_id:plan.id,network_id:plan.network,network_name:plan.name,denomination:plan.value}
+    });
+    if(!error)products++;
+    else results.push({service:"recharge_pin",status:"failed",error:"plan "+plan.id+": "+error.message});
+  }
   const internetProviders=[
     {key:"smile",name:"Smile"},
     {key:"alpha",name:"Alpha Caller"},
